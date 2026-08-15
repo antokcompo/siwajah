@@ -1,0 +1,2540 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRD — Sistem Absensi & Penggajian Harian</title>
+<style>
+:root {
+  --navy: #1a2744;
+  --navy-light: #2d4a7a;
+  --accent: #2563eb;
+  --accent-light: #dbeafe;
+  --success: #059669;
+  --success-bg: #ecfdf5;
+  --warn: #d97706;
+  --warn-bg: #fffbeb;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-500: #6b7280;
+  --gray-700: #374151;
+  --gray-900: #111827;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  color: var(--gray-900);
+  background: var(--gray-50);
+  line-height: 1.7;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page-wrapper {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+/* ─── Cover ─── */
+.cover {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+  color: white;
+  padding: 3rem 2.5rem;
+  border-radius: 16px;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+.cover::after {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 200px; height: 200px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+}
+.cover h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  letter-spacing: -0.5px;
+}
+.cover .subtitle {
+  font-size: 1rem;
+  opacity: 0.7;
+  margin-bottom: 1.5rem;
+}
+.cover-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+.cover-meta-item {
+  background: rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+}
+.cover-meta-item .label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.6;
+}
+.cover-meta-item .value {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* ─── TOC ─── */
+.toc-box {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  padding: 1.75rem 2rem;
+  margin-bottom: 2.5rem;
+}
+.toc-box h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--gray-500);
+  margin-bottom: 1rem;
+}
+.toc-box ol {
+  list-style: none;
+  counter-reset: toc;
+  columns: 2;
+  column-gap: 2rem;
+}
+.toc-box li {
+  counter-increment: toc;
+  padding: 0.3rem 0;
+  font-size: 0.9rem;
+  break-inside: avoid;
+}
+.toc-box li::before {
+  content: counter(toc, decimal-leading-zero);
+  color: var(--accent);
+  font-weight: 600;
+  margin-right: 0.5rem;
+  font-size: 0.8rem;
+}
+.toc-box a {
+  color: var(--gray-700);
+  text-decoration: none;
+}
+.toc-box a:hover {
+  color: var(--accent);
+}
+
+/* ─── Content ─── */
+.content {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  padding: 2.5rem;
+}
+
+h1 { display: none; }
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 3rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent);
+  letter-spacing: -0.3px;
+}
+h2:first-of-type { margin-top: 0; }
+
+h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 2rem 0 0.75rem;
+}
+
+h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin: 1.5rem 0 0.5rem;
+}
+
+p { margin: 0.75rem 0; }
+
+/* ─── Tables ─── */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  overflow: hidden;
+}
+thead th {
+  background: var(--navy);
+  color: white;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+tbody td {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--gray-100);
+  vertical-align: top;
+}
+tbody tr:nth-child(even) { background: var(--gray-50); }
+tbody tr:hover { background: var(--accent-light); }
+
+/* Status badges in tables */
+td:has(code) code {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+
+/* ─── Code blocks ─── */
+pre {
+  background: var(--gray-900);
+  color: #e5e7eb;
+  padding: 1.25rem 1.5rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  margin: 1rem 0 1.5rem;
+}
+code {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  background: var(--gray-100);
+  padding: 2px 5px;
+  border-radius: 3px;
+  color: var(--accent);
+}
+pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* ─── Lists ─── */
+ul, ol {
+  margin: 0.5rem 0 1rem 1.5rem;
+}
+li { margin: 0.3rem 0; }
+
+/* ─── Emphasis styling ─── */
+strong { font-weight: 600; }
+
+/* ─── Blockquote / callout ─── */
+blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 0.75rem 1.25rem;
+  margin: 1rem 0;
+  background: var(--accent-light);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.9rem;
+}
+
+/* ─── HR ─── */
+hr {
+  border: none;
+  border-top: 1px solid var(--gray-200);
+  margin: 2.5rem 0;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 640px) {
+  .page-wrapper { padding: 1rem; }
+  .cover { padding: 2rem 1.5rem; }
+  .cover h1 { font-size: 1.5rem; }
+  .cover-meta { grid-template-columns: 1fr; }
+  .content { padding: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  table { font-size: 0.78rem; }
+  thead th, tbody td { padding: 0.4rem 0.5rem; }
+  .toc-box ol { columns: 1; }
+  pre { font-size: 0.72rem; padding: 1rem; }
+}
+
+@media print {
+  body { background: white; }
+  .page-wrapper { max-width: none; padding: 0; }
+  .cover { break-after: page; }
+  h2 { break-after: avoid; }
+  table { break-inside: avoid; }
+  .content { border: none; padding: 1rem; }
+}
+
+/* ─── Footer ─── */
+.doc-footer {
+  text-align: center;
+  padding: 2rem 0;
+  color: var(--gray-500);
+  font-size: 0.8rem;
+}
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+<div class="cover">
+  <h1>PRD — Sistem Absensi &amp; Penggajian Harian</h1>
+  <p class="subtitle">Product Requirements Document</p>
+  <div class="cover-meta">
+    <div class="cover-meta-item"><div class="label">Versi</div><div class="value">1.0</div></div>
+    <div class="cover-meta-item"><div class="label">Tanggal</div><div class="value">15 Agustus 2026</div></div>
+    <div class="cover-meta-item"><div class="label">Status</div><div class="value">Draft — menunggu validasi HR</div></div>
+    <div class="cover-meta-item"><div class="label">Industri</div><div class="value">Konstruksi / manajemen proyek</div></div>
+  </div>
+</div>
+
+<div class="toc-box">
+  <h3>Daftar isi</h3>
+  <ol>
+    <li><a href="#1-ringkasan-eksekutif">Ringkasan eksekutif</a></li>
+    <li><a href="#2-pernyataan-masalah">Pernyataan masalah</a></li>
+    <li><a href="#3-analisis-data-sumber">Analisis data sumber</a></li>
+    <li><a href="#4-pengguna--peran">Pengguna & peran</a></li>
+    <li><a href="#5-aturan-bisnis">Aturan bisnis</a></li>
+    <li><a href="#6-kebutuhan-fungsional">Kebutuhan fungsional</a></li>
+    <li><a href="#7-kebutuhan-non-fungsional">Kebutuhan non-fungsional</a></li>
+    <li><a href="#8-arsitektur--teknologi">Arsitektur & teknologi</a></li>
+    <li><a href="#9-desain-database">Desain database</a></li>
+    <li><a href="#10-antarmuka-pengguna">Antarmuka pengguna</a></li>
+    <li><a href="#11-keamanan">Keamanan</a></li>
+    <li><a href="#12-integrasi">Integrasi</a></li>
+    <li><a href="#13-peta-jalan-implementasi">Peta jalan implementasi</a></li>
+    <li><a href="#14-kriteria-keberhasilan">Kriteria keberhasilan</a></li>
+    <li><a href="#15-risiko--mitigasi">Risiko & mitigasi</a></li>
+    <li><a href="#16-glosarium">Glosarium</a></li>
+    <li><a href="#17-lampiran-temuan-data-juni-2026">Lampiran: temuan data Juni 2026</a></li>
+  </ol>
+</div>
+
+<div class="content">
+<h2 id="product-requirements-document">Product Requirements Document</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Versi</strong></td>
+<td>1.0</td>
+</tr>
+<tr>
+<td><strong>Tanggal</strong></td>
+<td>15 Agustus 2026</td>
+</tr>
+<tr>
+<td><strong>Status</strong></td>
+<td>Draft — menunggu validasi kebijakan HR</td>
+</tr>
+<tr>
+<td><strong>Pemilik produk</strong></td>
+<td>[Nama pemilik — isi manual]</td>
+</tr>
+<tr>
+<td><strong>Konteks industri</strong></td>
+<td>Konstruksi / manajemen proyek</td>
+</tr>
+<tr>
+<td><strong>Lokasi operasi</strong></td>
+<td>Indonesia</td>
+</tr>
+</tbody>
+</table>
+<hr />
+
+<hr />
+<h2 id="1-ringkasan-eksekutif">1. Ringkasan Eksekutif</h2>
+<h3 id="apa-yang-dibangun">Apa yang dibangun</h3>
+<p>Aplikasi web untuk menghitung kehadiran harian dan penggajian karyawan konstruksi, menggantikan proses manual yang sepenuhnya bergantung pada file ekspor mesin absen tanpa kontrol kualitas.</p>
+<h3 id="mengapa-dibutuhkan">Mengapa dibutuhkan</h3>
+<p>Analisis terhadap data mesin absen bulan Juni 2026 menunjukkan:</p>
+<ul>
+<li><strong>23% data hari-orang tidak bisa dihitung otomatis</strong> karena scan tidak lengkap</li>
+<li><strong>7 hari berturut-turut (14–20 Juni)</strong> mengalami kegagalan mesin tanpa terdeteksi</li>
+<li><strong>Estimasi 553 hari-orang tidak terekam</strong> dengan benar dalam satu bulan</li>
+<li><strong>Tidak ada audit trail</strong> — siapa pun bisa mengubah rekap absensi tanpa jejak</li>
+<li><strong>Tidak ada deteksi anomali</strong> — kegagalan mesin baru diketahui 3+ minggu kemudian</li>
+</ul>
+<p>Tanpa sistem, setiap bulan penggajian menghadapi risiko: membayar kurang (sengketa ketenagakerjaan) atau membayar lebih (kerugian operasional), keduanya tanpa bukti yang bisa diaudit.</p>
+<h3 id="ruang-lingkup">Ruang lingkup</h3>
+<table>
+<thead>
+<tr>
+<th>Masuk MVP</th>
+<th>Tidak masuk MVP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Import data mesin absen</td>
+<td>Aplikasi mobile karyawan</td>
+</tr>
+<tr>
+<td>Perhitungan kehadiran otomatis</td>
+<td>Integrasi langsung ke mesin absen</td>
+</tr>
+<tr>
+<td>Deteksi anomali massal</td>
+<td>Multi-lokasi / multi-proyek</td>
+</tr>
+<tr>
+<td>Koreksi manual + audit trail</td>
+<td>Slip gaji cetak</td>
+</tr>
+<tr>
+<td>Approval lembur</td>
+<td>Perhitungan PPh 21</td>
+</tr>
+<tr>
+<td>Perhitungan rupiah gaji &amp; lembur</td>
+<td>BPJS / potongan otomatis</td>
+</tr>
+<tr>
+<td>Rekap bulanan + ekspor Excel</td>
+<td>Cuti/izin/sakit (modul terpisah)</td>
+</tr>
+<tr>
+<td>Tutup periode + kunci data</td>
+<td>Dashboard analitik lanjutan</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-pernyataan-masalah">2. Pernyataan Masalah</h2>
+<h3 id="kondisi-saat-ini-as-is">Kondisi saat ini (As-Is)</h3>
+<pre><code>Mesin absen ──ekspor file──&gt; Excel ──hitung manual──&gt; Rekap gaji
+     │                          │                         │
+     │ Tidak ada               │ Bisa diubah            │ Tidak ada
+     │ deteksi gagal           │ siapa saja             │ audit trail
+     │                          │                         │
+     ▼                          ▼                         ▼
+  Kegagalan mesin         Data dimanipulasi          Sengketa gaji
+  tidak terdeteksi        tanpa jejak                tidak bisa
+  berminggu-minggu                                   diselesaikan
+</code></pre>
+<h3 id="kondisi-yang-diinginkan-to-be">Kondisi yang diinginkan (To-Be)</h3>
+<pre><code>Mesin absen ──upload file──&gt; SISTEM ──aturan otomatis──&gt; Draft rekap
+                                │                            │
+                          Deteksi anomali              Status per hari:
+                          &amp; peringatan                 LENGKAP / KOREKSI
+                                │                            │
+                                ▼                            ▼
+                          Koreksi oleh                 Approval atasan
+                          atasan + alasan              + tutup periode
+                                │                            │
+                                ▼                            ▼
+                          Audit trail                  Rekap gaji final
+                          lengkap                      + ekspor Excel
+</code></pre>
+<h3 id="masalah-inti-yang-diselesaikan">Masalah inti yang diselesaikan</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Masalah</th>
+<th>Dampak tanpa sistem</th>
+<th>Solusi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M1</td>
+<td>Kegagalan mesin tidak terdeteksi</td>
+<td>553 hari-orang hilang per bulan</td>
+<td>Deteksi anomali massal otomatis per tanggal</td>
+</tr>
+<tr>
+<td>M2</td>
+<td>Data scan tidak selalu berpasangan</td>
+<td>23% gagal dihitung otomatis</td>
+<td>Sistem status + koreksi manual terstruktur</td>
+</tr>
+<tr>
+<td>M3</td>
+<td>Tidak ada audit trail</td>
+<td>Sengketa gaji tidak bisa diselesaikan</td>
+<td>Log setiap perubahan: siapa, kapan, alasan</td>
+</tr>
+<tr>
+<td>M4</td>
+<td>Perhitungan manual rawan salah</td>
+<td>Kelebihan/kekurangan bayar</td>
+<td>Mesin aturan otomatis + verifikasi</td>
+</tr>
+<tr>
+<td>M5</td>
+<td>Tidak ada kontrol akses data gaji</td>
+<td>Semua orang bisa tahu gaji siapa saja</td>
+<td>Role-based access + RLS</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-analisis-data-sumber">3. Analisis Data Sumber</h2>
+<h3 id="profil-file-mesin-absen">Profil file mesin absen</h3>
+<p>Data berikut adalah <strong>fakta</strong> dari file <code>jun1.xlsx</code> (ekspor mesin absen Juni 2026):</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Nilai</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total baris scan</td>
+<td>4.602</td>
+</tr>
+<tr>
+<td>Jumlah UID unik</td>
+<td>121</td>
+</tr>
+<tr>
+<td>Rentang tanggal</td>
+<td>1–30 Juni 2026</td>
+</tr>
+<tr>
+<td>Tanggal ada data</td>
+<td>28 dari 30 hari</td>
+</tr>
+<tr>
+<td>Tanggal tanpa data</td>
+<td>16 Juni (Selasa), 21 Juni (Minggu)</td>
+</tr>
+<tr>
+<td>Karyawan aktif (hadir ≥10 hari)</td>
+<td>88</td>
+</tr>
+<tr>
+<td>UID hadir &lt;10 hari</td>
+<td>33 (perlu identifikasi: karyawan baru, keluar, atau salah enroll)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="struktur-kolom-file">Struktur kolom file</h3>
+<table>
+<thead>
+<tr>
+<th>Kolom</th>
+<th>Isi</th>
+<th>Kegunaan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UID</td>
+<td>ID pekerja dari mesin</td>
+<td>Identifier utama — WAJIB dipetakan ke master karyawan</td>
+</tr>
+<tr>
+<td>Kolom B (timestamp)</td>
+<td>Tanggal + jam scan</td>
+<td>Data utama perhitungan</td>
+</tr>
+<tr>
+<td>Kolom C (nilai 0/1/255)</td>
+<td>Tidak konsisten — tidak bisa dipakai sebagai penanda masuk/pulang</td>
+<td>DIABAIKAN oleh sistem</td>
+</tr>
+<tr>
+<td>Kolom D (selalu 15)</td>
+<td>Tidak diketahui fungsinya</td>
+<td>DIABAIKAN</td>
+</tr>
+<tr>
+<td>Kolom E (selalu 0)</td>
+<td>Tidak diketahui fungsinya</td>
+<td>DIABAIKAN</td>
+</tr>
+</tbody>
+</table>
+<h3 id="masalah-kolom-c-temuan-kritis">Masalah kolom C (temuan kritis)</h3>
+<p>Kolom C berisi nilai 0, 1, dan 255. Hipotesis awal: "0 = masuk, 1 = pulang". Analisis menunjukkan ini <strong>salah</strong>:</p>
+<ul>
+<li>Nilai <code>0</code> muncul <strong>1.387 kali</strong> di jam 07 (masuk) <strong>DAN 1.020 kali</strong> di jam 16 (pulang)</li>
+<li>Nilai <code>1</code> hanya muncul jam 16 ke atas (382 total)</li>
+<li>Nilai <code>255</code> tersebar di semua jam (516 total)</li>
+</ul>
+<p><strong>Kesimpulan:</strong> kolom ini bukan penanda in/out yang bisa diandalkan. Penentuan masuk/pulang <strong>harus</strong> berbasis jam scan, bukan kolom ini.</p>
+<h3 id="pola-scan-per-hari-per-karyawan">Pola scan per hari per karyawan</h3>
+<table>
+<thead>
+<tr>
+<th>Jumlah scan/hari</th>
+<th>Kejadian</th>
+<th>Penjelasan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 scan</td>
+<td>365</td>
+<td>Hanya masuk ATAU hanya pulang</td>
+</tr>
+<tr>
+<td>2 scan</td>
+<td>824</td>
+<td>Masuk + pulang (normal tanpa istirahat) ATAU masuk + istirahat</td>
+</tr>
+<tr>
+<td>3 scan</td>
+<td>768</td>
+<td>Masuk + istirahat + pulang (pola dominan)</td>
+</tr>
+<tr>
+<td>4 scan</td>
+<td>65</td>
+<td>Tap ganda atau masuk + istirahat + pulang + lembur</td>
+</tr>
+<tr>
+<td>5 scan</td>
+<td>5</td>
+<td>Tap ganda + lembur</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tap-ganda-duplikat">Tap ganda (duplikat)</h3>
+<ul>
+<li>31 scan terjadi dalam interval &lt; 2 menit dari scan sebelumnya pada UID dan tanggal yang sama</li>
+<li>44 scan dalam interval &lt; 5 menit</li>
+<li><strong>Perlakuan:</strong> deduplikasi dengan jendela 3 menit</li>
+</ul>
+<h3 id="pola-karyawan-khusus">Pola karyawan khusus</h3>
+<p><strong>UID "SAIFUL":</strong> Tercatat sebagai teks, bukan angka (33 scan). Mesin mengirim nama, bukan ID numerik. Perlu dipetakan manual ke UID yang benar.</p>
+<p><strong>UID "23":</strong> Selama 21 hari <strong>hanya scan 1 kali per hari</strong>, selalu sekitar pukul 18:00. Pola terlalu konsisten untuk kelalaian — kemungkinan shift berbeda (jaga malam) atau mesin absen terpisah untuk scan masuk.</p>
+<h3 id="temuan-anomali-massal-1420-juni">Temuan anomali massal (14–20 Juni)</h3>
+<p>Detail lengkap ada di Lampiran. Ringkasan:</p>
+<table>
+<thead>
+<tr>
+<th>Tanggal</th>
+<th>Scan</th>
+<th>Diagnosis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>14 Jun (Min)</td>
+<td>85</td>
+<td>70 orang masuk, hanya 13 pulang — mesin mati sore</td>
+</tr>
+<tr>
+<td>15 Jun (Sen)</td>
+<td>26</td>
+<td>Mesin berhenti total pukul ±08:00</td>
+</tr>
+<tr>
+<td>16 Jun (Sel)</td>
+<td>0</td>
+<td>Mesin mati total sepanjang hari</td>
+</tr>
+<tr>
+<td>17 Jun (Rab)</td>
+<td>99</td>
+<td>77 orang masuk, mati siang–sore</td>
+</tr>
+<tr>
+<td>18 Jun (Kam)</td>
+<td>23</td>
+<td>Mati sejak pagi, hidup sebentar siang</td>
+</tr>
+<tr>
+<td>19 Jun (Jum)</td>
+<td>66</td>
+<td>Mati pagi, hidup siang–sore</td>
+</tr>
+<tr>
+<td>20 Jun (Sab)</td>
+<td>30</td>
+<td>Hidup ±1 jam saja</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Tanggal 30 Juni:</strong> bukan kerusakan — data terpotong karena ekspor dilakukan pukul 14:42 (sebelum karyawan pulang). Perlu ekspor ulang.</p>
+<hr />
+<h2 id="4-pengguna-amp-peran">4. Pengguna &amp; Peran</h2>
+<h3 id="definisi-peran">Definisi peran</h3>
+<table>
+<thead>
+<tr>
+<th>Peran</th>
+<th>Deskripsi</th>
+<th>Jumlah perkiraan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Admin</strong></td>
+<td>Konfigurasi sistem, kelola master data, tutup periode</td>
+<td>1–2 orang</td>
+</tr>
+<tr>
+<td><strong>Atasan / Mandor</strong></td>
+<td>Koreksi absensi, approval lembur</td>
+<td>3–5 orang</td>
+</tr>
+<tr>
+<td><strong>HRD / Payroll</strong></td>
+<td>Verifikasi rekap, hitung gaji, ekspor laporan</td>
+<td>1–2 orang</td>
+</tr>
+<tr>
+<td><strong>Manajemen</strong></td>
+<td>Lihat dashboard dan laporan (read-only)</td>
+<td>1–3 orang</td>
+</tr>
+</tbody>
+</table>
+<p>Karyawan lapangan <strong>tidak</strong> mengakses sistem ini. Mereka hanya berinteraksi dengan mesin absen fisik.</p>
+<h3 id="matriks-hak-akses">Matriks hak akses</h3>
+<table>
+<thead>
+<tr>
+<th>Fitur</th>
+<th>Admin</th>
+<th>Atasan</th>
+<th>HRD</th>
+<th>Manajemen</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kelola master karyawan</td>
+<td>✅ Buat/Ubah/Nonaktifkan</td>
+<td>❌</td>
+<td>👁️ Lihat</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Kelola konfigurasi jam kerja</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Upload file absensi</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Lihat rekap harian</td>
+<td>✅</td>
+<td>✅ (timnya)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Koreksi absensi</td>
+<td>✅</td>
+<td>✅ (timnya)</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Approval lembur</td>
+<td>✅</td>
+<td>✅ (timnya)</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Lihat/edit tarif gaji</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Hitung rupiah gaji</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Tutup periode</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>Ekspor rekap Excel</td>
+<td>✅</td>
+<td>✅ (timnya)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Lihat dashboard</td>
+<td>✅</td>
+<td>✅ (timnya)</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Lihat audit log</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Kelola pengguna sistem</td>
+<td>✅</td>
+<td>❌</td>
+<td>❌</td>
+<td>❌</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-aturan-bisnis">5. Aturan Bisnis</h2>
+<h3 id="51-jendela-waktu">5.1 Jendela waktu</h3>
+<p>Semua parameter berikut disimpan di <strong>tabel konfigurasi</strong> dan dapat diubah oleh Admin tanpa mengubah kode.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Nilai default</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Jendela absen MASUK</td>
+<td>04:00 – 10:59</td>
+<td>Scan paling awal dalam jendela ini = jam masuk</td>
+</tr>
+<tr>
+<td>Jendela ISTIRAHAT</td>
+<td>11:00 – 14:29</td>
+<td>Scan di jendela ini <strong>diabaikan</strong> dari perhitungan pulang</td>
+</tr>
+<tr>
+<td>Jendela absen PULANG</td>
+<td>≥ 14:30</td>
+<td>Scan paling akhir setelah jam ini = jam pulang</td>
+</tr>
+<tr>
+<td>Deduplikasi</td>
+<td>3 menit</td>
+<td>Scan dalam interval &lt;3 menit dari scan sebelumnya (UID + tanggal yang sama) dianggap tap ganda dan diabaikan</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52-status-kehadiran-harian">5.2 Status kehadiran harian</h3>
+<p>Setiap pasangan (karyawan × tanggal) menghasilkan tepat satu status:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Kondisi</th>
+<th>Perlakuan otomatis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LENGKAP</code></td>
+<td>Ada scan masuk DAN ada scan pulang</td>
+<td>Dihitung 1 hari kerja</td>
+</tr>
+<tr>
+<td><code>TANPA_PULANG</code></td>
+<td>Ada scan masuk, TIDAK ada scan pulang</td>
+<td><strong>Ditahan</strong> — menunggu koreksi</td>
+</tr>
+<tr>
+<td><code>TANPA_MASUK</code></td>
+<td>TIDAK ada scan masuk, ada scan pulang</td>
+<td><strong>Ditahan</strong> — menunggu koreksi</td>
+</tr>
+<tr>
+<td><code>HANYA_SCAN_TENGAH</code></td>
+<td>Hanya ada scan di jendela istirahat</td>
+<td><strong>Ditahan</strong> — menunggu koreksi</td>
+</tr>
+<tr>
+<td><code>TIDAK_ADA_SCAN</code></td>
+<td>Tidak ada scan sama sekali</td>
+<td>Alpa, kecuali ada cuti/izin/sakit</td>
+</tr>
+<tr>
+<td><code>INSIDEN</code></td>
+<td>Tanggal ditandai anomali massal</td>
+<td>Perlakuan Jalur B (lihat 5.4)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Catatan:</strong> hanya status <code>LENGKAP</code> yang otomatis masuk perhitungan gaji. Semua status lain memerlukan tindakan manusia.</p>
+<h3 id="53-jalur-a-koreksi-anomali-individual">5.3 Jalur A — Koreksi anomali individual</h3>
+<p>Dipicu ketika: status bukan <code>LENGKAP</code> DAN tanggal <strong>bukan</strong> <code>INSIDEN</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Aturan</th>
+<th>Ketentuan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Siapa yang mengoreksi</td>
+<td>Atasan langsung karyawan tersebut</td>
+</tr>
+<tr>
+<td>Data wajib diisi</td>
+<td>Jam masuk/pulang koreksi + alasan tertulis</td>
+</tr>
+<tr>
+<td>Default jam masuk (jika hilang)</td>
+<td>Jam kerja normal dari konfigurasi</td>
+</tr>
+<tr>
+<td>Default jam pulang (jika hilang)</td>
+<td>Jam kerja normal dari konfigurasi</td>
+</tr>
+<tr>
+<td>Kuota koreksi per karyawan per bulan</td>
+<td>Maksimal 3 kali</td>
+</tr>
+<tr>
+<td>Melebihi kuota</td>
+<td>Wajib persetujuan HRD atau Admin</td>
+</tr>
+<tr>
+<td>Dicatat di audit log</td>
+<td>Ya — siapa, kapan, nilai lama, nilai baru, alasan</td>
+</tr>
+</tbody>
+</table>
+<h3 id="54-jalur-b-koreksi-anomali-massal-insiden-mesin">5.4 Jalur B — Koreksi anomali massal (insiden mesin)</h3>
+<p>Dipicu otomatis ketika: <strong>jumlah karyawan dengan status <code>LENGKAP</code> pada suatu tanggal</strong> turun di bawah <strong>50%</strong> dari rata-rata 7 hari kerja sebelumnya.</p>
+<table>
+<thead>
+<tr>
+<th>Langkah</th>
+<th>Ketentuan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Deteksi</td>
+<td>Otomatis saat file diproses</td>
+</tr>
+<tr>
+<td>Notifikasi</td>
+<td>Sistem mengirim peringatan ke Admin dan HRD</td>
+</tr>
+<tr>
+<td>Prinsip dasar</td>
+<td>Karyawan tidak dirugikan atas kegagalan alat perusahaan</td>
+</tr>
+<tr>
+<td>Ada bukti parsial (scan masuk ATAU pulang)</td>
+<td>Dianggap hadir penuh (1 hari)</td>
+</tr>
+<tr>
+<td>Tidak ada bukti sama sekali</td>
+<td>Verifikasi dari sumber sekunder (catatan mandor, dll.)</td>
+</tr>
+<tr>
+<td>Sumber sekunder tidak ada</td>
+<td>Keputusan manajemen — per tanggal, bukan per orang</td>
+</tr>
+<tr>
+<td>Lembur pada tanggal insiden</td>
+<td>Wajib verifikasi manual (tidak otomatis)</td>
+</tr>
+<tr>
+<td>Semua keputusan tercatat</td>
+<td>Ya — siapa, kapan, dasar keputusan</td>
+</tr>
+</tbody>
+</table>
+<h3 id="55-perhitungan-lembur">5.5 Perhitungan lembur</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Ketentuan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ambang minimum</td>
+<td>Jam pulang ≥ 18:30</td>
+</tr>
+<tr>
+<td>Mulai hitung</td>
+<td>Pukul 19:00</td>
+</tr>
+<tr>
+<td>Rumus durasi</td>
+<td>Jam pulang − 19:00</td>
+</tr>
+<tr>
+<td>Pembulatan</td>
+<td>Ke bawah, kelipatan 15 menit (konfigurabel)</td>
+</tr>
+<tr>
+<td>Maksimum per hari</td>
+<td>4 jam (konfigurabel) — lebih dari ini wajib alasan</td>
+</tr>
+<tr>
+<td>Wajib approval</td>
+<td>Ya — oleh atasan langsung</td>
+</tr>
+<tr>
+<td>Status sebelum approval</td>
+<td><code>PENDING_APPROVAL</code> — belum masuk perhitungan gaji</td>
+</tr>
+<tr>
+<td>Status setelah approval</td>
+<td><code>APPROVED</code> — masuk perhitungan gaji</td>
+</tr>
+<tr>
+<td>Status ditolak</td>
+<td><code>REJECTED</code> — tidak masuk perhitungan</td>
+</tr>
+</tbody>
+</table>
+<h3 id="56-perhitungan-rupiah">5.6 Perhitungan rupiah</h3>
+<p><strong>Catatan penting:</strong> aturan di bawah ini adalah struktur awal. Tarif, komponen, dan rumus wajib diverifikasi ke HR/konsultan ketenagakerjaan sebelum dipakai untuk pembayaran aktual.</p>
+<table>
+<thead>
+<tr>
+<th>Komponen</th>
+<th>Rumus</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gaji pokok harian</td>
+<td>Total gaji bulanan ÷ jumlah hari kerja per bulan</td>
+</tr>
+<tr>
+<td>Upah lembur per jam</td>
+<td>(Gaji bulanan ÷ 173) — sesuai PP 35/2021, wajib diverifikasi</td>
+</tr>
+<tr>
+<td>Lembur jam pertama</td>
+<td>Upah lembur per jam × 1,5</td>
+</tr>
+<tr>
+<td>Lembur jam ke-2 dst.</td>
+<td>Upah lembur per jam × 2,0</td>
+</tr>
+<tr>
+<td>Total lembur per hari</td>
+<td>(Jam-1 × 1,5 + Jam-sisa × 2,0) × upah lembur per jam</td>
+</tr>
+<tr>
+<td>Total gaji bulan</td>
+<td>(Hari kerja × gaji harian) + total lembur bulan</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Yang BELUM termasuk dan perlu diputuskan:</strong></p>
+<ul>
+<li>Tunjangan tetap dan tidak tetap</li>
+<li>Potongan BPJS Ketenagakerjaan dan Kesehatan</li>
+<li>Potongan kasbon / pinjaman karyawan</li>
+<li>PPh 21</li>
+<li>Perbedaan tarif lembur hari biasa vs hari libur</li>
+<li>Upah hari libur nasional yang jatuh pada hari kerja</li>
+</ul>
+<h3 id="57-tutup-periode">5.7 Tutup periode</h3>
+<table>
+<thead>
+<tr>
+<th>Aturan</th>
+<th>Ketentuan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Siapa yang boleh</td>
+<td>Admin atau HRD</td>
+</tr>
+<tr>
+<td>Prasyarat</td>
+<td>Semua hari-orang berstatus <code>LENGKAP</code> atau sudah dikoreksi</td>
+</tr>
+<tr>
+<td>Prasyarat lembur</td>
+<td>Semua lembur berstatus <code>APPROVED</code> atau <code>REJECTED</code></td>
+</tr>
+<tr>
+<td>Efek</td>
+<td>Semua data bulan tersebut dikunci — tidak bisa diubah</td>
+</tr>
+<tr>
+<td>Pembukaan kunci</td>
+<td>Hanya Admin, wajib PIN + alasan, tercatat di audit log</td>
+</tr>
+<tr>
+<td>Rollback</td>
+<td>Tidak ada — pembukaan kunci membuat periode bisa diedit, lalu ditutup lagi</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-kebutuhan-fungsional">6. Kebutuhan Fungsional</h2>
+<h3 id="f01-master-karyawan">F01 — Master karyawan</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F01.1</td>
+<td>Tambah, ubah, dan nonaktifkan data karyawan</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F01.2</td>
+<td>Menyimpan: UID mesin, nama, jabatan, tanggal masuk, tanggal keluar, status aktif/nonaktif</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F01.3</td>
+<td>Menyimpan tarif: gaji bulanan, tunjangan, komponen gaji lain</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F01.4</td>
+<td>Mapping UID mesin ke karyawan (satu karyawan bisa punya &gt;1 UID jika diganti kartu)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F01.5</td>
+<td>Riwayat perubahan tarif (effective date)</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F01.6</td>
+<td>Karyawan nonaktif tidak muncul di rekap bulan berjalan</td>
+<td>P0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="f02-import-data-mesin-absen">F02 — Import data mesin absen</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F02.1</td>
+<td>Upload file Excel (.xlsx) dari mesin absen</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F02.2</td>
+<td>Validasi format file: kolom yang diharapkan, tipe data</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F02.3</td>
+<td>Pencegahan double import: tolak jika data tanggal yang sama sudah pernah diimpor</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F02.4</td>
+<td>Preview sebelum commit: tampilkan ringkasan (jumlah baris, rentang tanggal, UID tidak dikenal)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F02.5</td>
+<td>Data mentah disimpan apa adanya (immutable) — tidak pernah diubah setelah import</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F02.6</td>
+<td>Deteksi UID yang tidak ada di master karyawan</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F02.7</td>
+<td>Log import: siapa, kapan, nama file, jumlah baris, status</td>
+<td>P0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="f03-mesin-perhitungan-kehadiran">F03 — Mesin perhitungan kehadiran</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F03.1</td>
+<td>Deduplikasi scan (jendela konfigurabel, default 3 menit)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F03.2</td>
+<td>Klasifikasi scan ke jendela: MASUK, ISTIRAHAT, PULANG</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F03.3</td>
+<td>Penetapan status per hari per karyawan sesuai aturan 5.2</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F03.4</td>
+<td>Deteksi anomali massal per tanggal sesuai aturan 5.4</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F03.5</td>
+<td>Perhitungan jam lembur sesuai aturan 5.5</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F03.6</td>
+<td>Seluruh logika berjalan di server (Supabase RPC), bukan di frontend</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F03.7</td>
+<td>Parameter jendela dan ambang diambil dari tabel konfigurasi</td>
+<td>P0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="f04-koreksi-kehadiran">F04 — Koreksi kehadiran</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F04.1</td>
+<td>Daftar hari-orang yang perlu koreksi, dikelompokkan per tanggal</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F04.2</td>
+<td>Form koreksi: jam masuk, jam pulang, alasan (wajib)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F04.3</td>
+<td>Validasi kuota koreksi per karyawan per bulan</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F04.4</td>
+<td>Koreksi massal untuk tanggal insiden (Jalur B)</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F04.5</td>
+<td>Status koreksi: PENDING, APPROVED, REJECTED</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F04.6</td>
+<td>Audit trail setiap koreksi</td>
+<td>P0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="f05-approval-lembur">F05 — Approval lembur</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F05.1</td>
+<td>Daftar lembur pending approval</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F05.2</td>
+<td>Approve/reject per orang per hari</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F05.3</td>
+<td>Approve/reject massal per tanggal</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F05.4</td>
+<td>Catatan/alasan saat reject (wajib)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F05.5</td>
+<td>Lembur yang belum di-approve tidak masuk perhitungan gaji</td>
+<td>P0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="f06-perhitungan-gaji">F06 — Perhitungan gaji</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F06.1</td>
+<td>Hitung gaji pokok berdasarkan jumlah hari kerja × tarif harian</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F06.2</td>
+<td>Hitung lembur berdasarkan jam yang di-approve × tarif lembur</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F06.3</td>
+<td>Total gaji = pokok + lembur + tunjangan − potongan</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F06.4</td>
+<td>Simulasi gaji sebelum tutup periode (draft, bisa berubah)</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F06.5</td>
+<td>Rekap gaji final setelah tutup periode</td>
+<td>P0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="f07-tutup-periode">F07 — Tutup periode</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F07.1</td>
+<td>Validasi prasyarat sebelum tutup (semua status resolved)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F07.2</td>
+<td>Kunci seluruh data bulan tersebut</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F07.3</td>
+<td>Pembukaan kunci darurat (Admin + PIN + alasan)</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F07.4</td>
+<td>Riwayat tutup/buka periode</td>
+<td>P0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="f08-laporan-amp-ekspor">F08 — Laporan &amp; ekspor</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F08.1</td>
+<td>Rekap bulanan per karyawan (hari kerja, jam lembur, gaji)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F08.2</td>
+<td>Rekap per tanggal (jumlah hadir, anomali, lembur)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F08.3</td>
+<td>Ekspor ke Excel (.xlsx)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F08.4</td>
+<td>Daftar anomali yang belum dikoreksi</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F08.5</td>
+<td>Laporan audit trail</td>
+<td>P1</td>
+</tr>
+</tbody>
+</table>
+<h3 id="f09-kalender-kerja">F09 — Kalender kerja</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F09.1</td>
+<td>Definisi hari kerja per bulan (Senin–Sabtu default)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F09.2</td>
+<td>Tandai hari libur nasional</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F09.3</td>
+<td>Tandai hari libur perusahaan</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F09.4</td>
+<td>Jumlah hari kerja per bulan dihitung otomatis dari kalender</td>
+<td>P0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="f10-konfigurasi">F10 — Konfigurasi</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Kebutuhan</th>
+<th>Prioritas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F10.1</td>
+<td>Parameter jendela waktu (masuk, istirahat, pulang)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F10.2</td>
+<td>Parameter lembur (ambang, mulai hitung, pembulatan, maks)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F10.3</td>
+<td>Ambang deteksi anomali massal (persentase)</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F10.4</td>
+<td>Kuota koreksi per karyawan per bulan</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>F10.5</td>
+<td>Tarif dasar lembur (pembagi 173, pengali 1.5/2.0)</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>F10.6</td>
+<td>Riwayat perubahan konfigurasi</td>
+<td>P1</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-kebutuhan-non-fungsional">7. Kebutuhan Non-Fungsional</h2>
+<h3 id="performa">Performa</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Target</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Waktu import 5.000 baris</td>
+<td>&lt; 10 detik</td>
+</tr>
+<tr>
+<td>Waktu hitung rekap bulanan 100 karyawan</td>
+<td>&lt; 5 detik</td>
+</tr>
+<tr>
+<td>Waktu buka halaman dashboard</td>
+<td>&lt; 2 detik</td>
+</tr>
+<tr>
+<td>Waktu ekspor Excel 100 karyawan × 30 hari</td>
+<td>&lt; 15 detik</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ketersediaan">Ketersediaan</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Target</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Uptime</td>
+<td>99% (downtime maks ±7 jam/bulan)</td>
+</tr>
+<tr>
+<td>Backup database</td>
+<td>Otomatis harian oleh Supabase</td>
+</tr>
+<tr>
+<td>Recovery point objective (RPO)</td>
+<td>24 jam</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kapasitas">Kapasitas</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Batas desain</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Karyawan aktif</td>
+<td>Hingga 500</td>
+</tr>
+<tr>
+<td>Data scan per bulan</td>
+<td>Hingga 50.000 baris</td>
+</tr>
+<tr>
+<td>Riwayat tersimpan</td>
+<td>Minimal 24 bulan</td>
+</tr>
+<tr>
+<td>Ukuran file upload</td>
+<td>Maks 10 MB</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kompatibilitas">Kompatibilitas</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Browser minimum</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Desktop</td>
+<td>Chrome 90+, Edge 90+, Firefox 90+</td>
+</tr>
+<tr>
+<td>Mobile (prioritas)</td>
+<td>Chrome Android, Safari iOS 15+</td>
+</tr>
+<tr>
+<td>Tablet</td>
+<td>Sama dengan mobile</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-arsitektur-amp-teknologi">8. Arsitektur &amp; Teknologi</h2>
+<h3 id="stack-teknologi">Stack teknologi</h3>
+<table>
+<thead>
+<tr>
+<th>Lapisan</th>
+<th>Teknologi</th>
+<th>Alasan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Frontend</td>
+<td>HTML/CSS/JS (vanilla) atau React</td>
+<td>Sudah familiar, deployment mudah</td>
+</tr>
+<tr>
+<td>Hosting</td>
+<td>Netlify</td>
+<td>Gratis untuk skala ini, drag-and-drop deploy</td>
+</tr>
+<tr>
+<td>Database</td>
+<td>Supabase (PostgreSQL)</td>
+<td>RLS, Auth, Realtime, free tier cukup</td>
+</tr>
+<tr>
+<td>Logika bisnis</td>
+<td>Supabase RPC (SECURITY DEFINER)</td>
+<td>Server-side enforcement</td>
+</tr>
+<tr>
+<td>Auth</td>
+<td>Supabase Auth (email + password)</td>
+<td>Sudah terintegrasi dengan RLS</td>
+</tr>
+<tr>
+<td>Ekspor Excel</td>
+<td>ExcelJS via Netlify Function</td>
+<td>Server-side, tidak membebani browser</td>
+</tr>
+<tr>
+<td>Notifikasi</td>
+<td>Fonnte / Wablas (WhatsApp)</td>
+<td>Untuk peringatan anomali — opsional</td>
+</tr>
+</tbody>
+</table>
+<h3 id="prinsip-arsitektur">Prinsip arsitektur</h3>
+<ol>
+<li><strong>Data mentah immutable</strong> — scan dari mesin tidak pernah diubah setelah import</li>
+<li><strong>Semua aturan bisnis di server</strong> — frontend hanya untuk tampilan dan input</li>
+<li><strong>RLS aktif di semua tabel</strong> — akses data sesuai role</li>
+<li><strong>Konfigurasi di database</strong> — tidak ada hardcode untuk parameter bisnis</li>
+<li><strong>Audit trail otomatis</strong> — setiap perubahan tercatat via trigger</li>
+</ol>
+<hr />
+<h2 id="9-desain-database">9. Desain Database</h2>
+<h3 id="diagram-relasi-konseptual">Diagram relasi (konseptual)</h3>
+<pre><code>┌─────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  karyawan    │     │  scan_mentah     │     │  absensi_harian  │
+│─────────────│     │──────────────────│     │──────────────────│
+│ id           │◄────│ karyawan_id      │     │ karyawan_id      │
+│ uid_mesin[]  │     │ timestamp_scan   │     │ tanggal          │
+│ nama         │     │ data_mentah      │     │ jam_masuk         │
+│ jabatan      │     │ import_id        │     │ jam_pulang        │
+│ gaji_bulanan │     │ created_at       │     │ status           │
+│ tgl_masuk    │     └──────────────────┘     │ jam_lembur       │
+│ tgl_keluar   │                               │ status_lembur   │
+│ status_aktif │     ┌──────────────────┐     │ sumber           │
+└─────────────┘     │  koreksi_log     │     │ is_insiden       │
+                     │──────────────────│     └──────────────────┘
+┌─────────────┐     │ absensi_id       │
+│  konfigurasi │     │ field_diubah     │     ┌──────────────────┐
+│─────────────│     │ nilai_lama       │     │  gaji_bulanan    │
+│ key          │     │ nilai_baru       │     │──────────────────│
+│ value        │     │ alasan           │     │ karyawan_id      │
+│ updated_by   │     │ dikoreksi_oleh   │     │ periode          │
+│ updated_at   │     │ created_at       │     │ hari_kerja       │
+└─────────────┘     └──────────────────┘     │ jam_lembur_total │
+                                               │ gaji_pokok       │
+┌─────────────┐     ┌──────────────────┐     │ gaji_lembur      │
+│  kalender    │     │  import_log      │     │ tunjangan        │
+│─────────────│     │──────────────────│     │ potongan         │
+│ tanggal      │     │ nama_file        │     │ total_gaji       │
+│ jenis_hari   │     │ jumlah_baris     │     │ status           │
+│ keterangan   │     │ rentang_tanggal  │     └──────────────────┘
+└─────────────┘     │ uid_tidak_dikenal│
+                     │ diimport_oleh    │     ┌──────────────────┐
+                     │ created_at       │     │  periode_gaji    │
+                     └──────────────────┘     │──────────────────│
+                                               │ bulan            │
+┌─────────────┐                               │ tahun            │
+│  audit_log   │                               │ status (buka/    │
+│─────────────│                               │         tutup)   │
+│ actor_id     │                               │ ditutup_oleh     │
+│ action       │                               │ ditutup_at       │
+│ entity       │                               └──────────────────┘
+│ entity_id    │
+│ old_value    │
+│ new_value    │
+│ created_at   │
+└─────────────┘
+</code></pre>
+<h3 id="catatan-desain-database">Catatan desain database</h3>
+<ul>
+<li><strong><code>scan_mentah</code></strong> menyimpan data verbatim dari file — tidak pernah di-UPDATE atau DELETE</li>
+<li><strong><code>absensi_harian</code></strong> adalah hasil olahan dari scan_mentah — bisa di-UPDATE melalui koreksi</li>
+<li><strong><code>koreksi_log</code></strong> mencatat setiap perubahan terhadap absensi_harian — immutable</li>
+<li><strong><code>gaji_bulanan</code></strong> dihitung dari absensi_harian yang sudah final — hanya ditulis saat tutup periode</li>
+<li><strong>RLS:</strong> <code>karyawan</code> dan <code>gaji_bulanan</code> mengandung data sensitif (gaji). Akses dibatasi ke Admin dan HRD</li>
+<li><strong>Soft delete:</strong> karyawan tidak dihapus, hanya dinonaktifkan (<code>status_aktif = false</code>)</li>
+<li>Composite key <code>(karyawan_id, tanggal)</code> pada <code>absensi_harian</code> mencegah duplikasi</li>
+</ul>
+<hr />
+<h2 id="10-antarmuka-pengguna">10. Antarmuka Pengguna</h2>
+<h3 id="hierarki-layar">Hierarki layar</h3>
+<pre><code>Login
+├── Dashboard
+│   ├── Peringatan anomali hari ini
+│   ├── Ringkasan bulan berjalan
+│   └── Aksi cepat
+├── Import Absensi
+│   ├── Upload file
+│   ├── Preview &amp; validasi
+│   └── Konfirmasi import
+├── Rekap Harian ★ (layar utama)
+│   ├── Filter: tanggal, status, karyawan
+│   ├── Tabel rekap dengan status warna
+│   ├── Aksi koreksi (inline/modal)
+│   └── Aksi approval lembur
+├── Koreksi Absensi
+│   ├── Daftar perlu koreksi
+│   ├── Form koreksi
+│   └── Riwayat koreksi
+├── Rekap Bulanan
+│   ├── Per karyawan: hari, lembur, gaji
+│   ├── Ekspor Excel
+│   └── Tutup periode
+├── Master Data
+│   ├── Karyawan
+│   ├── Kalender kerja
+│   └── Konfigurasi
+├── Laporan
+│   ├── Rekap gaji
+│   ├── Anomali
+│   └── Audit trail
+└── Pengaturan
+    ├── Profil pengguna
+    └── Kelola pengguna (Admin)
+</code></pre>
+<h3 id="prinsip-desain-ui">Prinsip desain UI</h3>
+<table>
+<thead>
+<tr>
+<th>Prinsip</th>
+<th>Penerapan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Mobile-first</strong></td>
+<td>Mandor mengakses dari smartphone di lapangan</td>
+</tr>
+<tr>
+<td><strong>Status visual yang jelas</strong></td>
+<td>Badge warna konsisten: hijau = lengkap, kuning = perlu koreksi, merah = ditolak/alpa</td>
+</tr>
+<tr>
+<td><strong>Layar koreksi = layar terpenting</strong></td>
+<td>Bukan dashboard. Ini tempat pekerjaan sebenarnya terjadi</td>
+</tr>
+<tr>
+<td><strong>Konfirmasi untuk aksi berisiko</strong></td>
+<td>Tutup periode, hapus data, koreksi massal</td>
+</tr>
+<tr>
+<td><strong>Pesan error yang manusiawi</strong></td>
+<td>"Data 30 Juni belum lengkap — scan terakhir pukul 14:42. Apakah file sudah diekspor ulang?"</td>
+</tr>
+<tr>
+<td><strong>Angka yang bisa diklik</strong></td>
+<td>Angka "5 perlu koreksi" bisa diklik langsung ke daftar yang relevan</td>
+</tr>
+</tbody>
+</table>
+<h3 id="spesifikasi-layar-kritis">Spesifikasi layar kritis</h3>
+<p><strong>Dashboard</strong>
+- KPI utama: total karyawan aktif, hari kerja bulan ini, total sudah dihitung vs perlu koreksi, total lembur pending
+- Peringatan: tanggal hari ini anomali (jika ada), koreksi mendekati batas kuota
+- Aksi cepat: upload file, buka koreksi, buka rekap</p>
+<p><strong>Rekap Harian (layar utama)</strong>
+- Kalender bulan dengan indikator warna per tanggal (hijau = semua lengkap, kuning = ada koreksi, merah = insiden)
+- Klik tanggal → tabel karyawan dengan kolom: nama, jam masuk, jam pulang, status, jam lembur, aksi
+- Filter: status (semua / lengkap / perlu koreksi / insiden)
+- Mobile: tampilan card list, bukan tabel</p>
+<p><strong>Form Koreksi</strong>
+- Tampilkan data asli (read-only): scan mentah yang tercatat
+- Input: jam masuk koreksi, jam pulang koreksi, dropdown alasan, catatan tambahan
+- Validasi: alasan wajib, jam harus masuk akal (masuk &lt; pulang, dll.)
+- Tampilkan sisa kuota koreksi karyawan ini bulan ini</p>
+<hr />
+<h2 id="11-keamanan">11. Keamanan</h2>
+<h3 id="prinsip">Prinsip</h3>
+<table>
+<thead>
+<tr>
+<th>Prinsip</th>
+<th>Penerapan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Least privilege</td>
+<td>Setiap role hanya bisa mengakses data yang relevan</td>
+</tr>
+<tr>
+<td>Defense in depth</td>
+<td>Validasi di frontend + backend + database (RLS)</td>
+</tr>
+<tr>
+<td>Audit everything</td>
+<td>Setiap perubahan data tercatat</td>
+</tr>
+<tr>
+<td>No secret in frontend</td>
+<td>Service role key hanya di Netlify Function</td>
+</tr>
+<tr>
+<td>Secure by default</td>
+<td>RLS aktif, deny by default</td>
+</tr>
+</tbody>
+</table>
+<h3 id="risiko-spesifik-amp-mitigasi">Risiko spesifik &amp; mitigasi</h3>
+<table>
+<thead>
+<tr>
+<th>Risiko</th>
+<th>Dampak</th>
+<th>Mitigasi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mandor mengubah jam absen timnya tanpa dasar</td>
+<td>Kelebihan bayar</td>
+<td>Kuota koreksi + alasan wajib + audit log</td>
+</tr>
+<tr>
+<td>Orang tidak berwenang melihat data gaji</td>
+<td>Kebocoran informasi sensitif</td>
+<td>RLS: hanya Admin + HRD bisa query tabel gaji</td>
+</tr>
+<tr>
+<td>Double import file yang sama</td>
+<td>Data ganda, gaji ganda</td>
+<td>Cek duplikasi berdasarkan hash file + rentang tanggal</td>
+</tr>
+<tr>
+<td>Upload file berbahaya</td>
+<td>Eksekusi kode</td>
+<td>Validasi format + ekstensi + ukuran + parsing server-side</td>
+</tr>
+<tr>
+<td>Session hijacking</td>
+<td>Aksi atas nama orang lain</td>
+<td>Supabase Auth + token expiry + HTTPS only</td>
+</tr>
+<tr>
+<td>Manipulasi data setelah tutup periode</td>
+<td>Data gaji berubah retroaktif</td>
+<td>Flag locked + validasi di RPC + pembukaan darurat tercatat</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="12-integrasi">12. Integrasi</h2>
+<h3 id="saat-ini-mvp">Saat ini (MVP)</h3>
+<table>
+<thead>
+<tr>
+<th>Sistem</th>
+<th>Metode</th>
+<th>Arah</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mesin absen</td>
+<td>Upload file manual (.xlsx)</td>
+<td>Masuk</td>
+<td>Satu-satunya sumber data scan</td>
+</tr>
+<tr>
+<td>Excel</td>
+<td>Ekspor .xlsx via ExcelJS</td>
+<td>Keluar</td>
+<td>Rekap gaji, rekap harian, laporan anomali</td>
+</tr>
+</tbody>
+</table>
+<h3 id="masa-depan-opsional">Masa depan (opsional)</h3>
+<table>
+<thead>
+<tr>
+<th>Sistem</th>
+<th>Metode</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WhatsApp (Fonnte/Wablas)</td>
+<td>API</td>
+<td>Peringatan anomali ke Admin</td>
+</tr>
+<tr>
+<td>Mesin absen (API/FTP)</td>
+<td>Terjadwal</td>
+<td>Menggantikan upload manual</td>
+</tr>
+<tr>
+<td>Sistem akuntansi</td>
+<td>Ekspor jurnal</td>
+<td>Integrasi dengan pembukuan</td>
+</tr>
+<tr>
+<td>BPJS</td>
+<td>Manual / ekspor</td>
+<td>Perhitungan potongan</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="13-peta-jalan-implementasi">13. Peta Jalan Implementasi</h2>
+<h3 id="fase-0-validasi-aturan-12-minggu">Fase 0 — Validasi aturan (1–2 minggu)</h3>
+<p><strong>Tujuan:</strong> memastikan aturan bisnis benar sebelum dikodekan.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Aktivitas</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Bawa file audit ke HR/mandor</td>
+<td>Koreksi 465 baris data Juni</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Konfirmasi penyebab 14–20 Juni</td>
+<td>Penyebab &amp; pencegahan</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Ekspor ulang data 30 Juni</td>
+<td>Data lengkap</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Tetapkan kebijakan Jalur A &amp; B</td>
+<td>Dokumen kebijakan</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Siapkan master karyawan (UID → nama → tarif)</td>
+<td>File master</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Verifikasi rumus lembur ke HR/konsultan</td>
+<td>Rumus tervalidasi</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Kriteria lanjut:</strong> kebijakan tertulis + master karyawan tersedia.</p>
+<h3 id="fase-1-fondasi-23-minggu">Fase 1 — Fondasi (2–3 minggu)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Modul</th>
+<th>Fitur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Database</td>
+<td>Tabel, RLS, RPC, trigger audit</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Auth</td>
+<td>Login, role, hak akses</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Master karyawan</td>
+<td>CRUD + mapping UID</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Konfigurasi</td>
+<td>Parameter jam kerja, lembur, ambang</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Kalender kerja</td>
+<td>Definisi hari kerja + libur</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fase-2-inti-absensi-23-minggu">Fase 2 — Inti absensi (2–3 minggu)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Modul</th>
+<th>Fitur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Import</td>
+<td>Upload, validasi, preview, commit</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Mesin hitung</td>
+<td>Deduplikasi, klasifikasi, status, deteksi anomali</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Rekap harian</td>
+<td>Tampilan kalender + tabel + filter</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Koreksi</td>
+<td>Form, kuota, audit trail</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Approval lembur</td>
+<td>Daftar, approve/reject, catatan</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fase-3-penggajian-12-minggu">Fase 3 — Penggajian (1–2 minggu)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Modul</th>
+<th>Fitur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Tarif karyawan</td>
+<td>Input gaji, tunjangan, riwayat</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Perhitungan gaji</td>
+<td>Pokok + lembur + tunjangan − potongan</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Rekap bulanan</td>
+<td>Per karyawan, simulasi, final</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Tutup periode</td>
+<td>Validasi, kunci, pembukaan darurat</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Ekspor Excel</td>
+<td>Rekap gaji, rekap harian, anomali</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fase-4-pematangan-12-minggu">Fase 4 — Pematangan (1–2 minggu)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Modul</th>
+<th>Fitur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Dashboard</td>
+<td>KPI, peringatan, aksi cepat</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Laporan</td>
+<td>Audit trail, tren kehadiran</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Mobile optimization</td>
+<td>Responsive, card view, touch-friendly</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Testing</td>
+<td>Skenario utama + edge case</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Dokumentasi</td>
+<td>Panduan pengguna</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Total estimasi:</strong> 6–10 minggu setelah Fase 0 selesai.</p>
+<hr />
+<h2 id="14-kriteria-keberhasilan">14. Kriteria Keberhasilan</h2>
+<h3 id="kuantitatif">Kuantitatif</h3>
+<table>
+<thead>
+<tr>
+<th>Metrik</th>
+<th>Target</th>
+<th>Cara ukur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Waktu proses rekap bulanan</td>
+<td>&lt; 1 hari (dari ±3 hari manual)</td>
+<td>Tanggal upload → tanggal tutup periode</td>
+</tr>
+<tr>
+<td>Hari-orang salah hitung</td>
+<td>0 pada status LENGKAP</td>
+<td>Audit sampling vs catatan mandor</td>
+</tr>
+<tr>
+<td>Anomali mesin terdeteksi</td>
+<td>100% dalam hari yang sama</td>
+<td>Alert dikirim pada hari import</td>
+</tr>
+<tr>
+<td>Data gaji tanpa audit trail</td>
+<td>0</td>
+<td>Setiap baris gaji punya jejak koreksi</td>
+</tr>
+<tr>
+<td>Akses data gaji oleh yang tidak berwenang</td>
+<td>0 insiden</td>
+<td>RLS test + penetration test sederhana</td>
+</tr>
+</tbody>
+</table>
+<h3 id="kualitatif">Kualitatif</h3>
+<table>
+<thead>
+<tr>
+<th>Kriteria</th>
+<th>Indikator</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HR merasa lebih cepat</td>
+<td>Proses yang dulu 3 hari bisa 1 hari</td>
+</tr>
+<tr>
+<td>Mandor bisa mengoreksi sendiri</td>
+<td>Tidak perlu telepon/WA ke HR untuk koreksi</td>
+</tr>
+<tr>
+<td>Manajemen percaya angkanya</td>
+<td>Tidak ada pertanyaan "ini hitungannya bener?"</td>
+</tr>
+<tr>
+<td>Karyawan tidak komplain soal gaji</td>
+<td>Berkurang vs bulan sebelumnya</td>
+</tr>
+<tr>
+<td>Saat ada sengketa, bisa diselesaikan</td>
+<td>Ada bukti: scan asli + koreksi + alasan + siapa</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="15-risiko-amp-mitigasi">15. Risiko &amp; Mitigasi</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Risiko</th>
+<th>Kemungkinan</th>
+<th>Dampak</th>
+<th>Mitigasi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1</td>
+<td>Aturan lembur tidak sesuai regulasi</td>
+<td>Sedang</td>
+<td>Tinggi</td>
+<td>Verifikasi ke konsultan ketenagakerjaan sebelum go-live</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>Mesin absen rusak lagi tanpa cadangan</td>
+<td>Tinggi</td>
+<td>Tinggi</td>
+<td>Deteksi otomatis + ekspor harian + mesin cadangan</td>
+</tr>
+<tr>
+<td>R3</td>
+<td>Master karyawan tidak lengkap/salah</td>
+<td>Tinggi</td>
+<td>Tinggi</td>
+<td>Validasi bersama HR sebelum Fase 1</td>
+</tr>
+<tr>
+<td>R4</td>
+<td>Mandor tidak mau pakai sistem digital</td>
+<td>Sedang</td>
+<td>Sedang</td>
+<td>Training + buat semudah mungkin + WhatsApp reminder</td>
+</tr>
+<tr>
+<td>R5</td>
+<td>Free tier Supabase tidak cukup</td>
+<td>Rendah</td>
+<td>Rendah</td>
+<td>500 karyawan × 30 hari = 15.000 row/bulan — jauh di bawah limit</td>
+</tr>
+<tr>
+<td>R6</td>
+<td>Perubahan kebijakan upah lembur</td>
+<td>Rendah</td>
+<td>Sedang</td>
+<td>Semua tarif di tabel konfigurasi, bukan hardcode</td>
+</tr>
+<tr>
+<td>R7</td>
+<td>Koreksi disalahgunakan (absensi fiktif)</td>
+<td>Sedang</td>
+<td>Tinggi</td>
+<td>Kuota + alasan wajib + audit + sampling acak oleh HRD</td>
+</tr>
+<tr>
+<td>R8</td>
+<td>Data gaji bocor</td>
+<td>Rendah</td>
+<td>Tinggi</td>
+<td>RLS ketat + hanya Admin/HRD + HTTPS + no export tanpa log</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="16-glosarium">16. Glosarium</h2>
+<table>
+<thead>
+<tr>
+<th>Istilah</th>
+<th>Definisi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Scan</strong></td>
+<td>Satu baris data dari mesin absen — satu kali tap kartu/sidik jari</td>
+</tr>
+<tr>
+<td><strong>Hari-orang</strong></td>
+<td>Satu pasangan (karyawan × tanggal) — unit dasar perhitungan</td>
+</tr>
+<tr>
+<td><strong>Status LENGKAP</strong></td>
+<td>Hari-orang yang punya scan masuk dan pulang yang valid</td>
+</tr>
+<tr>
+<td><strong>Anomali individual</strong></td>
+<td>Hari-orang yang tidak lengkap pada tanggal yang secara umum normal</td>
+</tr>
+<tr>
+<td><strong>Anomali massal (insiden)</strong></td>
+<td>Tanggal di mana mayoritas karyawan gagal terekam — indikasi kegagalan mesin</td>
+</tr>
+<tr>
+<td><strong>Koreksi</strong></td>
+<td>Tindakan manual oleh atasan untuk melengkapi data yang hilang</td>
+</tr>
+<tr>
+<td><strong>Approval lembur</strong></td>
+<td>Persetujuan atasan bahwa jam lembur yang tercatat memang benar</td>
+</tr>
+<tr>
+<td><strong>Tutup periode</strong></td>
+<td>Penguncian data bulan tertentu setelah semua koreksi selesai</td>
+</tr>
+<tr>
+<td><strong>RLS</strong></td>
+<td>Row Level Security — mekanisme database yang membatasi baris mana yang bisa diakses oleh siapa</td>
+</tr>
+<tr>
+<td><strong>RPC</strong></td>
+<td>Remote Procedure Call — fungsi di server yang dipanggil oleh frontend</td>
+</tr>
+<tr>
+<td><strong>Tarif harian</strong></td>
+<td>Gaji bulanan ÷ jumlah hari kerja bulan tersebut</td>
+</tr>
+<tr>
+<td><strong>Upah lembur per jam</strong></td>
+<td>Gaji bulanan ÷ 173 (sesuai PP 35/2021, perlu verifikasi)</td>
+</tr>
+<tr>
+<td><strong>Jendela waktu</strong></td>
+<td>Rentang jam yang digunakan untuk mengklasifikasikan scan sebagai masuk, istirahat, atau pulang</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="17-lampiran-temuan-data-juni-2026">17. Lampiran: Temuan Data Juni 2026</h2>
+<h3 id="a-kronologi-insiden-mesin-1420-juni">A. Kronologi insiden mesin 14–20 Juni</h3>
+<table>
+<thead>
+<tr>
+<th>Tanggal</th>
+<th>Hari</th>
+<th>Scan pertama</th>
+<th>Scan terakhir</th>
+<th>Total scan</th>
+<th>Karyawan aktif ter-scan</th>
+<th>Diagnosis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>14 Jun</td>
+<td>Minggu</td>
+<td>06:43</td>
+<td>16:28</td>
+<td>85</td>
+<td>70</td>
+<td>Scan pagi normal, mati sore — hanya 13 LENGKAP</td>
+</tr>
+<tr>
+<td>15 Jun</td>
+<td>Senin</td>
+<td>06:35</td>
+<td>07:55</td>
+<td>26</td>
+<td>26</td>
+<td>Mesin berhenti total ±08:00. Tidak ada scan setelahnya</td>
+</tr>
+<tr>
+<td>16 Jun</td>
+<td>Selasa</td>
+<td>—</td>
+<td>—</td>
+<td>0</td>
+<td>0</td>
+<td>Mati total sepanjang hari</td>
+</tr>
+<tr>
+<td>17 Jun</td>
+<td>Rabu</td>
+<td>07:07</td>
+<td>21:32</td>
+<td>99</td>
+<td>77</td>
+<td>Pagi normal, mati siang–sore, sebagian malam terekam</td>
+</tr>
+<tr>
+<td>18 Jun</td>
+<td>Kamis</td>
+<td>12:59</td>
+<td>18:01</td>
+<td>23</td>
+<td>22</td>
+<td>Mati pagi, hidup sebentar siang</td>
+</tr>
+<tr>
+<td>19 Jun</td>
+<td>Jumat</td>
+<td>12:38</td>
+<td>23:04</td>
+<td>66</td>
+<td>50</td>
+<td>Mati pagi, hidup siang–sore–malam</td>
+</tr>
+<tr>
+<td>20 Jun</td>
+<td>Sabtu</td>
+<td>12:11</td>
+<td>13:16</td>
+<td>30</td>
+<td>28</td>
+<td>Hidup ±1 jam saja</td>
+</tr>
+</tbody>
+</table>
+<h3 id="b-distribusi-status-kehadiran-seluruh-juni">B. Distribusi status kehadiran (seluruh Juni)</h3>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Jumlah hari-orang</th>
+<th>Persentase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LENGKAP</td>
+<td>1.562</td>
+<td>77,1%</td>
+</tr>
+<tr>
+<td>TANPA PULANG</td>
+<td>304</td>
+<td>15,0%</td>
+</tr>
+<tr>
+<td>TANPA MASUK</td>
+<td>84</td>
+<td>4,1%</td>
+</tr>
+<tr>
+<td>HANYA SCAN TENGAH</td>
+<td>77</td>
+<td>3,8%</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>2.027</strong></td>
+<td><strong>100%</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="c-statistik-lembur">C. Statistik lembur</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Nilai</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total hari-orang dengan potensi lembur (pulang ≥ 18:30)</td>
+<td>113</td>
+</tr>
+<tr>
+<td>Yang pulang antara 18:30–19:00 (di bawah ambang hitung)</td>
+<td>27</td>
+</tr>
+<tr>
+<td>Total jam lembur (rumus: pulang − 19:00, clip ≥ 0)</td>
+<td>233,03 jam</td>
+</tr>
+<tr>
+<td>Rata-rata jam lembur per kejadian</td>
+<td>2,0 jam</td>
+</tr>
+<tr>
+<td>Maksimum jam lembur dalam satu hari</td>
+<td>4,08 jam</td>
+</tr>
+</tbody>
+</table>
+<h3 id="d-uid-yang-perlu-investigasi">D. UID yang perlu investigasi</h3>
+<table>
+<thead>
+<tr>
+<th>UID</th>
+<th>Karakteristik</th>
+<th>Kemungkinan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SAIFUL</td>
+<td>Teks, bukan angka (33 scan)</td>
+<td>Mesin mengirim nama — mapping manual ke UID</td>
+</tr>
+<tr>
+<td>UID 23</td>
+<td>21 hari, selalu 1 scan ±18:00</td>
+<td>Shift berbeda atau mesin absen terpisah</td>
+</tr>
+<tr>
+<td>9 UID (1 hari)</td>
+<td>Masing-masing hanya hadir 1 hari</td>
+<td>Karyawan harian, salah enroll, atau percobaan</td>
+</tr>
+<tr>
+<td>3 UID (2 hari)</td>
+<td>Masing-masing hanya hadir 2 hari</td>
+<td>Perlu konfirmasi status ke HR</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>Dokumen ini adalah draft yang memerlukan validasi. Semua parameter bisnis (jendela waktu, kuota koreksi, tarif lembur, ambang insiden) adalah usulan awal yang wajib disetujui oleh pemilik kebijakan sebelum diimplementasikan.</em></p>
+<p><em>Disusun berdasarkan analisis file jun1.xlsx (ekspor mesin absen Juni 2026, 4.602 baris, 121 UID).</em></p>
+</div>
+
+<div class="doc-footer">
+  PRD v1.0 — Sistem Absensi & Penggajian Harian — Draft 15 Agustus 2026<br>
+  Disusun berdasarkan analisis file jun1.xlsx (4.602 baris, 121 UID)
+</div>
+
+</div>
+</body>
+</html>
