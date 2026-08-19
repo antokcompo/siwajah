@@ -4,6 +4,7 @@ node_modules/
 # Environment
 .env
 .env.local
+.env.*.local
 .env.production
 
 # Build
@@ -28,3 +29,6 @@ npm-debug.log*
 
 # Supabase local
 supabase/.temp/
+
+# Archives
+*.zip

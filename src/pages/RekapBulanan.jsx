@@ -1,0 +1,558 @@
+import { useEffect, useState, useMemo, Fragment } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import { Calculator, Lock, Download, Unlock, FileSpreadsheet, Users, CheckCircle } from 'lucide-react'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
+export default function RekapBulanan() {
+  const now = new Date()
+  const [bulan, setBulan] = useState(now.getMonth() + 1)
+  const [tahun, setTahun] = useState(now.getFullYear())
+  const [data, setData] = useState([])
+  const [mandorMap, setMandorMap] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [calculating, setCalculating] = useState(false)
+  const [periode, setPeriode] = useState(null)
+  const [error, setError] = useState('')
+  const [selected, setSelected] = useState(new Set())
+  const { profile } = useAuth()
+
+  const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
+  const fmt = n => new Intl.NumberFormat('id-ID').format(Math.round(n || 0))
+
+  useEffect(() => { load() }, [bulan, tahun])
+
+  async function load() {
+    setLoading(true)
+    setError('')
+    setSelected(new Set())
+    const [gajiRes, periodeRes, mandorRes] = await Promise.all([
+      supabase.from('absen_gaji_bulanan')
+        .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+        .eq('bulan', bulan).eq('tahun', tahun)
+        .order('absen_karyawan(nama)'),
+      supabase.from('absen_periode_gaji')
+        .select('*').eq('bulan', bulan).eq('tahun', tahun).maybeSingle(),
+      supabase.from('absen_karyawan')
+        .select('id, nama')
+        .ilike('jabatan', '%mandor%')
+        .eq('status_aktif', true),
+    ])
+    setData(gajiRes.data || [])
+    setPeriode(periodeRes.data)
+
+    const mMap = {}
+    ;(mandorRes.data || []).forEach(m => { mMap[m.id] = m.nama })
+    setMandorMap(mMap)
+
+    setLoading(false)
+  }
+
+  const grouped = useMemo(() => {
+    const groups = {}
+    data.forEach(d => {
+      const atasanId = d.absen_karyawan?.atasan_id
+      const groupName = atasanId && mandorMap[atasanId] ? mandorMap[atasanId] : 'Harian Kantor'
+      if (!groups[groupName]) groups[groupName] = []
+      groups[groupName].push(d)
+    })
+    return Object.entries(groups).sort(([a], [b]) => {
+      if (a === 'Harian Kantor') return 1
+      if (b === 'Harian Kantor') return -1
+      return a.localeCompare(b)
+    })
+  }, [data, mandorMap])
+
+  const draftIds = useMemo(() => data.filter(d => d.status === 'draft').map(d => d.id), [data])
+  const isClosed = periode?.status === 'tutup'
+  const isHrd = profile?.role === 'hrd' || profile?.role === 'admin'
+  const canApprove = isHrd && !isClosed
+
+  function toggleSelect(id) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === draftIds.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(draftIds))
+    }
+  }
+
+  async function approveSelected() {
+    if (selected.size === 0) return
+    const ids = [...selected]
+    setError('')
+    const { error } = await supabase
+      .from('absen_gaji_bulanan')
+      .update({ status: 'approved' })
+      .in('id', ids)
+    if (error) setError(error.message)
+    else load()
+  }
+
+  async function approveAll() {
+    if (!confirm(`Approve semua ${draftIds.length} data gaji draft?`)) return
+    setError('')
+    const { error } = await supabase
+      .from('absen_gaji_bulanan')
+      .update({ status: 'approved' })
+      .eq('bulan', bulan)
+      .eq('tahun', tahun)
+      .eq('status', 'draft')
+    if (error) setError(error.message)
+    else load()
+  }
+
+  async function hitungGaji() {
+    setCalculating(true)
+    setError('')
+    const { error } = await supabase.rpc('absen_hitung_gaji', { p_bulan: bulan, p_tahun: tahun })
+    if (error) setError(error.message)
+    setCalculating(false)
+    load()
+  }
+
+  async function tutupPeriode() {
+    if (!confirm(`Tutup periode ${namaBulan[bulan]} ${tahun}? Data tidak bisa diubah setelah ditutup.`)) return
+    setError('')
+    const { error } = await supabase.rpc('absen_tutup_periode', { p_bulan: bulan, p_tahun: tahun })
+    if (error) setError(error.message)
+    else load()
+  }
+
+  async function bukaPeriode() {
+    const alasan = prompt('Alasan pembukaan periode:')
+    if (!alasan) return
+    setError('')
+    const { error } = await supabase.rpc('absen_buka_periode', { p_bulan: bulan, p_tahun: tahun, p_alasan: alasan })
+    if (error) setError(error.message)
+    else load()
+  }
+
+  function exportPdf() {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+    const pageW = doc.internal.pageSize.getWidth()
+    const pageH = doc.internal.pageSize.getHeight()
+    const mx = 14
+
+    // --- Header ---
+    doc.setFillColor(26, 35, 50)
+    doc.rect(0, 0, pageW, 28, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.setTextColor(255, 255, 255)
+    doc.text('REKAP GAJI BULANAN', mx, 13)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(148, 163, 184)
+    doc.text(`Periode: ${namaBulan[bulan]} ${tahun}  |  ${data.length} Karyawan`, mx, 22)
+
+    doc.setFontSize(9)
+    doc.setTextColor(148, 163, 184)
+    const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    doc.text(`Dicetak: ${dateStr}`, pageW - mx, 22, { align: 'right' })
+
+    let startY = 34
+    const fmtRp = n => 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.round(n || 0))
+
+    const headStyles = {
+      fillColor: [241, 245, 249],
+      textColor: [71, 85, 105],
+      fontStyle: 'bold',
+      fontSize: 7.5,
+      cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 },
+      lineWidth: 0.1,
+      lineColor: [226, 232, 240],
+    }
+
+    const bodyStyles = {
+      fontSize: 7.5,
+      textColor: [30, 41, 59],
+      cellPadding: { top: 2, bottom: 2, left: 3, right: 3 },
+      lineWidth: 0.1,
+      lineColor: [241, 245, 249],
+    }
+
+    const columns = [
+      { header: 'No', dataKey: 'no' },
+      { header: 'Nama Karyawan', dataKey: 'nama' },
+      { header: 'Jabatan', dataKey: 'jabatan' },
+      { header: 'Hari\nKerja', dataKey: 'hari' },
+      { header: 'Jam\nLembur', dataKey: 'lembur' },
+      { header: 'Gaji Pokok', dataKey: 'pokok' },
+      { header: 'Gaji Lembur', dataKey: 'gaji_lembur' },
+      { header: 'Tunjangan', dataKey: 'tunjangan' },
+      { header: 'Total Gaji', dataKey: 'total' },
+      { header: 'Status', dataKey: 'status' },
+    ]
+
+    const colStyles = {
+      no: { cellWidth: 10, halign: 'center' },
+      nama: { cellWidth: 'auto' },
+      jabatan: { cellWidth: 22 },
+      hari: { cellWidth: 14, halign: 'center' },
+      lembur: { cellWidth: 16, halign: 'center' },
+      pokok: { cellWidth: 30, halign: 'right' },
+      gaji_lembur: { cellWidth: 28, halign: 'right' },
+      tunjangan: { cellWidth: 26, halign: 'right' },
+      total: { cellWidth: 32, halign: 'right', fontStyle: 'bold' },
+      status: { cellWidth: 18, halign: 'center' },
+    }
+
+    grouped.forEach(([groupName, items]) => {
+      const subPokok = items.reduce((s, d) => s + Number(d.gaji_pokok), 0)
+      const subLembur = items.reduce((s, d) => s + Number(d.gaji_lembur), 0)
+      const subTunjangan = items.reduce((s, d) => s + Number(d.tunjangan), 0)
+      const subTotal = items.reduce((s, d) => s + Number(d.total_gaji), 0)
+      const subHari = items.reduce((s, d) => s + d.hari_kerja, 0)
+      const subJamLembur = items.reduce((s, d) => s + Number(d.jam_lembur_total), 0)
+
+      const rows = items.map((d, i) => ({
+        no: i + 1,
+        nama: d.absen_karyawan?.nama || '',
+        jabatan: d.absen_karyawan?.jabatan || '',
+        hari: d.hari_kerja,
+        lembur: `${d.jam_lembur_total}j`,
+        pokok: fmtRp(d.gaji_pokok),
+        gaji_lembur: fmtRp(d.gaji_lembur),
+        tunjangan: fmtRp(d.tunjangan),
+        total: fmtRp(d.total_gaji),
+        status: d.status,
+      }))
+
+      // Check if group header fits on current page
+      if (startY > pageH - 30) {
+        doc.addPage()
+        startY = 14
+      }
+
+      // Group header
+      doc.setFillColor(59, 130, 246)
+      doc.roundedRect(mx, startY, pageW - mx * 2, 7, 1, 1, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8.5)
+      doc.setTextColor(255, 255, 255)
+      doc.text(`${groupName}`, mx + 4, startY + 4.8)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.text(`${items.length} karyawan`, pageW - mx - 4, startY + 4.8, { align: 'right' })
+      startY += 9
+
+      autoTable(doc, {
+        startY,
+        columns,
+        body: rows,
+        headStyles,
+        bodyStyles,
+        columnStyles: colStyles,
+        margin: { left: mx, right: mx },
+        tableLineColor: [226, 232, 240],
+        tableLineWidth: 0.1,
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        didParseCell(data) {
+          if (data.section === 'body' && data.column.dataKey === 'status') {
+            if (data.cell.raw === 'approved') {
+              data.cell.styles.textColor = [5, 150, 105]
+              data.cell.styles.fontStyle = 'bold'
+            } else if (data.cell.raw === 'final') {
+              data.cell.styles.textColor = [37, 99, 235]
+              data.cell.styles.fontStyle = 'bold'
+            } else {
+              data.cell.styles.textColor = [217, 119, 6]
+            }
+          }
+        },
+      })
+
+      startY = doc.lastAutoTable.finalY
+
+      // Subtotal row
+      doc.setFillColor(241, 245, 249)
+      doc.rect(mx, startY, pageW - mx * 2, 7, 'F')
+      doc.setDrawColor(226, 232, 240)
+      doc.rect(mx, startY, pageW - mx * 2, 7, 'S')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(71, 85, 105)
+      doc.text('Subtotal', mx + 4, startY + 4.8)
+
+      const tblW = pageW - mx * 2
+      doc.text(String(subHari), mx + tblW * 0.34, startY + 4.8, { align: 'center' })
+      doc.text(`${subJamLembur.toFixed(1)}j`, mx + tblW * 0.40, startY + 4.8, { align: 'center' })
+      doc.setTextColor(30, 41, 59)
+      doc.text(fmtRp(subPokok), mx + tblW * 0.54, startY + 4.8, { align: 'right' })
+      doc.text(fmtRp(subLembur), mx + tblW * 0.64, startY + 4.8, { align: 'right' })
+      doc.text(fmtRp(subTunjangan), mx + tblW * 0.73, startY + 4.8, { align: 'right' })
+      doc.setFont('helvetica', 'bold')
+      doc.text(fmtRp(subTotal), mx + tblW * 0.85, startY + 4.8, { align: 'right' })
+
+      startY += 12
+    })
+
+    // --- Grand Total ---
+    if (startY > pageH - 20) {
+      doc.addPage()
+      startY = 14
+    }
+
+    const grandHari = data.reduce((s, d) => s + d.hari_kerja, 0)
+    const grandLembur = data.reduce((s, d) => s + Number(d.jam_lembur_total), 0)
+    const grandPokok = data.reduce((s, d) => s + Number(d.gaji_pokok), 0)
+    const grandGajiLembur = data.reduce((s, d) => s + Number(d.gaji_lembur), 0)
+    const grandTunjangan = data.reduce((s, d) => s + Number(d.tunjangan), 0)
+    const grandTotal = data.reduce((s, d) => s + Number(d.total_gaji), 0)
+
+    doc.setFillColor(26, 35, 50)
+    doc.roundedRect(mx, startY, pageW - mx * 2, 10, 1.5, 1.5, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(255, 255, 255)
+    doc.text(`GRAND TOTAL  (${data.length} Karyawan)`, mx + 5, startY + 6.5)
+    doc.setFontSize(8)
+    const tblW = pageW - mx * 2
+    doc.text(`${grandHari} hari`, mx + tblW * 0.37, startY + 6.5, { align: 'center' })
+    doc.text(`${grandLembur.toFixed(1)}j`, mx + tblW * 0.43, startY + 6.5, { align: 'center' })
+    doc.setTextColor(147, 197, 253)
+    doc.text(fmtRp(grandPokok), mx + tblW * 0.54, startY + 6.5, { align: 'right' })
+    doc.text(fmtRp(grandGajiLembur), mx + tblW * 0.64, startY + 6.5, { align: 'right' })
+    doc.text(fmtRp(grandTunjangan), mx + tblW * 0.73, startY + 6.5, { align: 'right' })
+    doc.setFontSize(10)
+    doc.setTextColor(255, 255, 255)
+    doc.text(fmtRp(grandTotal), mx + tblW * 0.85, startY + 6.8, { align: 'right' })
+
+    // --- Footer on every page ---
+    const totalPages = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i)
+      doc.setFontSize(7)
+      doc.setTextColor(148, 163, 184)
+      doc.setFont('helvetica', 'normal')
+      doc.text('SI Wajah — Sistem Informasi Web Absensi dan Aktifitas Harian', mx, pageH - 6)
+      doc.text(`Halaman ${i} dari ${totalPages}`, pageW - mx, pageH - 6, { align: 'right' })
+      doc.setDrawColor(226, 232, 240)
+      doc.line(mx, pageH - 10, pageW - mx, pageH - 10)
+    }
+
+    doc.save(`Rekap_Gaji_${namaBulan[bulan]}_${tahun}.pdf`)
+  }
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Rekap Bulanan</h1>
+          <p className="text-gray-500 text-xs mt-0.5">Perhitungan gaji bulanan karyawan</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {canApprove && (
+            <>
+              <button onClick={hitungGaji} disabled={calculating} className="btn-primary">
+                <Calculator size={14} /> {calculating ? 'Menghitung...' : 'Hitung Gaji'}
+              </button>
+              {selected.size > 0 && (
+                <button onClick={approveSelected} className="btn-success">
+                  <CheckCircle size={14} /> Approve ({selected.size})
+                </button>
+              )}
+              {selected.size === 0 && draftIds.length > 0 && (
+                <button onClick={approveAll} className="btn-success">
+                  <CheckCircle size={14} /> Approve Semua ({draftIds.length})
+                </button>
+              )}
+              <button onClick={tutupPeriode} className="btn-success !bg-slate-600 hover:!bg-slate-700">
+                <Lock size={14} /> Tutup Periode
+              </button>
+              <div className="w-px h-6 bg-white/15 hidden sm:block" />
+            </>
+          )}
+          <select value={bulan} onChange={e => setBulan(+e.target.value)} className="select-field text-sm py-1.5">
+            {namaBulan.slice(1).map((n, i) => <option key={i+1} value={i+1}>{n}</option>)}
+          </select>
+          <select value={tahun} onChange={e => setTahun(+e.target.value)} className="select-field text-sm py-1.5">
+            {Array.from({ length: new Date().getFullYear() - 2024 + 3 }, (_, i) => 2024 + i).map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="main-content">
+      {error && (
+        <div className="bg-red-50 border border-red-200/80 text-red-700 rounded-xl p-4 mb-6 text-sm flex items-start gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {isClosed && (
+        <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-4 mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 text-emerald-700">
+            <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+              <Lock size={16} />
+            </div>
+            <span className="font-medium">Periode {namaBulan[bulan]} {tahun} sudah ditutup</span>
+          </div>
+          {profile?.role === 'admin' && (
+            <button onClick={bukaPeriode} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors">
+              <Unlock size={13} /> Buka Kunci
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="card">
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+              <FileSpreadsheet size={16} className="text-blue-600" />
+            </div>
+            <div>
+              <span className="font-semibold text-gray-900 text-sm">{namaBulan[bulan]} {tahun}</span>
+              {data.length > 0 && <span className="text-xs text-gray-400 ml-2">{data.length} karyawan</span>}
+            </div>
+          </div>
+          {data.length > 0 && (
+            <button onClick={exportPdf} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">
+              <Download size={13} /> Ekspor PDF
+            </button>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="table-scroll">
+            <table className="w-full text-sm">
+              <thead className="table-header">
+                <tr>
+                  {canApprove && draftIds.length > 0 && (
+                    <th className="px-3 py-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selected.size === draftIds.length && draftIds.length > 0}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        title="Pilih semua draft"
+                      />
+                    </th>
+                  )}
+                  <th className="text-left px-5 py-3 min-w-[180px]">Nama</th>
+                  <th className="text-center px-3 py-3 whitespace-nowrap">Hari Kerja</th>
+                  <th className="text-center px-3 py-3 whitespace-nowrap">Jam Lembur</th>
+                  <th className="text-right px-3 py-3 whitespace-nowrap">Gaji Pokok</th>
+                  <th className="text-right px-3 py-3 whitespace-nowrap">Gaji Lembur</th>
+                  <th className="text-right px-3 py-3">Tunjangan</th>
+                  <th className="text-right px-3 py-3 whitespace-nowrap">Total Gaji</th>
+                  <th className="text-center px-3 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {grouped.length > 0 ? grouped.map(([groupName, items]) => {
+                  const subHari = items.reduce((s, d) => s + d.hari_kerja, 0)
+                  const subLembur = items.reduce((s, d) => s + Number(d.jam_lembur_total), 0)
+                  const subPokok = items.reduce((s, d) => s + Number(d.gaji_pokok), 0)
+                  const subGajiLembur = items.reduce((s, d) => s + Number(d.gaji_lembur), 0)
+                  const subTunjangan = items.reduce((s, d) => s + Number(d.tunjangan), 0)
+                  const subTotal = items.reduce((s, d) => s + Number(d.total_gaji), 0)
+                  const colCount = canApprove && draftIds.length > 0 ? 9 : 8
+
+                  return (
+                    <Fragment key={groupName}>
+                      <tr className="table-group-header">
+                        <td colSpan={colCount} className="px-5 py-2">
+                          <div className="flex items-center gap-2">
+                            <Users size={14} className="text-slate-500" />
+                            <span className="font-semibold text-slate-700 text-[13px]">{groupName}</span>
+                            <span className="text-[11px] text-slate-400 font-medium">{items.length} karyawan</span>
+                          </div>
+                        </td>
+                      </tr>
+                      {items.map(d => (
+                        <tr key={d.id} className={`hover:bg-gray-50/50 transition-colors ${selected.has(d.id) ? 'bg-blue-50/40' : ''}`}>
+                          {canApprove && draftIds.length > 0 && (
+                            <td className="px-3 py-2.5 text-center">
+                              {d.status === 'draft' ? (
+                                <input
+                                  type="checkbox"
+                                  checked={selected.has(d.id)}
+                                  onChange={() => toggleSelect(d.id)}
+                                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                />
+                              ) : null}
+                            </td>
+                          )}
+                          <td className="px-5 py-2.5 pl-9">
+                            <div className="font-medium text-gray-900 leading-tight">{d.absen_karyawan?.nama}</div>
+                            <div className="text-[11px] text-gray-400 leading-tight mt-0.5">
+                              {d.absen_karyawan?.jabatan}
+                              {d.is_gaji_full && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold text-[10px]">Full</span>}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-gray-700 font-medium">{d.hari_kerja}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-gray-500">{d.jam_lembur_total}j</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-gray-900 whitespace-nowrap">Rp {fmt(d.gaji_pokok)}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-gray-500 whitespace-nowrap">Rp {fmt(d.gaji_lembur)}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-gray-500 whitespace-nowrap">Rp {fmt(d.tunjangan)}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-gray-900 whitespace-nowrap">Rp {fmt(d.total_gaji)}</td>
+                          <td className="px-3 py-2.5 text-center">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                              d.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                              d.status === 'final' ? 'bg-blue-100 text-blue-700' :
+                              'bg-amber-50 text-amber-600'
+                            }`}>
+                              {d.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="table-group-subtotal">
+                        {canApprove && draftIds.length > 0 && <td />}
+                        <td className="px-5 py-2 text-[12px] font-semibold text-slate-500 pl-9">Subtotal</td>
+                        <td className="px-3 py-2 text-center tabular-nums text-[12px] font-semibold text-slate-600">{subHari}</td>
+                        <td className="px-3 py-2 text-center tabular-nums text-[12px] font-semibold text-slate-500">{subLembur.toFixed(1)}j</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[12px] font-semibold text-slate-600 whitespace-nowrap">Rp {fmt(subPokok)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[12px] font-semibold text-slate-500 whitespace-nowrap">Rp {fmt(subGajiLembur)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[12px] font-semibold text-slate-500 whitespace-nowrap">Rp {fmt(subTunjangan)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[12px] font-bold text-slate-700 whitespace-nowrap">Rp {fmt(subTotal)}</td>
+                        <td />
+                      </tr>
+                    </Fragment>
+                  )
+                }) : (
+                  <tr><td colSpan={canApprove && draftIds.length > 0 ? 9 : 8} className="px-5 py-12 text-center text-gray-400">
+                    <FileSpreadsheet size={32} className="mx-auto text-gray-300 mb-2" />
+                    Belum ada data gaji. Klik "Hitung Gaji" untuk memulai.
+                  </td></tr>
+                )}
+              </tbody>
+              {data.length > 0 && (
+                <tfoot>
+                  <tr className="font-semibold text-gray-900">
+                    {canApprove && draftIds.length > 0 && <td />}
+                    <td className="px-5 py-3 text-sm">Grand Total ({data.length})</td>
+                    <td className="px-3 py-3 text-center tabular-nums">{data.reduce((s,d) => s + d.hari_kerja, 0)}</td>
+                    <td className="px-3 py-3 text-center tabular-nums">{data.reduce((s,d) => s + Number(d.jam_lembur_total), 0).toFixed(1)}j</td>
+                    <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.gaji_pokok), 0))}</td>
+                    <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.gaji_lembur), 0))}</td>
+                    <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.tunjangan), 0))}</td>
+                    <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.total_gaji), 0))}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        )}
+      </div>
+      </div>
+    </div>
+  )
+}
