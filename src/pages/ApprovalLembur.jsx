@@ -1,9 +1,20 @@
 import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { Check, X, Clock, Search, Plus, Trash2, Users, ClipboardCheck, CalendarPlus } from 'lucide-react'
+import { Check, X, Clock, Search, Plus, Trash2, Users, ClipboardCheck, CalendarPlus, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
 
 const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
+
+const statusColor = {
+  PENDING: 'bg-amber-100 text-amber-700',
+  APPROVED: 'bg-emerald-100 text-emerald-700',
+  REJECTED: 'bg-red-100 text-red-700',
+}
+const statusLabel = {
+  PENDING: 'Menunggu Approval',
+  APPROVED: 'Disetujui',
+  REJECTED: 'Ditolak',
+}
 
 export default function ApprovalLembur() {
   const [mainTab, setMainTab] = useState('daftar')
@@ -18,7 +29,7 @@ export default function ApprovalLembur() {
               <CalendarPlus size={14} /> Daftar Lembur
             </button>
             <button onClick={() => setMainTab('approval')} className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm transition-all duration-150 ${mainTab === 'approval' ? 'bg-blue-500 text-white font-semibold shadow-md' : 'text-slate-300 font-medium hover:text-white'}`}>
-              <ClipboardCheck size={14} /> Approval
+              <ClipboardCheck size={14} /> Approval Jam
             </button>
           </div>
         </div>
@@ -32,6 +43,9 @@ export default function ApprovalLembur() {
 
 function DaftarLemburTab() {
   const { profile } = useAuth()
+  const role = profile?.role
+  const canApprove = role === 'admin' || role === 'manajemen'
+
   const [tanggal, setTanggal] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -44,6 +58,8 @@ function DaftarLemburTab() {
   const [selected, setSelected] = useState([])
   const [catatan, setCatatan] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [processing, setProcessing] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
 
   useEffect(() => { loadDaftar() }, [tanggal])
 
@@ -97,10 +113,60 @@ function DaftarLemburTab() {
     }
   }
 
-  async function handleRemove(id) {
-    const { error } = await supabase.rpc('absen_hapus_daftar_lembur', { p_id: id })
+  async function handleRemove(item) {
+    if (item.status === 'APPROVED' && role !== 'admin') {
+      alert('Hanya admin yang dapat menghapus data lembur yang sudah diapprove')
+      return
+    }
+    if (item.status === 'APPROVED') {
+      setConfirmDelete(item.id)
+      return
+    }
+    doRemove(item.id)
+  }
+
+  async function doRemove(id) {
+    const { data, error } = await supabase.rpc('absen_hapus_daftar_lembur', { p_id: id })
     if (error) alert(error.message)
+    else if (data?.error) alert(data.error)
     else loadDaftar()
+    setConfirmDelete(null)
+  }
+
+  async function handleApproveAll() {
+    const pendingIds = daftar.filter(d => d.status === 'PENDING').map(d => d.id)
+    if (pendingIds.length === 0) return
+    setProcessing('all')
+    try {
+      const { error } = await supabase.rpc('absen_approve_daftar_lembur', {
+        p_ids: pendingIds,
+        p_status: 'APPROVED',
+        p_user_id: profile?.id || null,
+      })
+      if (error) throw error
+      loadDaftar()
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setProcessing(null)
+    }
+  }
+
+  async function handleApproveOne(id, status) {
+    setProcessing(id)
+    try {
+      const { error } = await supabase.rpc('absen_approve_daftar_lembur', {
+        p_ids: [id],
+        p_status: status,
+        p_user_id: profile?.id || null,
+      })
+      if (error) throw error
+      loadDaftar()
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setProcessing(null)
+    }
   }
 
   function toggleSelect(id) {
@@ -116,6 +182,9 @@ function DaftarLemburTab() {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   })
 
+  const pendingCount = daftar.filter(d => d.status === 'PENDING').length
+  const approvedCount = daftar.filter(d => d.status === 'APPROVED').length
+
   return (
     <>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -128,9 +197,20 @@ function DaftarLemburTab() {
           />
           <span className="text-sm text-slate-400">{tglLabel}</span>
         </div>
-        <button onClick={openAddModal} className="btn-primary flex items-center gap-2 text-sm">
-          <Plus size={16} /> Tambah Karyawan
-        </button>
+        <div className="flex items-center gap-2">
+          {canApprove && pendingCount > 0 && (
+            <button
+              onClick={handleApproveAll}
+              disabled={processing === 'all'}
+              className="btn-success flex items-center gap-2 text-sm"
+            >
+              <CheckCircle size={14} /> Approve Semua ({pendingCount})
+            </button>
+          )}
+          <button onClick={openAddModal} className="btn-primary flex items-center gap-2 text-sm">
+            <Plus size={16} /> Tambah Karyawan
+          </button>
+        </div>
       </div>
 
       <div className="card">
@@ -139,7 +219,11 @@ function DaftarLemburTab() {
             <Users size={16} className="text-cyan-500" />
             <span className="text-sm font-semibold text-gray-900">Daftar Lembur</span>
           </div>
-          <span className="text-xs text-gray-400">{daftar.length} karyawan</span>
+          <div className="flex items-center gap-3 text-xs">
+            {pendingCount > 0 && <span className="text-amber-600">{pendingCount} pending</span>}
+            {approvedCount > 0 && <span className="text-emerald-600">{approvedCount} approved</span>}
+            <span className="text-gray-400">{daftar.length} total</span>
+          </div>
         </div>
 
         {loading ? (
@@ -160,6 +244,7 @@ function DaftarLemburTab() {
                   <th className="text-left px-5 py-3">Nama</th>
                   <th className="text-left px-4 py-3">Jabatan</th>
                   <th className="text-left px-4 py-3">Catatan</th>
+                  <th className="text-center px-4 py-3">Status</th>
                   <th className="text-center px-4 py-3">Aksi</th>
                 </tr>
               </thead>
@@ -170,13 +255,42 @@ function DaftarLemburTab() {
                     <td className="px-4 py-3 text-gray-600">{d.absen_karyawan?.jabatan || '-'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{d.catatan || '-'}</td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => handleRemove(d.id)}
-                        className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                        title="Hapus dari daftar"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <span className={`badge text-xs ${statusColor[d.status] || ''}`}>
+                        {statusLabel[d.status] || d.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        {canApprove && d.status === 'PENDING' && (
+                          <>
+                            <button
+                              onClick={() => handleApproveOne(d.id, 'APPROVED')}
+                              disabled={processing === d.id}
+                              className="p-1.5 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                              title="Approve"
+                            >
+                              <CheckCircle size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleApproveOne(d.id, 'REJECTED')}
+                              disabled={processing === d.id}
+                              className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Reject"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          </>
+                        )}
+                        {(d.status === 'PENDING' || role === 'admin') && (
+                          <button
+                            onClick={() => handleRemove(d)}
+                            className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            title="Hapus"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -185,6 +299,27 @@ function DaftarLemburTab() {
           </div>
         )}
       </div>
+
+      {/* Confirm delete approved */}
+      {confirmDelete && (
+        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="modal-content max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+                <AlertTriangle size={24} className="text-red-500" />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-2">Hapus Data Approved?</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Data lembur ini sudah diapprove. Menghapus akan membatalkan akses lembur karyawan ini.
+              </p>
+              <div className="flex gap-2 justify-center">
+                <button onClick={() => setConfirmDelete(null)} className="btn-secondary">Batal</button>
+                <button onClick={() => doRemove(confirmDelete)} className="btn-danger">Hapus</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add employees modal */}
       {showAdd && (
@@ -199,7 +334,6 @@ function DaftarLemburTab() {
             <div className="p-4 space-y-3">
               <p className="text-xs text-gray-500">Tanggal: {tglLabel}</p>
 
-              {/* Search */}
               <div className="relative">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
@@ -210,7 +344,6 @@ function DaftarLemburTab() {
                 />
               </div>
 
-              {/* Select all */}
               <div className="flex items-center justify-between">
                 <button onClick={selectAll} className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors">
                   {selected.length === filteredAdd.length && filteredAdd.length > 0 ? 'Batal Pilih Semua' : 'Pilih Semua'}
@@ -218,7 +351,6 @@ function DaftarLemburTab() {
                 <span className="text-xs text-gray-400">{selected.length} dipilih</span>
               </div>
 
-              {/* Employee list */}
               <div className="max-h-64 overflow-y-auto space-y-1 border border-gray-100 rounded-xl p-2">
                 {filteredAdd.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-4">
@@ -247,7 +379,6 @@ function DaftarLemburTab() {
                 ))}
               </div>
 
-              {/* Catatan */}
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Catatan (opsional)</label>
                 <input
@@ -258,7 +389,6 @@ function DaftarLemburTab() {
                 />
               </div>
 
-              {/* Submit */}
               <button
                 onClick={handleAdd}
                 disabled={selected.length === 0 || submitting}

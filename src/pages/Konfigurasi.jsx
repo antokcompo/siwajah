@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe } from 'lucide-react'
+import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe, Mail } from 'lucide-react'
 
 const timezoneOptions = [
   { value: 'Asia/Jakarta', label: 'WIB — Waktu Indonesia Barat (UTC+7)' },
@@ -54,6 +54,19 @@ const sections = [
     fields: [
       { key: 'anomali_persen_ambang', label: 'Ambang Anomali Massal', type: 'number', default: '50', unit: '%', help: 'Jika kehadiran LENGKAP turun di bawah X% dari rata-rata → tandai INSIDEN' },
       { key: 'kuota_koreksi', label: 'Kuota Koreksi per Karyawan', type: 'number', default: '3', unit: '/bulan', help: 'Melebihi kuota ini wajib persetujuan HRD atau Admin' },
+    ],
+  },
+  {
+    id: 'email',
+    title: 'Notifikasi Email (Brevo)',
+    icon: Mail,
+    color: 'indigo',
+    description: 'Pengaturan email notifikasi otomatis. API Key Brevo dikonfigurasi di Render.',
+    fields: [
+      { key: 'email_webhook_url', label: 'URL Webhook Email', type: 'text', default: '', help: 'Endpoint Render API (contoh: https://siwajah-api.onrender.com/api/notify-lembur)' },
+      { key: 'email_sender_name', label: 'Nama Pengirim', type: 'text', default: 'SI WAJAH', help: 'Nama yang tampil sebagai pengirim email' },
+      { key: 'email_sender_email', label: 'Email Pengirim', type: 'text', default: '', help: 'Harus email yang sudah terverifikasi di akun Brevo' },
+      { key: 'app_url', label: 'URL Aplikasi', type: 'text', default: '', help: 'URL SI WAJAH untuk link di email (contoh: https://siwajah.example.com)' },
     ],
   },
 ]
@@ -265,10 +278,12 @@ export default function Konfigurasi() {
                         ) : (
                           <div className="relative">
                             <input
-                              type={f.type === 'time' ? 'time' : 'number'}
+                              type={f.type === 'password' ? 'password' : f.type === 'time' ? 'time' : f.type === 'text' ? 'text' : 'number'}
                               value={values[f.key] || ''}
                               onChange={e => handleChange(f.key, e.target.value)}
                               step={f.type === 'number' ? 'any' : undefined}
+                              placeholder={f.type === 'text' || f.type === 'password' ? f.help?.split('(')[0]?.trim() : undefined}
+                              autoComplete={f.type === 'password' ? 'off' : undefined}
                               className={`input-field ${changed[f.key] ? 'border-blue-400 ring-2 ring-blue-100' : ''}`}
                             />
                           </div>
