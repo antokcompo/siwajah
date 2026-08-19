@@ -11,6 +11,9 @@ const statusColor = {
   HANYA_SCAN_TENGAH: 'bg-orange-100 text-orange-700',
   TIDAK_ADA_SCAN: 'bg-gray-100 text-gray-500',
   INSIDEN: 'bg-red-100 text-red-700',
+  IZIN_BERBAYAR: 'bg-cyan-100 text-cyan-700',
+  IZIN_TIDAK_BERBAYAR: 'bg-slate-100 text-slate-600',
+  LAPORAN_DITERIMA: 'bg-blue-100 text-blue-700',
 }
 
 const statusLabel = {
@@ -20,6 +23,9 @@ const statusLabel = {
   HANYA_SCAN_TENGAH: 'Scan Tengah',
   TIDAK_ADA_SCAN: 'Tidak Ada',
   INSIDEN: 'Insiden',
+  IZIN_BERBAYAR: 'Izin Berbayar',
+  IZIN_TIDAK_BERBAYAR: 'Izin Tidak Berbayar',
+  LAPORAN_DITERIMA: 'Laporan Diterima',
 }
 
 const slotColor = {
@@ -37,6 +43,13 @@ const tzShortName = {
   'Asia/Jayapura': 'WIT',
 }
 
+function getTzLabel(tz) {
+  if (!tz) return ''
+  if (tzShortName[tz]) return tzShortName[tz]
+  const parts = tz.split('/')
+  return parts[parts.length - 1].replace(/_/g, ' ')
+}
+
 function confidenceLevel(c) {
   if (c >= 0.75) return { label: 'Tinggi', cls: 'text-emerald-600' }
   if (c >= 0.55) return { label: 'Sedang', cls: 'text-amber-600' }
@@ -46,15 +59,15 @@ function confidenceLevel(c) {
 function formatScanTime(waktu, tz) {
   const d = new Date(waktu)
   const time = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: tz })
-  const label = tzShortName[tz] || ''
-  return `${time} ${label}`
+  const label = getTzLabel(tz)
+  return label ? `${time} ${label}` : time
 }
 
 function formatScanTimeFull(waktu, tz) {
   const d = new Date(waktu)
   const time = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: tz })
-  const label = tzShortName[tz] || ''
-  return `${time} ${label}`
+  const label = getTzLabel(tz)
+  return label ? `${time} ${label}` : time
 }
 
 export default function RekapHarian() {

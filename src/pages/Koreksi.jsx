@@ -9,6 +9,9 @@ const statusLabel = {
   TANPA_MASUK: 'Tanpa Masuk',
   HANYA_SCAN_TENGAH: 'Scan Tengah',
   INSIDEN: 'Insiden',
+  IZIN_BERBAYAR: 'Izin Berbayar',
+  IZIN_TIDAK_BERBAYAR: 'Izin Tidak Berbayar',
+  LAPORAN_DITERIMA: 'Laporan Diterima',
 }
 
 const statusColor = {
@@ -16,6 +19,9 @@ const statusColor = {
   TANPA_MASUK: 'bg-amber-100 text-amber-700',
   HANYA_SCAN_TENGAH: 'bg-orange-100 text-orange-700',
   INSIDEN: 'bg-red-100 text-red-700',
+  IZIN_BERBAYAR: 'bg-cyan-100 text-cyan-700',
+  IZIN_TIDAK_BERBAYAR: 'bg-slate-100 text-slate-600',
+  LAPORAN_DITERIMA: 'bg-blue-100 text-blue-700',
 }
 
 const alasanOptions = [

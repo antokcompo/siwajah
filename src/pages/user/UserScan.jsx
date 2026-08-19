@@ -4,7 +4,7 @@ import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
 import { loadModels, detectFace, findBestMatch, getConfidenceLevel } from '../../lib/faceApi'
 import { CheckCircle, AlertTriangle, Camera, MapPin, MapPinOff, WifiOff } from 'lucide-react'
-import { savePendingScan } from '../../lib/offlineQueue'
+import { savePendingScan, cacheFaceData, getCachedFaceData } from '../../lib/offlineQueue'
 
 function captureSnapshot(videoEl) {
   const canvas = document.createElement('canvas')
@@ -76,12 +76,22 @@ export default function UserScan() {
   }, [])
 
   async function loadMasterData() {
-    const [lokRes, pekRes] = await Promise.all([
-      supabase.rpc('absen_get_master_lokasi'),
-      supabase.rpc('absen_get_master_pekerjaan'),
-    ])
-    setMasterLokasi(lokRes.data || [])
-    setMasterPekerjaan(pekRes.data || [])
+    if (navigator.onLine) {
+      const [lokRes, pekRes] = await Promise.all([
+        supabase.rpc('absen_get_master_lokasi'),
+        supabase.rpc('absen_get_master_pekerjaan'),
+      ])
+      const lok = lokRes.data || []
+      const pek = pekRes.data || []
+      setMasterLokasi(lok)
+      setMasterPekerjaan(pek)
+      try { localStorage.setItem('siwajah_master_lokasi', JSON.stringify(lok)); localStorage.setItem('siwajah_master_pekerjaan', JSON.stringify(pek)) } catch {}
+    } else {
+      try {
+        setMasterLokasi(JSON.parse(localStorage.getItem('siwajah_master_lokasi') || '[]'))
+        setMasterPekerjaan(JSON.parse(localStorage.getItem('siwajah_master_pekerjaan') || '[]'))
+      } catch {}
+    }
   }
 
   function getGps() {
@@ -104,9 +114,18 @@ export default function UserScan() {
         return
       }
 
-      const { data: faces } = await supabase.rpc('absen_get_all_face_data')
+      let faces = null
+      if (navigator.onLine) {
+        const { data } = await supabase.rpc('absen_get_all_face_data')
+        faces = data
+        if (faces && faces.length > 0) {
+          try { await cacheFaceData(faces) } catch {}
+        }
+      } else {
+        try { faces = await getCachedFaceData() } catch {}
+      }
       if (!faces || faces.length === 0) {
-        setError('Belum ada data wajah terdaftar')
+        setError('Belum ada data wajah terdaftar' + (!navigator.onLine ? '. Hubungkan ke internet untuk sinkronisasi data wajah.' : ''))
         setPhase('camera')
         return
       }
@@ -139,14 +158,18 @@ export default function UserScan() {
 
   async function saveOffline() {
     const waktuScan = new Date().toISOString()
-    const buf = fotoBlob ? await fotoBlob.arrayBuffer() : null
+    let photoArray = null
+    if (fotoBlob) {
+      const buf = await fotoBlob.arrayBuffer()
+      photoArray = new Uint8Array(buf)
+    }
     await savePendingScan({
       karyawan_id: karyawan.id,
       slot_id: slot.id,
       lokasi_kerja: lokasi || null,
       jenis_pekerjaan: pekerjaan || null,
       keterangan: keterangan || null,
-      fotoBlob: buf ? new Blob([buf], { type: 'image/jpeg' }) : null,
+      fotoData: photoArray,
       gps_lat: gps?.lat || null,
       gps_lng: gps?.lng || null,
       confidence,

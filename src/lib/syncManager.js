@@ -21,18 +21,20 @@ export async function syncPendingScans() {
   const pending = await getPendingScans()
   let synced = 0
   let failed = 0
+  let lastError = null
 
   for (const scan of pending) {
     try {
       let fotoUrl = null
-      if (scan.fotoBlob) {
-        const blob = scan.fotoBlob instanceof Blob
-          ? scan.fotoBlob
-          : new Blob([scan.fotoBlob], { type: 'image/jpeg' })
+      const photoSource = scan.fotoData || scan.fotoBlob
+      if (photoSource) {
+        const blob = photoSource instanceof Blob
+          ? photoSource
+          : new Blob([photoSource], { type: 'image/jpeg' })
         const filePath = `${scan.karyawan_id}/${scan.waktu_scan_epoch}.jpg`
         const { error: uploadError } = await supabase.storage
           .from('scan-photos')
-          .upload(filePath, blob, { contentType: 'image/jpeg', upsert: false })
+          .upload(filePath, blob, { contentType: 'image/jpeg', upsert: true })
         if (!uploadError) {
           const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(filePath)
           fotoUrl = urlData.publicUrl
@@ -61,14 +63,15 @@ export async function syncPendingScans() {
       await removePendingScan(scan.id)
       synced++
     } catch (err) {
-      console.warn('Sync failed for scan', scan.id, err)
+      console.error('Sync failed for scan', scan.id, err)
+      lastError = err.message || String(err)
       failed++
     }
   }
 
   syncing = false
-  notify({ syncing: false, lastResult: { synced, failed, total: pending.length } })
-  return { synced, failed }
+  notify({ syncing: false, lastResult: { synced, failed, total: pending.length, lastError } })
+  return { synced, failed, lastError }
 }
 
 export function startAutoSync() {

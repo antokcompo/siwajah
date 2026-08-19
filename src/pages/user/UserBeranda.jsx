@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPinOff } from 'lucide-react'
+import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle } from 'lucide-react'
+import { cacheFaceData } from '../../lib/offlineQueue'
 
 const jenisColor = {
   masuk: 'bg-emerald-500',
@@ -28,6 +29,7 @@ export default function UserBeranda() {
   const navigate = useNavigate()
   const [slots, setSlots] = useState([])
   const [todayScans, setTodayScans] = useState([])
+  const [lemburRegistered, setLemburRegistered] = useState(false)
   const [hasFace, setHasFace] = useState(null)
   const [now, setNow] = useState(new Date())
   const [loading, setLoading] = useState(true)
@@ -43,23 +45,37 @@ export default function UserBeranda() {
 
   async function loadData() {
     setLoading(true)
-    const [slotsRes, scansRes, faceRes] = await Promise.all([
+    const [slotsRes, scansRes, faceRes, lemburRes] = await Promise.all([
       supabase.rpc('absen_get_jadwal_slot'),
       supabase.rpc('absen_scan_hari_ini', { p_karyawan_id: karyawan.id }),
       supabase.from('absen_face_data').select('id').eq('karyawan_id', karyawan.id).maybeSingle(),
+      supabase.rpc('absen_cek_lembur_hari_ini', { p_karyawan_id: karyawan.id }),
     ])
     setSlots(slotsRes.data || [])
     setTodayScans(scansRes.data || [])
+    setLemburRegistered(lemburRes.data === true)
     setHasFace(!!faceRes.data)
     setLoading(false)
+
+    if (navigator.onLine && faceRes.data) {
+      supabase.rpc('absen_get_all_face_data').then(({ data }) => {
+        if (data?.length) cacheFaceData(data).catch(() => {})
+      })
+    }
   }
 
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   const currentTimeMinutes = now.getHours() * 60 + now.getMinutes()
 
+  function isLemburSlot(slot) {
+    return slot.jenis === 'lembur' || slot.jenis === 'pulang_lembur'
+  }
+
   function getSlotStatus(slot) {
     const scanned = todayScans.find(s => s.slot_id === slot.id)
     if (scanned) return 'done'
+
+    if (isLemburSlot(slot) && !lemburRegistered) return 'not_registered'
 
     const [h, m] = slot.jam.split(':').map(Number)
     const slotMinutes = h * 60 + m
@@ -71,7 +87,7 @@ export default function UserBeranda() {
   }
 
   const nextSlot = slots.find(s => getSlotStatus(s) === 'active')
-    || slots.find(s => getSlotStatus(s) === 'upcoming')
+    || slots.find(s => getSlotStatus(s) === 'upcoming' && !(isLemburSlot(s) && !lemburRegistered))
 
   const greeting = now.getHours() < 12 ? 'Selamat Pagi' : now.getHours() < 15 ? 'Selamat Siang' : now.getHours() < 18 ? 'Selamat Sore' : 'Selamat Malam'
 
@@ -151,6 +167,20 @@ export default function UserBeranda() {
         </div>
       )}
 
+      {/* Quick actions */}
+      <div className="mb-4">
+        <button
+          onClick={() => navigate('/user/izin')}
+          className="w-full flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:border-cyan-500/30 transition-colors"
+        >
+          <CalendarDays size={18} className="text-cyan-400 shrink-0" />
+          <div className="text-left">
+            <div className="text-sm font-semibold text-slate-200">Ajukan Izin</div>
+            <div className="text-[10px] text-slate-500">Izin berbayar atau tidak berbayar</div>
+          </div>
+        </button>
+      </div>
+
       {/* Timeline */}
       <div className="mb-2">
         <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Hari Ini</h3>
@@ -167,6 +197,7 @@ export default function UserBeranda() {
                   ${st === 'active' ? 'bg-emerald-500/10 border border-emerald-500/20' :
                     st === 'done' ? 'bg-white/5' :
                     st === 'missed' ? 'bg-red-500/5 border border-red-500/10' :
+                    st === 'not_registered' ? 'opacity-30' :
                     'opacity-40'}`}
                 onClick={() => {
                   if (st === 'active') navigate('/user/scan', { state: { slot } })
@@ -177,6 +208,7 @@ export default function UserBeranda() {
                   st === 'done' ? 'bg-emerald-500' :
                   st === 'active' ? 'bg-emerald-400 animate-pulse' :
                   st === 'missed' ? 'bg-red-400' :
+                  st === 'not_registered' ? 'bg-slate-600' :
                   'bg-slate-700'
                 }`} />
 
@@ -200,7 +232,15 @@ export default function UserBeranda() {
                   ) : st === 'active' ? (
                     <span className="text-xs text-emerald-300">Siap absen</span>
                   ) : st === 'missed' ? (
-                    <span className="text-xs text-red-400">Terlewat</span>
+                    <div className="flex items-center gap-1 text-xs text-red-400">
+                      <FileWarning size={12} className="shrink-0" />
+                      Terlewat
+                    </div>
+                  ) : st === 'not_registered' ? (
+                    <div className="flex items-center gap-1 text-xs text-slate-500">
+                      <Ban size={12} className="shrink-0" />
+                      Tidak terdaftar lembur
+                    </div>
                   ) : (
                     <span className="text-xs text-slate-600">—</span>
                   )}
@@ -214,6 +254,25 @@ export default function UserBeranda() {
             )
           })}
         </div>
+
+        {/* Missed scan warning */}
+        {(() => {
+          const missedNonLembur = slots.filter(s => getSlotStatus(s) === 'missed' && !isLemburSlot(s))
+          if (missedNonLembur.length === 0) return null
+          return (
+            <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs text-red-400 font-semibold">{missedNonLembur.length} absen terlewat</p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Segera hubungi admin untuk koreksi absensi. Absen yang tidak dikoreksi akan dipotong setengah hari gaji.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

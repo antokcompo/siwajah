@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Upload, CalendarDays, FileEdit, Clock,
   Users, Settings, CalendarCheck, FileSpreadsheet, Shield, UserCog,
   Menu, X, LogOut, KeyRound, Eye, EyeOff, CheckCircle, AlertTriangle,
-  Timer
+  Timer, FileWarning
 } from 'lucide-react'
 
 const menuGroups = [
@@ -22,7 +22,8 @@ const menuGroups = [
     label: 'ABSENSI',
     items: [
       { path: '/koreksi', label: 'Koreksi', icon: FileEdit, roles: ['admin','atasan'] },
-      { path: '/approval-lembur', label: 'Approval Lembur', icon: Clock, roles: ['admin','atasan'] },
+      { path: '/approval-lembur', label: 'Lembur', icon: Clock, roles: ['admin','atasan'] },
+      { path: '/laporan-izin', label: 'Laporan & Izin', icon: FileWarning, roles: ['admin','atasan'] },
       { path: '/rekap-bulanan', label: 'Rekap Bulanan', icon: FileSpreadsheet, roles: ['admin','hrd','manajemen'] },
     ],
   },

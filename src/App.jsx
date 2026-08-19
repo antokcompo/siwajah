@@ -16,8 +16,10 @@ import Konfigurasi from './pages/Konfigurasi'
 import AuditLog from './pages/AuditLog'
 import ManajemenUser from './pages/ManajemenUser'
 import JadwalSlot from './pages/JadwalSlot'
+import LaporanIzin from './pages/LaporanIzin'
 
 import UserLayout from './pages/user/UserLayout'
+import UserIzin from './pages/user/UserIzin'
 import UserLogin from './pages/user/UserLogin'
 import UserBeranda from './pages/user/UserBeranda'
 import UserDaftarWajah from './pages/user/UserDaftarWajah'
@@ -43,6 +45,7 @@ function UserRoutes() {
             <Route path="daftar-wajah" element={<UserDaftarWajah />} />
             <Route path="scan" element={<UserScan />} />
             <Route path="riwayat" element={<UserRiwayat />} />
+            <Route path="izin" element={<UserIzin />} />
             <Route path="profil" element={<UserProfil />} />
           </Route>
         </Route>
@@ -78,6 +81,7 @@ export default function App() {
               <Route path="/konfigurasi" element={<Konfigurasi />} />
               <Route path="/manajemen-user" element={<ManajemenUser />} />
               <Route path="/jadwal-slot" element={<JadwalSlot />} />
+              <Route path="/laporan-izin" element={<LaporanIzin />} />
               <Route path="/audit-log" element={<AuditLog />} />
             </Routes>
           </Layout>

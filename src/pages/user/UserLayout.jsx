@@ -11,6 +11,7 @@ export default function UserLayout() {
   const [pendingCount, setPendingCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
   const [online, setOnline] = useState(navigator.onLine)
+  const [syncResult, setSyncResult] = useState(null)
 
   useEffect(() => {
     startAutoSync()
@@ -18,7 +19,13 @@ export default function UserLayout() {
 
     const unsub = onSyncChange(status => {
       setSyncing(status.syncing)
-      if (!status.syncing) refreshCount()
+      if (!status.syncing) {
+        refreshCount()
+        if (status.lastResult) {
+          setSyncResult(status.lastResult)
+          setTimeout(() => setSyncResult(null), 5000)
+        }
+      }
     })
 
     const handleOnline = () => { setOnline(true); refreshCount() }
@@ -76,6 +83,16 @@ export default function UserLayout() {
             : `${pendingCount} absen tersimpan offline — ketuk untuk kirim`
           }
         </button>
+      )}
+      {syncResult && syncResult.failed > 0 && (
+        <div className="px-4 py-2 bg-red-500/20 border-b border-red-500/30 text-xs text-red-300">
+          Gagal mengirim {syncResult.failed} data. {syncResult.lastError}
+        </div>
+      )}
+      {syncResult && syncResult.synced > 0 && syncResult.failed === 0 && (
+        <div className="px-4 py-2 bg-emerald-500/20 border-b border-emerald-500/30 text-xs text-emerald-300">
+          {syncResult.synced} data berhasil dikirim!
+        </div>
       )}
 
       {/* Top bar */}
