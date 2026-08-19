@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
 import { loadModels, detectFace, findBestMatch, getConfidenceLevel } from '../../lib/faceApi'
-import { CheckCircle, AlertTriangle, Camera, MapPin, MapPinOff } from 'lucide-react'
+import { CheckCircle, AlertTriangle, Camera, MapPin, MapPinOff, WifiOff } from 'lucide-react'
+import { savePendingScan } from '../../lib/offlineQueue'
 
 function captureSnapshot(videoEl) {
   const canvas = document.createElement('canvas')
@@ -136,10 +137,44 @@ export default function UserScan() {
     }
   }
 
+  async function saveOffline() {
+    const waktuScan = new Date().toISOString()
+    const buf = fotoBlob ? await fotoBlob.arrayBuffer() : null
+    await savePendingScan({
+      karyawan_id: karyawan.id,
+      slot_id: slot.id,
+      lokasi_kerja: lokasi || null,
+      jenis_pekerjaan: pekerjaan || null,
+      keterangan: keterangan || null,
+      fotoBlob: buf ? new Blob([buf], { type: 'image/jpeg' }) : null,
+      gps_lat: gps?.lat || null,
+      gps_lng: gps?.lng || null,
+      confidence,
+      client_tz: getUserTz(),
+      waktu_scan: waktuScan,
+      waktu_scan_epoch: Date.now(),
+      slot_label: slot.label,
+      slot_jam: slot.jam,
+    })
+    setResult({ waktu: waktuScan, slot_label: slot.label, offline: true })
+    setPhase('success')
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setSubmitting(true)
     setError('')
+
+    if (!navigator.onLine) {
+      try {
+        await saveOffline()
+      } catch (err) {
+        setError('Gagal menyimpan offline: ' + err.message)
+      } finally {
+        setSubmitting(false)
+      }
+      return
+    }
 
     try {
       let fotoUrl = null
@@ -172,7 +207,11 @@ export default function UserScan() {
       setResult(data)
       setPhase('success')
     } catch (err) {
-      setError(err.message)
+      try {
+        await saveOffline()
+      } catch (offlineErr) {
+        setError(err.message)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -344,7 +383,13 @@ export default function UserScan() {
             <CheckCircle size={32} className="text-emerald-400" />
           </div>
           <p className="text-lg font-bold text-emerald-400">Absen {slot.jam.slice(0, 5)}</p>
-          <p className="text-sm text-slate-200 mb-4">Berhasil Tercatat!</p>
+          <p className="text-sm text-slate-200 mb-1">Berhasil Tercatat!</p>
+          {result?.offline && (
+            <div className="flex items-center gap-1.5 text-xs text-amber-400 mb-3">
+              <WifiOff size={12} />
+              Tersimpan offline — akan dikirim saat ada sinyal
+            </div>
+          )}
 
           <div className="bg-white/5 rounded-xl p-4 w-full text-left text-sm space-y-2 mb-4">
             <div className="flex justify-between">
