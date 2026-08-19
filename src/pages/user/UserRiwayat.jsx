@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { ChevronLeft, ChevronRight, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
+import { getPendingScans } from '../../lib/offlineQueue'
+import { onSyncChange } from '../../lib/syncManager'
+import { ChevronLeft, ChevronRight, WifiOff, Clock } from 'lucide-react'
 
 const statusConfig = {
   LENGKAP: { label: 'Lengkap', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' },
@@ -15,12 +17,21 @@ export default function UserRiwayat() {
   const { karyawan } = useUserAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [data, setData] = useState([])
+  const [pendingScans, setPendingScans] = useState([])
   const [loading, setLoading] = useState(true)
 
   const bulan = currentDate.getMonth() + 1
   const tahun = currentDate.getFullYear()
 
   useEffect(() => { load() }, [bulan, tahun])
+
+  useEffect(() => {
+    loadPending()
+    const unsub = onSyncChange(status => {
+      if (!status.syncing) loadPending()
+    })
+    return unsub
+  }, [])
 
   async function load() {
     setLoading(true)
@@ -33,6 +44,12 @@ export default function UserRiwayat() {
       .order('tanggal', { ascending: false })
     setData(harian || [])
     setLoading(false)
+  }
+
+  async function loadPending() {
+    const scans = await getPendingScans()
+    const mine = scans.filter(s => s.karyawan_id === karyawan.id)
+    setPendingScans(mine)
   }
 
   function prevMonth() { setCurrentDate(new Date(tahun, bulan - 2, 1)) }
@@ -48,6 +65,50 @@ export default function UserRiwayat() {
 
   return (
     <div className="px-4 py-4">
+      {/* Pending offline scans */}
+      {pendingScans.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <WifiOff size={14} className="text-amber-400" />
+            <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+              Menunggu Sinkronisasi ({pendingScans.length})
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {pendingScans.map(scan => {
+              const waktu = new Date(scan.waktu_scan)
+              const tanggal = waktu.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })
+              const jam = waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+              return (
+                <div
+                  key={scan.id}
+                  className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                      <Clock size={16} className="text-amber-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-100">
+                        {tanggal} • {jam}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        {scan.slot_jam?.slice(0, 5)} — {scan.slot_label}
+                        {scan.lokasi_kerja && <span> • {scan.lokasi_kerja}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-[10px] font-semibold text-amber-400">Offline</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Month nav */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-lg">
