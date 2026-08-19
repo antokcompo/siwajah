@@ -5,7 +5,8 @@ import { supabase } from '../lib/supabase'
 import {
   LayoutDashboard, Upload, CalendarDays, FileEdit, Clock,
   Users, Settings, CalendarCheck, FileSpreadsheet, Shield, UserCog,
-  Menu, X, LogOut, KeyRound, Eye, EyeOff, CheckCircle, AlertTriangle
+  Menu, X, LogOut, KeyRound, Eye, EyeOff, CheckCircle, AlertTriangle,
+  Timer
 } from 'lucide-react'
 
 const menuGroups = [
@@ -30,6 +31,7 @@ const menuGroups = [
     items: [
       { path: '/master-karyawan', label: 'Master Karyawan', icon: Users, roles: ['admin','hrd'] },
       { path: '/kalender', label: 'Kalender Kerja', icon: CalendarCheck, roles: ['admin'] },
+      { path: '/jadwal-slot', label: 'Jadwal Slot Absen', icon: Timer, roles: ['admin'] },
       { path: '/manajemen-user', label: 'Manajemen User', icon: UserCog, roles: ['admin'] },
       { path: '/konfigurasi', label: 'Konfigurasi', icon: Settings, roles: ['admin'] },
       { path: '/audit-log', label: 'Audit Log', icon: Shield, roles: ['admin','hrd','manajemen'] },

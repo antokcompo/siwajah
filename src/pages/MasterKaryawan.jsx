@@ -19,7 +19,7 @@ export default function MasterKaryawan() {
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ nama: '', jabatan: '', uid_mesin: '', gaji_bulanan: '', tunjangan: '0', tgl_masuk: '', status_aktif: true, atasan_id: '' })
+  const [form, setForm] = useState({ nama: '', jabatan: '', uid_mesin: '', gaji_bulanan: '', tunjangan: '0', tgl_masuk: '', status_aktif: true, atasan_id: '', no_hp: '', pin: '' })
   const [saving, setSaving] = useState(false)
   const [mandorList, setMandorList] = useState([])
 
@@ -51,7 +51,7 @@ export default function MasterKaryawan() {
 
   function openAdd() {
     setEditing(null)
-    setForm({ nama: '', jabatan: '', uid_mesin: '', gaji_bulanan: '', tunjangan: '0', tgl_masuk: '', status_aktif: true, atasan_id: '' })
+    setForm({ nama: '', jabatan: '', uid_mesin: '', gaji_bulanan: '', tunjangan: '0', tgl_masuk: '', status_aktif: true, atasan_id: '', no_hp: '', pin: '' })
     setShowModal(true)
   }
 
@@ -66,6 +66,8 @@ export default function MasterKaryawan() {
       tgl_masuk: row.tgl_masuk || '',
       status_aktif: row.status_aktif,
       atasan_id: row.atasan_id || '',
+      no_hp: row.no_hp || '',
+      pin: row.pin || '',
     })
     setShowModal(true)
   }
@@ -82,6 +84,8 @@ export default function MasterKaryawan() {
       tgl_masuk: form.tgl_masuk || null,
       status_aktif: form.status_aktif,
       atasan_id: form.atasan_id || null,
+      no_hp: form.no_hp || null,
+      pin: form.pin || null,
     }
 
     let error
@@ -317,6 +321,19 @@ export default function MasterKaryawan() {
                   <option value="">-- Harian Kantor --</option>
                   {mandorListDerived.map(a => <option key={a.id} value={a.id}>{a.nama}</option>)}
                 </select>
+              </div>
+              <div className="border-t border-white/10 pt-4 mt-2">
+                <p className="text-xs font-semibold text-cyan-400 mb-3">Login User App (SI WAJAH Mobile)</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">No. HP</label>
+                    <input type="tel" value={form.no_hp} onChange={e => setForm({...form, no_hp: e.target.value})} className="input-field" placeholder="08xxxxxxxxxx" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">PIN</label>
+                    <input type="text" inputMode="numeric" maxLength={6} value={form.pin} onChange={e => setForm({...form, pin: e.target.value.replace(/\D/g, '')})} className="input-field" placeholder="4-6 digit" />
+                  </div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="aktif" checked={form.status_aktif} onChange={e => setForm({...form, status_aktif: e.target.checked})} className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />

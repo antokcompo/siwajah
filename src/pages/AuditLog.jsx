@@ -29,9 +29,9 @@ export default function AuditLog() {
   const pageSize = 20
 
   useEffect(() => {
-    supabase.from('absen_user_profiles').select('user_id, nama').then(({ data }) => {
+    supabase.from('absen_user_profiles').select('id, nama').then(({ data }) => {
       const m = {}
-      ;(data || []).forEach(u => { m[u.user_id] = u.nama })
+      ;(data || []).forEach(u => { m[u.id] = u.nama })
       setUserMap(m)
     })
   }, [])

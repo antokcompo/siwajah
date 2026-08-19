@@ -1,16 +1,18 @@
 # Dependencies
 node_modules/
 
-# Environment
+# Environment / Credentials
 .env
 .env.local
 .env.*.local
 .env.production
+.env.staging
 
 # Build
 dist/
 build/
 .netlify/
+.wrangler/
 
 # OS
 .DS_Store
@@ -32,3 +34,5 @@ supabase/.temp/
 
 # Archives
 *.zip
+
+# Claude Code (keep .claude/launch.json for dev server config)
