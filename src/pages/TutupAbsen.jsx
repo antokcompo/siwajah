@@ -37,17 +37,30 @@ export default function TutupAbsen() {
 
   async function loadData() {
     setLoading(true)
+    const cacheKey = `siwajah_tutup_absen_${tahun}`
+    
+    // Read local cache first for instant render
+    let cachedList = []
+    try {
+      cachedList = JSON.parse(localStorage.getItem(cacheKey) || '[]')
+    } catch (e) {}
+
+    if (cachedList.length > 0) {
+      setLockList(cachedList)
+    }
+
     const { data, error } = await supabase
       .from('absen_tutup_bulan')
       .select('*')
       .eq('tahun', tahun)
       .order('bulan', { ascending: true })
 
-    if (error) {
-      console.error('Error loading tutup absen:', error)
+    let rawList = (data && data.length > 0) ? data : cachedList
+
+    if (data && data.length > 0) {
+      localStorage.setItem(cacheKey, JSON.stringify(data))
     }
 
-    const rawList = data || []
     const userIds = [...new Set(
       rawList.flatMap(d => [d.request_by, d.approved_by, d.closed_by]).filter(Boolean)
     )]
@@ -86,7 +99,8 @@ export default function TutupAbsen() {
 
     setLockSubmitting(true)
 
-    // Optimistic UI state update
+    // Optimistic UI state update & LocalStorage cache sync
+    const cacheKey = `siwajah_tutup_absen_${targetTahun}`
     setLockList(prev => {
       const idx = prev.findIndex(item => item.bulan === targetBulan)
       const newItem = {
@@ -95,12 +109,15 @@ export default function TutupAbsen() {
         status: 'CLOSED',
         closed_at: new Date().toISOString()
       }
+      let copy = []
       if (idx >= 0) {
-        const copy = [...prev]
+        copy = [...prev]
         copy[idx] = { ...copy[idx], ...newItem }
-        return copy
+      } else {
+        copy = [...prev, newItem]
       }
-      return [...prev, newItem]
+      localStorage.setItem(cacheKey, JSON.stringify(copy))
+      return copy
     })
 
     try {
@@ -129,10 +146,25 @@ export default function TutupAbsen() {
       return
     }
     setRequestSubmitting(true)
+    const targetBulan = requestModal.bulan
+    const targetTahun = requestModal.tahun
+
+    // Optimistic update
+    const cacheKey = `siwajah_tutup_absen_${targetTahun}`
+    setLockList(prev => {
+      const copy = [...prev]
+      const idx = copy.findIndex(i => i.bulan === targetBulan)
+      if (idx >= 0) {
+        copy[idx] = { ...copy[idx], status: 'REQUESTED', me_alasan: requestAlasan }
+      }
+      localStorage.setItem(cacheKey, JSON.stringify(copy))
+      return copy
+    })
+
     try {
       const { data, error } = await supabase.rpc('absen_request_buka_tutup_bulan', {
-        p_tahun: requestModal.tahun,
-        p_bulan: requestModal.bulan,
+        p_tahun: targetTahun,
+        p_bulan: targetBulan,
         p_alasan: requestAlasan,
         p_user_id: profile?.karyawan_id || null
       })
@@ -143,6 +175,7 @@ export default function TutupAbsen() {
       loadData()
     } catch (err) {
       toastError('Gagal Mengirim Permintaan', err.message || 'Terjadi kesalahan saat mengumpulkan pengajuan.')
+      loadData()
     } finally {
       setRequestSubmitting(false)
     }
@@ -152,22 +185,40 @@ export default function TutupAbsen() {
   async function handleSaveApproval() {
     if (!approvalModal) return
     setApprovalSubmitting(true)
+    const targetBulan = approvalModal.bulan
+    const targetTahun = approvalModal.tahun
+    const action = approvalModal.action
+    const newStatus = action === 'APPROVE' ? 'UNLOCKED_TEMPORARY' : 'CLOSED'
+    const until = action === 'APPROVE' ? new Date(Date.now() + 48 * 3600 * 1000).toISOString() : null
+
+    const cacheKey = `siwajah_tutup_absen_${targetTahun}`
+    setLockList(prev => {
+      const copy = [...prev]
+      const idx = copy.findIndex(i => i.bulan === targetBulan)
+      if (idx >= 0) {
+        copy[idx] = { ...copy[idx], status: newStatus, unlocked_until: until }
+      }
+      localStorage.setItem(cacheKey, JSON.stringify(copy))
+      return copy
+    })
+
     try {
       const { data, error } = await supabase.rpc('absen_approve_buka_tutup_bulan', {
-        p_tahun: approvalModal.tahun,
-        p_bulan: approvalModal.bulan,
-        p_action: approvalModal.action,
+        p_tahun: targetTahun,
+        p_bulan: targetBulan,
+        p_action: action,
         p_catatan: approvalCatatan || null,
         p_user_id: profile?.karyawan_id || null
       })
       if (error) throw error
-      const actionText = approvalModal.action === 'APPROVE' ? 'disetujui. Akses edit terbuka 2 hari.' : 'ditolak.'
-      toastSuccess('Status Approval Diperbarui', `Permintaan buka lock bulan ${namaBulan[approvalModal.bulan]} ${approvalModal.tahun} berhasil ${actionText}`)
+      const actionText = action === 'APPROVE' ? 'disetujui. Akses edit terbuka 2 hari.' : 'ditolak.'
+      toastSuccess('Status Approval Diperbarui', `Permintaan buka lock bulan ${namaBulan[targetBulan]} ${targetTahun} berhasil ${actionText}`)
       setApprovalModal(null)
       setApprovalCatatan('')
       loadData()
     } catch (err) {
       toastError('Gagal Memproses Approval', err.message || 'Terjadi kesalahan saat memproses keputusan.')
+      loadData()
     } finally {
       setApprovalSubmitting(false)
     }
