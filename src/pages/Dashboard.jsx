@@ -4,7 +4,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 import { 
   Users, CheckCircle, AlertTriangle, Clock, TrendingUp, 
-  BarChart3, Timer, UserCheck, Hammer, MapPinOff, ExternalLink, MapPin, X
+  BarChart3, Timer, UserCheck, Hammer, MapPinOff, ExternalLink, MapPin, X,
+  ShieldAlert, Radio, Navigation, Building2, ZoomIn, Eye, ScanFace, Globe
 } from 'lucide-react'
 
 const namaBulan = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
@@ -345,46 +346,57 @@ export default function Dashboard() {
           )}
 
           {/* Card List Karyawan Absen dari Luar Lokasi Site */}
-          <div className="rounded-2xl mb-6 lg:mb-8 overflow-hidden" style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
-            <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--card-border)' }}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-rose-400" style={{ background: 'rgba(239, 68, 68, 0.12)' }}>
-                  <MapPinOff size={18} />
+          <div className="relative rounded-2xl mb-6 lg:mb-8 overflow-hidden border border-rose-500/30 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950/95 backdrop-blur-xl shadow-2xl shadow-rose-950/20">
+            {/* Ambient Top Glow Bar */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500" />
+
+            <div className="px-6 py-4.5 border-b border-rose-500/20 flex items-center justify-between flex-wrap gap-4 bg-slate-900/40">
+              <div className="flex items-center gap-3.5">
+                <div className="relative w-11 h-11 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0 shadow-lg shadow-rose-950/40">
+                  <MapPinOff size={22} />
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                  </span>
                 </div>
                 <div>
-                  <h2 className="font-bold text-white text-sm flex items-center gap-2">
-                    Presensi Di Luar Lokasi Site Proyek
+                  <h2 className="font-extrabold text-white text-base tracking-wide flex items-center gap-2.5 flex-wrap">
+                    <span>Presensi Di Luar Lokasi Site Proyek</span>
                     {offsiteScans.length > 0 && (
-                      <span className="px-2.5 py-0.5 rounded-full font-bold text-xs bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                        {offsiteScans.length} Scan Terdeteksi
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm shadow-rose-500/10 flex items-center gap-1.5">
+                        <ShieldAlert size={13} className="text-rose-400" />
+                        <span>{offsiteScans.length} Scan Terdeteksi</span>
                       </span>
                     )}
                   </h2>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    Batas Radius Site: <strong className="text-cyan-400">{siteConfig.radius} Meter</strong> ({siteConfig.lat}, {siteConfig.lng})
+                  <p className="text-xs text-slate-400 flex items-center gap-2 mt-1">
+                    <span>Radius Geofence Site:</span>
+                    <span className="font-mono font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded text-[11px] inline-flex items-center gap-1">
+                      🎯 {siteConfig.radius} Meter ({siteConfig.lat?.toFixed(5)}, {siteConfig.lng?.toFixed(5)})
+                    </span>
                   </p>
                 </div>
               </div>
             </div>
 
             {offsiteScans.length === 0 ? (
-              <div className="p-6 text-center text-xs flex items-center justify-center gap-2" style={{ color: 'var(--text-muted)' }}>
-                <CheckCircle size={16} className="text-emerald-400" />
-                <span>Seluruh presensi scan bulan ini dilakukan di dalam radius lokasi site proyek ({siteConfig.radius}m).</span>
+              <div className="p-8 text-center text-xs flex items-center justify-center gap-2.5 text-slate-400">
+                <CheckCircle size={18} className="text-emerald-400" />
+                <span className="font-medium text-slate-300">Seluruh presensi scan bulan ini dilakukan di dalam radius lokasi site proyek ({siteConfig.radius}m).</span>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="uppercase tracking-wider font-semibold" style={{ background: 'rgba(15, 23, 42, 0.6)', color: 'var(--text-muted)' }}>
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead className="uppercase tracking-wider font-semibold text-slate-400 bg-slate-950/70 border-b border-slate-800">
                     <tr>
-                      <th className="px-5 py-3">Nama Pekerja</th>
-                      <th className="px-4 py-3">Waktu Scan & Slot</th>
-                      <th className="px-4 py-3">Jarak dari Site</th>
-                      <th className="px-4 py-3">Koordinat GPS</th>
-                      <th className="px-4 py-3 text-center">Foto Scan</th>
+                      <th className="px-6 py-3.5">Nama Pekerja</th>
+                      <th className="px-5 py-3.5">Waktu Scan & Slot</th>
+                      <th className="px-5 py-3.5">Jarak dari Site</th>
+                      <th className="px-5 py-3.5">Koordinat GPS</th>
+                      <th className="px-5 py-3.5 text-center">Foto Scan</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y text-slate-200" style={{ borderColor: 'var(--card-border)' }}>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
                     {offsiteScans.map(item => {
                       const scanTz = item.client_tz || siteConfig.zona_waktu || 'Asia/Jayapura'
                       const tzShortMap = { 'Asia/Jayapura': 'WIT', 'Asia/Jakarta': 'WIB', 'Asia/Makassar': 'WITA' }
@@ -392,44 +404,81 @@ export default function Dashboard() {
                       const scanTime = new Date(item.waktu_scan)
                       const tglStr = scanTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: scanTz })
                       const jamStr = scanTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: scanTz })
+                      const isFarOffsite = item.distanceMeters >= 50000
 
                       return (
-                        <tr key={item.id} className="hover:bg-slate-900/60 transition-colors">
-                          <td className="px-5 py-3">
-                            <div className="font-bold text-white">{item.absen_karyawan?.nama}</div>
-                            <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{item.absen_karyawan?.jabatan || 'Pekerja'}</div>
-                          </td>
-                          <td className="px-4 py-3 font-mono">
-                            <div className="text-cyan-300 font-bold">{tglStr} • {jamStr} {tzShort}</div>
-                            <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                              {item.absen_jadwal_slot?.label || 'Presensi'} ({item.absen_jadwal_slot?.jam?.slice(0,5)})
+                        <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400 text-xs shrink-0 shadow-inner">
+                                {item.absen_karyawan?.nama ? item.absen_karyawan.nama.charAt(0).toUpperCase() : '?'}
+                              </div>
+                              <div>
+                                <div className="font-bold text-white text-sm">{item.absen_karyawan?.nama}</div>
+                                <div className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-slate-800/90 border border-slate-700/80 text-cyan-300 font-semibold">
+                                  {item.absen_karyawan?.jabatan || 'Pekerja'}
+                                </div>
+                              </div>
                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold text-[11px]">
-                              <AlertTriangle size={12} /> {formatDistance(item.distanceMeters)} dari site
-                            </span>
+                          <td className="px-5 py-4 font-mono">
+                            <div className="text-cyan-300 font-bold text-xs bg-cyan-950/40 border border-cyan-800/40 px-2.5 py-1 rounded-lg w-fit shadow-inner">
+                              {tglStr} • {jamStr} {tzShort}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
+                              <Clock size={11} className="text-slate-500" />
+                              <span>{item.absen_jadwal_slot?.label || 'Presensi'} ({item.absen_jadwal_slot?.jam?.slice(0,5)})</span>
+                            </div>
                           </td>
-                          <td className="px-4 py-3 font-mono text-[11px]">
-                            <a
-                              href={`https://maps.google.com/?q=${item.gps_lat},${item.gps_lng}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-blue-400 hover:underline inline-flex items-center gap-1"
-                            >
-                              <span>{item.gps_lat?.toFixed(5)}, {item.gps_lng?.toFixed(5)}</span>
-                              <ExternalLink size={12} />
-                            </a>
-                            {item.lokasi_kerja && <div className="text-[10px] font-sans" style={{ color: 'var(--text-muted)' }}>{item.lokasi_kerja}</div>}
+                          <td className="px-5 py-4">
+                            {isFarOffsite ? (
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold text-xs shadow-md shadow-rose-950/50">
+                                <Radio size={13} className="text-rose-400 animate-pulse" />
+                                <span>{formatDistance(item.distanceMeters)}</span>
+                                <span className="text-[9px] bg-rose-950/80 px-1.5 py-0.2 rounded text-rose-300 uppercase font-semibold">Out of Region</span>
+                              </div>
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold text-xs shadow-md shadow-amber-950/50">
+                                <AlertTriangle size={13} className="text-amber-400" />
+                                <span>{formatDistance(item.distanceMeters)}</span>
+                                <span className="text-[9px] bg-amber-950/80 px-1.5 py-0.2 rounded text-amber-300 uppercase font-semibold">Area Sekitar</span>
+                              </div>
+                            )}
                           </td>
-                          <td className="px-4 py-3 text-center">
-                            {item.foto_url ? (
-                              <button
-                                onClick={() => setPreviewPhoto(item.foto_url)}
-                                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-colors"
+                          <td className="px-5 py-4 font-mono text-[11px]">
+                            <div className="flex flex-col gap-1">
+                              <a
+                                href={`https://maps.google.com/?q=${item.gps_lat},${item.gps_lng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-400 hover:text-blue-300 font-semibold text-xs inline-flex items-center gap-1.5 bg-blue-950/40 border border-blue-800/40 px-2.5 py-1 rounded-lg w-fit transition-colors"
                               >
-                                Lihat Foto
-                              </button>
+                                <Navigation size={12} className="text-blue-400 shrink-0" />
+                                <span>{item.gps_lat?.toFixed(5)}, {item.gps_lng?.toFixed(5)}</span>
+                                <ExternalLink size={11} className="opacity-70" />
+                              </a>
+                              {item.lokasi_kerja && (
+                                <div className="text-[11px] font-sans text-slate-400 flex items-center gap-1 px-1">
+                                  <Building2 size={11} className="text-slate-500 shrink-0" />
+                                  <span>{item.lokasi_kerja}</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            {item.foto_url ? (
+                              <div className="flex justify-center">
+                                <button
+                                  onClick={() => setPreviewPhoto(item.foto_url)}
+                                  className="relative group overflow-hidden rounded-xl border border-slate-700 hover:border-cyan-500/80 transition-all shadow-md"
+                                  title="Klik untuk perbesar foto"
+                                >
+                                  <img src={item.foto_url} alt="Scan" className="w-10 h-10 object-cover transition-transform group-hover:scale-110" />
+                                  <div className="absolute inset-0 bg-slate-950/50 group-hover:bg-slate-950/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Eye size={16} className="text-cyan-300 drop-shadow-md" />
+                                  </div>
+                                </button>
+                              </div>
                             ) : (
                               <span className="text-slate-500 italic">—</span>
                             )}
