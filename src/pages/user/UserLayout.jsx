@@ -59,7 +59,7 @@ export default function UserLayout() {
   }
 
   return (
-    <div className={`user-app min-h-screen transition-colors duration-200 ${outdoorMode ? 'bg-slate-950 text-white font-sans' : ''}`}>
+    <div className={`user-app min-h-screen transition-colors duration-200 ${outdoorMode ? 'bg-black text-white font-sans' : 'bg-slate-950 text-slate-100'}`}>
       {/* Offline / pending banner */}
       {!online && (
         <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/20 border-b border-amber-500/30 text-xs text-amber-300">
@@ -96,7 +96,7 @@ export default function UserLayout() {
       )}
 
       {/* Top bar with Global Outdoor Mode Toggle */}
-      <div className={`user-topbar flex items-center justify-between border-b ${outdoorMode ? 'bg-slate-900 border-slate-800' : 'border-slate-800/80'}`}>
+      <div className={`user-topbar flex items-center justify-between border-b ${outdoorMode ? 'bg-black border-slate-800' : 'bg-slate-900/90 border-slate-800/80'}`}>
         <div className="flex items-center gap-2.5">
           <HardHat size={22} className="text-cyan-400 shrink-0" />
           <div>
@@ -127,12 +127,12 @@ export default function UserLayout() {
       </div>
 
       {/* Content Area */}
-      <div className="user-content pb-20">
+      <div className={`user-content pb-20 ${outdoorMode ? 'bg-black' : ''}`}>
         <Outlet />
       </div>
 
       {/* Bottom Navigation Bar */}
-      <div className={`user-bottom-nav ${outdoorMode ? 'bg-slate-900 border-t border-slate-800 shadow-2xl' : ''}`}>
+      <div className={`user-bottom-nav ${outdoorMode ? 'bg-black border-t border-slate-800 shadow-2xl' : 'bg-slate-900/95 border-t border-slate-800'}`}>
         <NavLink to="/user" end className={({ isActive }) => `user-nav-item ${isActive ? 'active text-cyan-400 font-bold' : 'text-slate-400'}`}>
           <Home size={20} />
           <span>Beranda</span>

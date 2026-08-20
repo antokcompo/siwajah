@@ -267,7 +267,7 @@ export default function UserRiwayat() {
   }
 
   return (
-    <div className="px-4 py-4 space-y-4">
+    <div className={`px-4 py-4 space-y-4 min-h-screen transition-colors ${outdoorMode ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'}`}>
       {/* Toast Notification */}
       {laporSuccess && (
         <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 p-3 rounded-2xl text-xs font-bold flex items-center justify-between animate-in fade-in">

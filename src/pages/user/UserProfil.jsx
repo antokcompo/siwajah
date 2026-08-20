@@ -110,11 +110,11 @@ export default function UserProfil() {
   }
 
   return (
-    <div className={`px-4 py-6 min-h-screen transition-colors ${outdoorMode ? 'bg-slate-950 text-white' : ''}`}>
+    <div className={`px-4 py-6 min-h-screen transition-colors ${outdoorMode ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'}`}>
       {/* Avatar & name */}
       <div className={`text-center mb-6 p-5 rounded-3xl border transition-all ${
         outdoorMode
-          ? 'bg-slate-900 border-2 border-cyan-400 shadow-xl shadow-cyan-950/60'
+          ? 'bg-black border-2 border-cyan-400 shadow-2xl text-white'
           : 'bg-slate-900/60 border border-slate-800'
       }`}>
         <div className="w-20 h-20 rounded-full bg-cyan-500/20 border-2 border-cyan-400 flex items-center justify-center mx-auto mb-3 shadow-md">
@@ -128,7 +128,7 @@ export default function UserProfil() {
       <div className="space-y-3 mb-6">
         <div className={`rounded-2xl p-4 border transition-all ${
           outdoorMode
-            ? 'bg-slate-900 border-2 border-cyan-400/80 shadow-lg'
+            ? 'bg-black border-2 border-cyan-400 shadow-2xl'
             : 'bg-slate-900/60 border border-slate-800'
         }`}>
           <div className="flex items-center justify-between">
@@ -157,7 +157,7 @@ export default function UserProfil() {
       {/* Employee Info Card */}
       <div className={`rounded-2xl p-4 space-y-3.5 mb-6 border transition-all ${
         outdoorMode
-          ? 'bg-slate-900 border-2 border-cyan-400/80 shadow-lg'
+          ? 'bg-black border-2 border-cyan-400 shadow-2xl'
           : 'bg-slate-900/60 border border-slate-800'
       }`}>
         <h3 className="text-xs font-black text-cyan-300 uppercase tracking-wider">Informasi Karyawan</h3>
@@ -174,7 +174,7 @@ export default function UserProfil() {
       {/* PIN Security Form Card */}
       <div className={`rounded-2xl p-4 mb-6 border transition-all ${
         outdoorMode
-          ? 'bg-slate-900 border-2 border-cyan-400/80 shadow-lg'
+          ? 'bg-black border-2 border-cyan-400 shadow-2xl'
           : 'bg-slate-900/60 border border-slate-800'
       }`}>
         <div className="flex items-center justify-between">

@@ -288,14 +288,14 @@ export default function UserBeranda() {
   }
 
   return (
-    <div className={`px-4 py-4 min-h-screen transition-colors duration-200 ${outdoorMode ? 'bg-slate-950 text-white' : ''}`}>
+    <div className={`px-4 py-4 min-h-screen transition-colors duration-200 ${outdoorMode ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'}`}>
       {/* Header Profile Info */}
       <div className={`text-center mb-5 p-4 rounded-2xl border transition-all ${
         outdoorMode
-          ? 'bg-slate-900 border-2 border-cyan-400/80 shadow-lg shadow-cyan-950/60'
+          ? 'bg-black border-2 border-cyan-400 shadow-2xl text-white'
           : 'bg-slate-900/60 border border-slate-800'
       }`}>
-        <p className={`text-xs font-bold ${outdoorMode ? 'text-amber-300' : 'text-slate-300'}`}>{greeting}</p>
+        <p className={`text-xs font-bold ${outdoorMode ? 'text-amber-300' : 'text-slate-400'}`}>{greeting}</p>
         <h2 className={`text-xl font-black ${outdoorMode ? 'text-white tracking-wide' : 'text-slate-100'}`}>{karyawan?.nama}</h2>
         <p className={`text-xs font-medium mt-1 ${outdoorMode ? 'text-cyan-300' : 'text-slate-400'}`}>{fmtDate}</p>
       </div>
@@ -363,7 +363,7 @@ export default function UserBeranda() {
           </div>
         </div>
       ) : isTodayHoliday && !lemburRegistered ? (
-        <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 mb-5 text-center shadow-lg">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-5 text-center shadow-lg">
           <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-3 text-cyan-400 border border-cyan-500/30">
             <Clock size={24} />
           </div>
@@ -381,8 +381,8 @@ export default function UserBeranda() {
       ) : nextSlot && (
         <div className={`rounded-3xl p-5 mb-5 text-center transition-all ${
           outdoorMode
-            ? 'bg-emerald-950/80 border-2 border-emerald-400 shadow-2xl shadow-emerald-950/80'
-            : 'bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/40 shadow-lg'
+            ? 'bg-black border-2 border-emerald-400 shadow-2xl'
+            : 'bg-slate-900/90 border border-slate-800 shadow-lg'
         }`}>
           <p className="text-xs text-emerald-300 uppercase tracking-wider font-black">Absen Berikutnya</p>
           <p className="text-4xl font-black text-emerald-400 mt-1 tracking-tight">{nextSlot.jam.slice(0, 5)}</p>
@@ -405,7 +405,7 @@ export default function UserBeranda() {
       )}
 
       {!nextSlot && slots.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-5 text-center shadow-md">
+        <div className={`rounded-2xl p-5 mb-5 text-center shadow-md ${outdoorMode ? 'bg-black border-2 border-slate-800' : 'bg-slate-900/60 border border-slate-800'}`}>
           <p className="text-sm font-extrabold text-white">Semua absen hari ini sudah selesai</p>
           <p className="text-xs text-slate-400 mt-1 font-medium">Sampai jumpa besok!</p>
         </div>
@@ -417,7 +417,7 @@ export default function UserBeranda() {
           onClick={() => navigate('/user/izin')}
           className={`flex items-center gap-3 p-3.5 rounded-2xl transition-all text-left ${
             outdoorMode
-              ? 'bg-slate-900 border-2 border-cyan-400 text-white shadow-lg'
+              ? 'bg-black border-2 border-cyan-400 text-white shadow-xl'
               : 'bg-slate-900/80 border border-slate-800 hover:border-cyan-500/40'
           }`}
         >
@@ -433,7 +433,7 @@ export default function UserBeranda() {
           onClick={() => navigate('/user/laporan-terlewat')}
           className={`flex items-center gap-3 p-3.5 rounded-2xl transition-all text-left ${
             outdoorMode
-              ? 'bg-slate-900 border-2 border-amber-400 text-white shadow-lg'
+              ? 'bg-black border-2 border-amber-400 text-white shadow-xl'
               : 'bg-slate-900/80 border border-slate-800 hover:border-amber-500/40'
           }`}
         >
@@ -464,15 +464,23 @@ export default function UserBeranda() {
               <div
                 key={slot.id}
                 className={`flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all border ${
-                  st === 'active'
-                    ? 'bg-emerald-950/80 border-2 border-emerald-400 shadow-lg shadow-emerald-950/50'
+                  outdoorMode
+                    ? st === 'active'
+                      ? 'bg-emerald-950 border-2 border-emerald-400 shadow-xl'
+                      : st === 'pending_laporan'
+                      ? 'bg-amber-950 border-2 border-amber-400 shadow-xl'
+                      : st === 'missed'
+                      ? 'bg-rose-950 border-2 border-rose-500 shadow-xl'
+                      : 'bg-black border-2 border-slate-800 text-white'
+                    : st === 'active'
+                    ? 'bg-emerald-500/10 border border-emerald-500/20'
                     : st === 'done'
-                    ? 'bg-slate-900 border-slate-800'
+                    ? 'bg-slate-900/60 border border-slate-800'
                     : st === 'pending_laporan'
-                    ? 'bg-amber-950/60 border-2 border-amber-400/80'
+                    ? 'bg-amber-500/10 border border-amber-500/20'
                     : st === 'missed'
-                    ? 'bg-rose-950/60 border-2 border-rose-500/80'
-                    : 'bg-slate-900/40 border-slate-800/80 opacity-60'
+                    ? 'bg-rose-500/10 border border-rose-500/20'
+                    : 'bg-slate-900/40 border border-slate-800/80 opacity-60'
                 }`}
                 onClick={() => {
                   if (st === 'active') navigate('/user/scan', { state: { slot } })
