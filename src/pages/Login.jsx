@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react'
+import { Lock, Mail, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
@@ -19,7 +20,13 @@ export default function Login() {
       await signIn(email, password)
       navigate('/')
     } catch (err) {
-      setError(err.message === 'Invalid login credentials' ? 'Email atau password salah' : err.message)
+      let msg = err.message
+      if (msg === 'Invalid login credentials') {
+        msg = 'Email atau password salah'
+      } else if (msg?.includes('Database error querying schema') || msg?.includes('Database error')) {
+        msg = 'Email atau password belum terdaftar di Supabase Auth'
+      }
+      setError(msg)
     } finally {
       setLoading(false)
     }
@@ -113,13 +120,21 @@ export default function Login() {
                 <div className="relative">
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: '#475569' }} />
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     required
-                    className="input-field pl-10"
+                    className="input-field pl-10 pr-10"
                     placeholder="Masukkan password"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 transition-colors p-1 rounded-lg flex items-center justify-center"
+                    title={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
               </div>
 

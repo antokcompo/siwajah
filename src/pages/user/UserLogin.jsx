@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
-import { AlertTriangle, HardHat } from 'lucide-react'
+import { AlertTriangle, HardHat, Eye, EyeOff } from 'lucide-react'
 
 export default function UserLogin() {
   const [noHp, setNoHp] = useState('')
   const [pin, setPin] = useState('')
+  const [showPin, setShowPin] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useUserAuth()
@@ -56,16 +57,26 @@ export default function UserLogin() {
 
           <div>
             <label className="text-xs text-slate-400 block mb-1.5">PIN</label>
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              value={pin}
-              onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-              placeholder="****"
-              className="user-input text-center text-lg tracking-[0.5em]"
-              autoComplete="current-password"
-            />
+            <div className="relative">
+              <input
+                type={showPin ? 'text' : 'password'}
+                inputMode="numeric"
+                maxLength={6}
+                value={pin}
+                onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+                placeholder="****"
+                className="user-input text-center text-lg tracking-[0.5em] pr-10"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 transition-colors p-1 rounded-lg flex items-center justify-center"
+                title={showPin ? 'Sembunyikan PIN' : 'Tampilkan PIN'}
+              >
+                {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
 
           {error && (
