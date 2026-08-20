@@ -91,6 +91,7 @@ export default function Konfigurasi() {
   const [changed, setChanged] = useState({})
   const [origValues, setOrigValues] = useState({})
   const [testing, setTesting] = useState(false)
+  const [testResultModal, setTestResultModal] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -100,12 +101,29 @@ export default function Konfigurasi() {
       const { data, error } = await supabase.rpc('absen_kirim_digest_pending_approval')
       if (error) throw error
       if (data?.sent) {
-        alert(`Berhasil! Email digest pending approval terkirim ke ${data.recipients_count} penerima (${data.total_pending} item pending).`)
+        setTestResultModal({
+          success: true,
+          recipientsCount: data.recipients_count,
+          totalPending: data.total_pending,
+          countLaporan: data.count_laporan,
+          countIzin: data.count_izin,
+          webhookUrl: values.email_webhook_url || 'Belum diisi',
+          senderEmail: values.email_sender_email || 'Belum diisi',
+          message: `Sinyal webhook email digest pending approval berhasil dipicu ke ${data.recipients_count} akun Admin & Manajemen (${data.total_pending} item pending).`
+        })
       } else {
-        alert(`Email tidak dikirim: ${data?.reason || 'Tidak ada data pending'}`)
+        setTestResultModal({
+          success: false,
+          reason: data?.reason || 'Tidak ada pengajuan yang berstatus pending.',
+          message: `Pengiriman dibatalkan: ${data?.reason || 'Tidak ada data pending.'}`
+        })
       }
     } catch (err) {
-      alert(`Gagal: ${err.message}`)
+      setTestResultModal({
+        success: false,
+        reason: err.message,
+        message: `Gagal memicu webhook email: ${err.message}`
+      })
     } finally {
       setTesting(false)
     }
@@ -362,6 +380,71 @@ export default function Konfigurasi() {
         </div>
       </form>
       </div>
+
+      {/* Modal Konfirmasi Uji Coba Email Digest (Professional UI) */}
+      {testResultModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700/60 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 text-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${testResultModal.success ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                  <Mail size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">Uji Coba Email Digest</h3>
+                  <p className="text-[11px] text-slate-400">Pengingat Approval Pukul 19.00</p>
+                </div>
+              </div>
+              <button onClick={() => setTestResultModal(null)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${testResultModal.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-rose-500/10 border-rose-500/20 text-rose-300'}`}>
+              <p className="font-semibold text-sm mb-1">
+                {testResultModal.success ? '⚡ Sinyal Webhook Berhasil Dipicu' : '❌ Pengiriman Dibatalkan'}
+              </p>
+              <p>{testResultModal.message}</p>
+            </div>
+
+            {testResultModal.success && (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/40">
+                  <span className="text-[10px] text-slate-400 block font-medium uppercase tracking-wider">Total Penerima</span>
+                  <span className="text-base font-bold text-cyan-400 mt-0.5 block">{testResultModal.recipientsCount} Akun</span>
+                  <span className="text-[10px] text-slate-500">Admin & Manajemen</span>
+                </div>
+                <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/40">
+                  <span className="text-[10px] text-slate-400 block font-medium uppercase tracking-wider">Item Pending</span>
+                  <span className="text-base font-bold text-amber-400 mt-0.5 block">{testResultModal.totalPending} Item</span>
+                  <span className="text-[10px] text-slate-500">{testResultModal.countLaporan} Laporan, {testResultModal.countIzin} Izin</span>
+                </div>
+              </div>
+            )}
+
+            {/* Catatan Diagnostik Email */}
+            <div className="bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 text-[11px] text-slate-400 space-y-1.5">
+              <span className="font-bold text-slate-300 block flex items-center gap-1.5">
+                <Info size={13} className="text-cyan-400 shrink-0" /> Mengapa Email Belum Masuk di Inbox?
+              </span>
+              <ul className="list-disc list-inside space-y-1 text-slate-400 pl-1 leading-relaxed">
+                <li>Periksa folder <strong>Spam / Promosi / Updates</strong> di email penerima.</li>
+                <li>Pastikan email pengirim (<code className="text-cyan-300 font-mono">{testResultModal.senderEmail}</code>) terverifikasi di akun Brevo.</li>
+                <li>Pastikan server Render (<code className="text-slate-300 font-mono">{testResultModal.webhookUrl?.slice(0, 32)}...</code>) sedang aktif & memiliki API Key Brevo yang valid.</li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setTestResultModal(null)}
+                className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-all shadow-md"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
