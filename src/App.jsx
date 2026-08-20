@@ -56,10 +56,16 @@ function UserRoutes() {
   )
 }
 
+function isStandalonePWA() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+}
+
 export default function App() {
   const { user, loading } = useAuth()
 
   if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+
+  const isStandalone = isStandalonePWA()
 
   return (
     <Routes>
@@ -69,9 +75,9 @@ export default function App() {
       {/* Admin login */}
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
 
-      {/* Root route: if admin is logged in, show Admin App; if not, redirect to User App */}
+      {/* Root route: Standalone PWA mode or non-admin users ALWAYS go to User App */}
       <Route path="/*" element={
-        !user ? (
+        (isStandalone || !user) ? (
           <Navigate to="/user" replace />
         ) : (
           <ProtectedRoute>
