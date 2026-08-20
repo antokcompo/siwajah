@@ -56,7 +56,11 @@ export default function LaporanIzin() {
         .select('*, absen_karyawan(nama, jabatan, atasan_id)')
         .order('created_at', { ascending: false })
         .limit(50)
-      if (filter !== 'ALL') q = q.eq('status', filter)
+      if (filter === 'PENDING') {
+        q = q.in('status', ['PENDING', 'CANCEL_REQUESTED'])
+      } else if (filter !== 'ALL') {
+        q = q.eq('status', filter)
+      }
       const { data } = await q
       setIzin(data || [])
     }
@@ -120,6 +124,10 @@ export default function LaporanIzin() {
     }
   }
 
+  const filterOptions = tab === 'izin'
+    ? ['PENDING', 'CANCEL_REQUESTED', 'APPROVED', 'REJECTED', 'ALL']
+    : ['PENDING', 'APPROVED', 'REJECTED', 'ALL']
+
   return (
     <div>
       <div className="page-header">
@@ -149,12 +157,12 @@ export default function LaporanIzin() {
         </div>
 
         {/* Filter */}
-        <div className="flex gap-2 mb-4">
-          {['PENDING', 'APPROVED', 'REJECTED', 'ALL'].map(f => (
+        <div className="flex gap-2 mb-4 overflow-x-auto">
+          {filterOptions.map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
                 filter === f ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
