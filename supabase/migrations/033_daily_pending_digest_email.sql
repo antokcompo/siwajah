@@ -4,7 +4,8 @@
 -- 1. Mengirim notifikasi email otomatis ke Admin & Manajemen pukul 19:00
 --    apabila terdapat Laporan Terlewat (PENDING) atau Izin Pekerja (PENDING / CANCEL_REQUESTED).
 -- 2. Email TIDAK AKAN TERKIRIM jika tidak ada item yang berstatus pending.
--- 3. Payload menyertakan HTML lengkap & subject sehingga webhook Brevo/Render dapat langsung mengirimkannya.
+-- 3. Menggunakan API Key Brevo yang tersimpan di Render (seperti SIMONIKA)
+--    dengan struktur payload kompatibel langsung ke Brevo API & Render webhook.
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
@@ -162,22 +163,24 @@ BEGIN
     || '<div style="text-align:center;margin-top:20px;font-size:11px;color:#64748b;">Email otomatis dikirim oleh SI WAJAH setiap pukul 19.00 WIT.</div>'
     || '</div></body></html>';
 
-  -- 7. Trigger HTTP POST Webhook via pg_net (Payload Digest + Full HTML)
+  -- 7. Trigger HTTP POST Webhook via pg_net (Payload Kompatibel dengan API Key Brevo di Render)
   PERFORM net.http_post(
     url := v_webhook_url,
     headers := '{"Content-Type": "application/json"}'::jsonb,
     body := jsonb_build_object(
       'type', 'pending_digest',
       'subject', v_subject,
+      'htmlContent', v_html,
       'html', v_html,
       'to', v_to,
+      'sender', jsonb_build_object('name', v_sender_name, 'email', v_sender_email),
+      'sender_name', v_sender_name,
+      'sender_email', v_sender_email,
       'total_pending', v_total_pending,
       'count_laporan', v_count_laporan,
       'count_izin', v_count_izin,
       'list_laporan', v_list_laporan,
       'list_izin', v_list_izin,
-      'sender_name', v_sender_name,
-      'sender_email', v_sender_email,
       'app_url', v_app_url || '/laporan-izin'
     )
   );
