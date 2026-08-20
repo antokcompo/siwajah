@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { FileWarning, CalendarDays, CheckCircle, XCircle, X, Image, Edit3, Eye, MapPin } from 'lucide-react'
+import { FileWarning, CalendarDays, CheckCircle, XCircle, X, Image as ImageIcon, Edit3, Eye, MapPin } from 'lucide-react'
 
 const tabConfig = [
   { key: 'laporan', label: 'Laporan Terlewat', icon: FileWarning },
@@ -214,7 +214,7 @@ export default function LaporanIzin() {
                       <td className="px-4 py-3 text-center">
                         {l.foto_url ? (
                           <button onClick={() => setZoomPhoto(l.foto_url)} className="text-blue-500 hover:text-blue-400 transition-colors">
-                            <Image size={16} />
+                            <ImageIcon size={16} />
                           </button>
                         ) : <span className="text-gray-300">-</span>}
                       </td>
@@ -285,7 +285,7 @@ export default function LaporanIzin() {
                         <td className="px-4 py-3 text-center">
                           {i.foto_url ? (
                             <button onClick={() => setZoomPhoto(i.foto_url)} className="text-blue-500 hover:text-blue-400 transition-colors">
-                              <Image size={16} />
+                              <ImageIcon size={16} />
                             </button>
                           ) : <span className="text-gray-300">-</span>}
                         </td>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Calendar, Info, FileWarning, Image, X, MapPin, MessageSquare } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Calendar, Info, FileWarning, Image as ImageIcon, X, MapPin, MessageSquare } from 'lucide-react'
 import PhotoInput from '../../components/PhotoInput'
 
 const jenisOptions = [

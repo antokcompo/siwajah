@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image, ExternalLink, ZoomIn, AlertTriangle, CheckCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle } from 'lucide-react'
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 
 const statusColor = {
@@ -381,7 +381,7 @@ export default function RekapHarian() {
                                     <div className={`w-2 h-2 rounded-full shrink-0 ${slotColor[jenis] || 'bg-gray-400'}`} />
                                     <span className="font-medium text-gray-700">{scanTime}</span>
                                     <span className="text-gray-400">{slotLabel}</span>
-                                    {hasPhoto && <Image size={10} className="text-blue-400" />}
+                                    {hasPhoto && <ImageIcon size={10} className="text-blue-400" />}
                                     {hasGps && <MapPin size={10} className="text-emerald-500" />}
                                     {scan.di_luar_lokasi && <MapPinOff size={10} className="text-amber-400" />}
                                   </button>

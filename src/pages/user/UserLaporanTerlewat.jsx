@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { ChevronLeft, FileWarning, Image, X, MapPin, MessageSquare } from 'lucide-react'
+import { ChevronLeft, FileWarning, Image as ImageIcon, X, MapPin, MessageSquare } from 'lucide-react'
 
 const statusColor = {
   PENDING: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
@@ -131,7 +131,7 @@ export default function UserLaporanTerlewat() {
                       onClick={() => setZoomPhoto(lap.foto_url)}
                       className="flex items-center gap-1 text-cyan-400 hover:underline font-medium"
                     >
-                      <Image size={13} /> Lihat Foto Evidence
+                      <ImageIcon size={13} /> Lihat Foto Evidence
                     </button>
                   ) : <span className="text-slate-500">Tidak ada foto</span>}
 
