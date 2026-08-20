@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle, X, Send } from 'lucide-react'
+import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPin, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle, X, Send } from 'lucide-react'
 import { cacheFaceData } from '../../lib/offlineQueue'
 import PhotoInput from '../../components/PhotoInput'
 
@@ -41,6 +41,7 @@ export default function UserBeranda() {
   const [laporAlasan, setLaporAlasan] = useState('')
   const [laporFotoFile, setLaporFotoFile] = useState(null)
   const [laporFotoPreview, setLaporFotoPreview] = useState(null)
+  const [laporGps, setLaporGps] = useState(null)
   const [submittingLapor, setSubmittingLapor] = useState(false)
   const [laporError, setLaporError] = useState('')
   const [laporSuccess, setLaporSuccess] = useState('')
@@ -111,6 +112,15 @@ export default function UserBeranda() {
     if (laporFotoPreview) URL.revokeObjectURL(laporFotoPreview)
     setLaporFotoPreview(null)
     setLaporError('')
+    setLaporGps(null)
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => setLaporGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000 }
+      )
+    }
   }
 
   function handleCloseLapor() {
@@ -120,6 +130,7 @@ export default function UserBeranda() {
     if (laporFotoPreview) URL.revokeObjectURL(laporFotoPreview)
     setLaporFotoPreview(null)
     setLaporError('')
+    setLaporGps(null)
   }
 
   async function handleLaporSubmit(e) {
@@ -156,12 +167,19 @@ export default function UserBeranda() {
       }
 
       const todayStr = new Date().toISOString().split('T')[0]
+      const gpsLat = laporGps?.lat ? Number(laporGps.lat.toFixed(6)) : null
+      const gpsLng = laporGps?.lng ? Number(laporGps.lng.toFixed(6)) : null
+      const lokasiStr = laporGps ? `${gpsLat}, ${gpsLng}` : null
+
       const { data, error: rpcErr } = await supabase.rpc('absen_lapor_terlewat', {
         p_karyawan_id: karyawan.id,
         p_tanggal: todayStr,
         p_slot_id: modalSlot.id,
         p_alasan: laporAlasan.trim(),
         p_foto_url: fotoUrl,
+        p_gps_lat: gpsLat,
+        p_gps_lng: gpsLng,
+        p_lokasi_kerja: lokasiStr,
       })
 
       if (rpcErr) throw rpcErr
@@ -420,6 +438,10 @@ export default function UserBeranda() {
               <div className="text-slate-400">Pekerja: <span className="text-slate-200 font-medium">{karyawan?.nama}</span></div>
               <div className="text-slate-400">Slot Terlewat: <span className="text-red-400 font-semibold">{modalSlot.jam.slice(0, 5)} ({modalSlot.label})</span></div>
               <div className="text-slate-400">Tanggal: <span className="text-slate-200">{fmtDate}</span></div>
+              <div className="text-slate-400 flex items-center gap-1.5 pt-1">
+                <MapPin size={13} className="text-cyan-400 shrink-0" />
+                <span>Posisi GPS: {laporGps ? <span className="text-cyan-300 font-mono">{laporGps.lat.toFixed(6)}, {laporGps.lng.toFixed(6)}</span> : <span className="text-slate-500 italic">Mendapatkan posisi GPS...</span>}</span>
+              </div>
             </div>
 
             <form onSubmit={handleLaporSubmit} className="space-y-4">

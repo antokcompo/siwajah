@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { AlertTriangle, CheckCircle, ChevronLeft, Calendar, Info, FileWarning, Image, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ChevronLeft, Calendar, Info, FileWarning, Image, X, MapPin } from 'lucide-react'
 import PhotoInput from '../../components/PhotoInput'
 
 const jenisOptions = [
@@ -321,14 +321,23 @@ export default function UserIzin() {
 
                   <p className="text-[11px] text-slate-300 mt-1 bg-black/20 p-2 rounded-lg">{lap.alasan}</p>
 
-                  {lap.foto_url && (
-                    <button
-                      onClick={() => setZoomPhoto(lap.foto_url)}
-                      className="mt-2 flex items-center gap-1.5 text-[10px] text-cyan-400 hover:underline"
-                    >
-                      <Image size={12} /> Lihat Foto Evidence
-                    </button>
-                  )}
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
+                    {lap.foto_url ? (
+                      <button
+                        onClick={() => setZoomPhoto(lap.foto_url)}
+                        className="flex items-center gap-1 text-cyan-400 hover:underline"
+                      >
+                        <Image size={12} /> Lihat Foto Evidence
+                      </button>
+                    ) : <span />}
+
+                    {lap.gps_lat && lap.gps_lng && (
+                      <span className="flex items-center gap-1 text-slate-400 font-mono">
+                        <MapPin size={11} className="text-cyan-400 shrink-0" />
+                        {Number(lap.gps_lat).toFixed(4)}, {Number(lap.gps_lng).toFixed(4)}
+                      </span>
+                    )}
+                  </div>
 
                   {lap.catatan_admin && (
                     <p className="text-[10px] text-slate-400 mt-1 italic">Catatan Admin: {lap.catatan_admin}</p>

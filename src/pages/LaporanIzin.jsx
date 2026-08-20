@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { FileWarning, CalendarDays, CheckCircle, XCircle, X, Image, Edit3, Eye } from 'lucide-react'
+import { FileWarning, CalendarDays, CheckCircle, XCircle, X, Image, Edit3, Eye, MapPin } from 'lucide-react'
 
 const tabConfig = [
   { key: 'laporan', label: 'Laporan Terlewat', icon: FileWarning },
@@ -290,14 +290,29 @@ export default function LaporanIzin() {
               </button>
             </div>
             <div className="p-4 space-y-4">
-              {/* Employee info */}
-              <div className="bg-white/5 rounded-xl p-3">
+              {/* Employee info & GPS */}
+              <div className="bg-white/5 rounded-xl p-3 space-y-1">
                 <div className="text-sm font-medium text-gray-900">{laporanDetail.absen_karyawan?.nama}</div>
                 <div className="text-xs text-gray-500">{laporanDetail.absen_karyawan?.jabatan}</div>
-                <div className="text-xs text-gray-600 mt-1">
+                <div className="text-xs text-gray-600">
                   {new Date(laporanDetail.tanggal + 'T00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                   {' • '}{laporanDetail.absen_jadwal_slot?.jam?.slice(0, 5)} — {laporanDetail.absen_jadwal_slot?.label}
                 </div>
+                {laporanDetail.gps_lat && laporanDetail.gps_lng ? (
+                  <div className="pt-1 flex items-center gap-1.5 text-xs text-cyan-400">
+                    <MapPin size={14} className="shrink-0" />
+                    <a
+                      href={`https://www.google.com/maps?q=${laporanDetail.gps_lat},${laporanDetail.gps_lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:underline font-mono"
+                    >
+                      GPS: {Number(laporanDetail.gps_lat).toFixed(6)}, {Number(laporanDetail.gps_lng).toFixed(6)} ↗
+                    </a>
+                  </div>
+                ) : (
+                  <div className="pt-1 text-xs text-gray-400 italic">GPS: Tidak ada lokasi</div>
+                )}
               </div>
 
               {/* Alasan */}
