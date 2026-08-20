@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { AlertTriangle, CheckCircle, ChevronLeft, Calendar, Info } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ChevronLeft, Calendar, Info, FileWarning, Image, X } from 'lucide-react'
 import PhotoInput from '../../components/PhotoInput'
 
 const jenisOptions = [
@@ -22,9 +22,12 @@ export default function UserIzin() {
   const { karyawan } = useUserAuth()
   const navigate = useNavigate()
 
+  const [activeTab, setActiveTab] = useState('izin') // 'izin' | 'laporan'
   const [view, setView] = useState('list')
-  const [riwayat, setRiwayat] = useState([])
+  const [riwayatIzin, setRiwayatIzin] = useState([])
+  const [riwayatLaporan, setRiwayatLaporan] = useState([])
   const [loading, setLoading] = useState(true)
+  const [zoomPhoto, setZoomPhoto] = useState(null)
 
   const [jenis, setJenis] = useState('PAID')
   const [tglMulai, setTglMulai] = useState('')
@@ -35,17 +38,27 @@ export default function UserIzin() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => { loadRiwayat() }, [])
+  useEffect(() => { loadData() }, [activeTab])
 
-  async function loadRiwayat() {
+  async function loadData() {
     setLoading(true)
-    const { data } = await supabase
-      .from('absen_izin')
-      .select('*')
-      .eq('karyawan_id', karyawan.id)
-      .order('created_at', { ascending: false })
-      .limit(20)
-    setRiwayat(data || [])
+    if (activeTab === 'izin') {
+      const { data } = await supabase
+        .from('absen_izin')
+        .select('*')
+        .eq('karyawan_id', karyawan.id)
+        .order('created_at', { ascending: false })
+        .limit(25)
+      setRiwayatIzin(data || [])
+    } else {
+      const { data } = await supabase
+        .from('absen_laporan_terlewat')
+        .select('*, absen_jadwal_slot(label, jam, jenis)')
+        .eq('karyawan_id', karyawan.id)
+        .order('created_at', { ascending: false })
+        .limit(25)
+      setRiwayatLaporan(data || [])
+    }
     setLoading(false)
   }
 
@@ -97,7 +110,7 @@ export default function UserIzin() {
       setTglSelesai('')
       setJenis('PAID')
       removePhoto()
-      loadRiwayat()
+      loadData()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -201,9 +214,33 @@ export default function UserIzin() {
       </button>
 
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-bold text-slate-100">Izin Saya</h2>
+        <h2 className="text-base font-bold text-slate-100">Izin & Laporan</h2>
         <button onClick={() => setView('form')} className="user-btn-primary text-xs py-2 px-3 flex items-center gap-1.5">
           <Calendar size={12} /> Ajukan Izin
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4 bg-white/5 p-1 rounded-xl border border-white/10">
+        <button
+          onClick={() => setActiveTab('izin')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'izin'
+              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Calendar size={14} /> Izin Saya
+        </button>
+        <button
+          onClick={() => setActiveTab('laporan')}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'laporan'
+              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <FileWarning size={14} /> Laporan Terlewat
         </button>
       </div>
 
@@ -211,43 +248,97 @@ export default function UserIzin() {
         <div className="flex justify-center py-12">
           <div className="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
         </div>
-      ) : riwayat.length === 0 ? (
-        <div className="text-center py-12">
-          <Calendar size={32} className="mx-auto text-slate-600 mb-2" />
-          <p className="text-sm text-slate-500">Belum ada pengajuan izin</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {riwayat.map(izin => {
-            const mulai = new Date(izin.tanggal_mulai + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
-            const selesai = new Date(izin.tanggal_selesai + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-            const hari = Math.ceil((new Date(izin.tanggal_selesai) - new Date(izin.tanggal_mulai)) / 86400000) + 1
+      ) : activeTab === 'izin' ? (
+        riwayatIzin.length === 0 ? (
+          <div className="text-center py-12">
+            <Calendar size={32} className="mx-auto text-slate-600 mb-2" />
+            <p className="text-sm text-slate-500">Belum ada pengajuan izin</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {riwayatIzin.map(izin => {
+              const mulai = new Date(izin.tanggal_mulai + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+              const selesai = new Date(izin.tanggal_selesai + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+              const hari = Math.ceil((new Date(izin.tanggal_selesai) - new Date(izin.tanggal_mulai)) / 86400000) + 1
 
-            return (
-              <div key={izin.id} className={`border rounded-xl p-3 ${statusColor[izin.status]}`}>
-                <div className="flex items-start justify-between mb-1">
-                  <div>
-                    <span className="text-sm font-semibold text-slate-100">
-                      {mulai === selesai ? mulai : `${mulai} – ${selesai}`}
-                    </span>
-                    <span className="text-[10px] text-slate-500 ml-2">{hari} hari</span>
+              return (
+                <div key={izin.id} className={`border rounded-xl p-3 ${statusColor[izin.status]}`}>
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <span className="text-sm font-semibold text-slate-100">
+                        {mulai === selesai ? mulai : `${mulai} – ${selesai}`}
+                      </span>
+                      <span className="text-[10px] text-slate-500 ml-2">{hari} hari</span>
+                    </div>
+                    <span className="text-[10px] font-semibold">{statusLabel[izin.status]}</span>
                   </div>
-                  <span className="text-[10px] font-semibold">{statusLabel[izin.status]}</span>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className={`px-1.5 py-0.5 rounded ${izin.jenis === 'PAID' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>
+                      {izin.jenis === 'PAID' ? 'Berbayar' : 'Tidak Berbayar'}
+                    </span>
+                    <span className="text-slate-400 truncate">{izin.alasan}</span>
+                  </div>
+                  {izin.catatan_admin && (
+                    <p className="text-[10px] text-slate-400 mt-1 italic">Admin: {izin.catatan_admin}</p>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 text-[10px]">
-                  <span className={`px-1.5 py-0.5 rounded ${izin.jenis === 'PAID' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>
-                    {izin.jenis === 'PAID' ? 'Berbayar' : 'Tidak Berbayar'}
-                  </span>
-                  <span className="text-slate-500 truncate">{izin.alasan}</span>
+              )
+            })}
+          </div>
+        )
+      ) : (
+        /* Laporan Terlewat Tab */
+        riwayatLaporan.length === 0 ? (
+          <div className="text-center py-12">
+            <FileWarning size={32} className="mx-auto text-slate-600 mb-2" />
+            <p className="text-sm text-slate-500">Belum ada laporan absen terlewat</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {riwayatLaporan.map(lap => {
+              const tgl = new Date(lap.tanggal + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+              return (
+                <div key={lap.id} className={`border rounded-xl p-3 ${statusColor[lap.status]}`}>
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <span className="text-xs font-bold text-slate-100">
+                        {tgl} &bull; {lap.absen_jadwal_slot?.jam?.slice(0, 5)} ({lap.absen_jadwal_slot?.label})
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-semibold">{statusLabel[lap.status]}</span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 mt-1 bg-black/20 p-2 rounded-lg">{lap.alasan}</p>
+
+                  {lap.foto_url && (
+                    <button
+                      onClick={() => setZoomPhoto(lap.foto_url)}
+                      className="mt-2 flex items-center gap-1.5 text-[10px] text-cyan-400 hover:underline"
+                    >
+                      <Image size={12} /> Lihat Foto Evidence
+                    </button>
+                  )}
+
+                  {lap.catatan_admin && (
+                    <p className="text-[10px] text-slate-400 mt-1 italic">Catatan Admin: {lap.catatan_admin}</p>
+                  )}
                 </div>
-                {izin.catatan_admin && (
-                  <p className="text-[10px] text-slate-500 mt-1 italic">Admin: {izin.catatan_admin}</p>
-                )}
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
+        )
+      )}
+
+      {/* Zoom Photo Modal */}
+      {zoomPhoto && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setZoomPhoto(null)}>
+          <button onClick={() => setZoomPhoto(null)} className="absolute top-4 right-4 p-2 bg-black/50 rounded-full">
+            <X size={20} className="text-white" />
+          </button>
+          <img src={zoomPhoto} alt="Evidence" className="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl" onClick={e => e.stopPropagation()} />
         </div>
       )}
     </div>
   )
 }
+

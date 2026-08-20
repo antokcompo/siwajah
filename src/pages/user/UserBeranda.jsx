@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle } from 'lucide-react'
+import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle, X, Send } from 'lucide-react'
 import { cacheFaceData } from '../../lib/offlineQueue'
+import PhotoInput from '../../components/PhotoInput'
 
 const jenisColor = {
   masuk: 'bg-emerald-500',
@@ -29,10 +30,20 @@ export default function UserBeranda() {
   const navigate = useNavigate()
   const [slots, setSlots] = useState([])
   const [todayScans, setTodayScans] = useState([])
+  const [todayLaporan, setTodayLaporan] = useState([])
   const [lemburRegistered, setLemburRegistered] = useState(false)
   const [hasFace, setHasFace] = useState(null)
   const [now, setNow] = useState(new Date())
   const [loading, setLoading] = useState(true)
+
+  // Lapor Terlewat modal state
+  const [modalSlot, setModalSlot] = useState(null)
+  const [laporAlasan, setLaporAlasan] = useState('')
+  const [laporFotoFile, setLaporFotoFile] = useState(null)
+  const [laporFotoPreview, setLaporFotoPreview] = useState(null)
+  const [submittingLapor, setSubmittingLapor] = useState(false)
+  const [laporError, setLaporError] = useState('')
+  const [laporSuccess, setLaporSuccess] = useState('')
 
   const userTz = getUserTz()
   const isOffsite = userTz && userTz !== projectTz
@@ -45,16 +56,20 @@ export default function UserBeranda() {
 
   async function loadData() {
     setLoading(true)
-    const [slotsRes, scansRes, faceRes, lemburRes] = await Promise.all([
+    const todayStr = new Date().toISOString().split('T')[0]
+
+    const [slotsRes, scansRes, faceRes, lemburRes, laporanRes] = await Promise.all([
       supabase.rpc('absen_get_jadwal_slot'),
       supabase.rpc('absen_scan_hari_ini', { p_karyawan_id: karyawan.id }),
       supabase.from('absen_face_data').select('id').eq('karyawan_id', karyawan.id).maybeSingle(),
       supabase.rpc('absen_cek_lembur_hari_ini', { p_karyawan_id: karyawan.id }),
+      supabase.from('absen_laporan_terlewat').select('*').eq('karyawan_id', karyawan.id).eq('tanggal', todayStr),
     ])
     setSlots(slotsRes.data || [])
     setTodayScans(scansRes.data || [])
     setLemburRegistered(lemburRes.data === true)
     setHasFace(!!faceRes.data)
+    setTodayLaporan(laporanRes.data || [])
     setLoading(false)
 
     if (navigator.onLine && faceRes.data) {
@@ -75,6 +90,9 @@ export default function UserBeranda() {
     const scanned = todayScans.find(s => s.slot_id === slot.id)
     if (scanned) return 'done'
 
+    const pendingLap = todayLaporan.find(l => l.slot_id === slot.id && l.status === 'PENDING')
+    if (pendingLap) return 'pending_laporan'
+
     if (isLemburSlot(slot) && !lemburRegistered) return 'not_registered'
 
     const [h, m] = slot.jam.split(':').map(Number)
@@ -84,6 +102,69 @@ export default function UserBeranda() {
     if (diff <= slot.toleransi_menit) return 'active'
     if (currentTimeMinutes < slotMinutes - slot.toleransi_menit) return 'upcoming'
     return 'missed'
+  }
+
+  function handleOpenLapor(slot) {
+    setModalSlot(slot)
+    setLaporAlasan('')
+    setLaporFotoFile(null)
+    if (laporFotoPreview) URL.revokeObjectURL(laporFotoPreview)
+    setLaporFotoPreview(null)
+    setLaporError('')
+  }
+
+  function handleCloseLapor() {
+    setModalSlot(null)
+    setLaporAlasan('')
+    setLaporFotoFile(null)
+    if (laporFotoPreview) URL.revokeObjectURL(laporFotoPreview)
+    setLaporFotoPreview(null)
+    setLaporError('')
+  }
+
+  async function handleLaporSubmit(e) {
+    e.preventDefault()
+    if (!laporAlasan || laporAlasan.trim().length < 5) {
+      setLaporError('Alasan harus minimal 5 karakter')
+      return
+    }
+
+    setSubmittingLapor(true)
+    setLaporError('')
+
+    try {
+      let fotoUrl = null
+      if (laporFotoFile) {
+        const filePath = `laporan/${karyawan.id}/${Date.now()}.jpg`
+        const { error: uploadErr } = await supabase.storage
+          .from('scan-photos')
+          .upload(filePath, laporFotoFile, { contentType: laporFotoFile.type, upsert: false })
+        if (uploadErr) throw new Error('Gagal upload foto bukti: ' + uploadErr.message)
+        const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(filePath)
+        fotoUrl = urlData.publicUrl
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0]
+      const { data, error: rpcErr } = await supabase.rpc('absen_lapor_terlewat', {
+        p_karyawan_id: karyawan.id,
+        p_tanggal: todayStr,
+        p_slot_id: modalSlot.id,
+        p_alasan: laporAlasan.trim(),
+        p_foto_url: fotoUrl,
+      })
+
+      if (rpcErr) throw rpcErr
+      if (data?.error) throw new Error(data.error)
+
+      setLaporSuccess('Laporan absen terlewat berhasil dikirim ke admin!')
+      handleCloseLapor()
+      loadData()
+      setTimeout(() => setLaporSuccess(''), 5000)
+    } catch (err) {
+      setLaporError(err.message)
+    } finally {
+      setSubmittingLapor(false)
+    }
   }
 
   const nextSlot = slots.find(s => getSlotStatus(s) === 'active')
@@ -126,6 +207,14 @@ export default function UserBeranda() {
         <h2 className="text-lg font-bold text-slate-100">{karyawan?.nama}</h2>
         <p className="text-xs text-slate-500 mt-0.5">{fmtDate}</p>
       </div>
+
+      {/* Alert Notification */}
+      {laporSuccess && (
+        <div className="mb-4 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-400">
+          <CheckCircle size={16} className="shrink-0" />
+          <span>{laporSuccess}</span>
+        </div>
+      )}
 
       {/* Offsite indicator */}
       {isOffsite && (
@@ -175,8 +264,8 @@ export default function UserBeranda() {
         >
           <CalendarDays size={18} className="text-cyan-400 shrink-0" />
           <div className="text-left">
-            <div className="text-sm font-semibold text-slate-200">Ajukan Izin</div>
-            <div className="text-[10px] text-slate-500">Izin berbayar atau tidak berbayar</div>
+            <div className="text-sm font-semibold text-slate-200">Ajukan Izin & Laporan</div>
+            <div className="text-[10px] text-slate-500">Izin berbayar / tidak berbayar & riwayat laporan</div>
           </div>
         </button>
       </div>
@@ -196,17 +285,20 @@ export default function UserBeranda() {
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all
                   ${st === 'active' ? 'bg-emerald-500/10 border border-emerald-500/20' :
                     st === 'done' ? 'bg-white/5' :
+                    st === 'pending_laporan' ? 'bg-amber-500/5 border border-amber-500/10' :
                     st === 'missed' ? 'bg-red-500/5 border border-red-500/10' :
                     st === 'not_registered' ? 'opacity-30' :
                     'opacity-40'}`}
                 onClick={() => {
                   if (st === 'active') navigate('/user/scan', { state: { slot } })
+                  else if (st === 'missed') handleOpenLapor(slot)
                 }}
               >
                 {/* Status dot */}
                 <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                   st === 'done' ? 'bg-emerald-500' :
                   st === 'active' ? 'bg-emerald-400 animate-pulse' :
+                  st === 'pending_laporan' ? 'bg-amber-400 animate-pulse' :
                   st === 'missed' ? 'bg-red-400' :
                   st === 'not_registered' ? 'bg-slate-600' :
                   'bg-slate-700'
@@ -215,6 +307,7 @@ export default function UserBeranda() {
                 {/* Time */}
                 <span className={`text-sm font-semibold w-12 ${
                   st === 'active' ? 'text-emerald-400' :
+                  st === 'pending_laporan' ? 'text-amber-400' :
                   st === 'missed' ? 'text-red-400' :
                   'text-slate-200'
                 }`}>{slot.jam.slice(0, 5)}</span>
@@ -231,10 +324,24 @@ export default function UserBeranda() {
                     </div>
                   ) : st === 'active' ? (
                     <span className="text-xs text-emerald-300">Siap absen</span>
+                  ) : st === 'pending_laporan' ? (
+                    <div className="flex items-center gap-1 text-xs text-amber-400">
+                      <Clock size={12} className="shrink-0" />
+                      Menunggu Approval Admin
+                    </div>
                   ) : st === 'missed' ? (
-                    <div className="flex items-center gap-1 text-xs text-red-400">
-                      <FileWarning size={12} className="shrink-0" />
-                      Terlewat
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 text-xs text-red-400">
+                        <FileWarning size={12} className="shrink-0" />
+                        Terlewat
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleOpenLapor(slot) }}
+                        className="text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 px-2 py-0.5 rounded-lg transition-colors font-medium"
+                      >
+                        Lapor Terlewat
+                      </button>
                     </div>
                   ) : st === 'not_registered' ? (
                     <div className="flex items-center gap-1 text-xs text-slate-500">
@@ -247,7 +354,7 @@ export default function UserBeranda() {
                 </div>
 
                 {/* Label */}
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${jenisColor[slot.jenis]} text-white`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${jenisColor[slot.jenis]} text-white shrink-0`}>
                   {slot.label}
                 </span>
               </div>
@@ -261,19 +368,96 @@ export default function UserBeranda() {
           if (missedNonLembur.length === 0) return null
           return (
             <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-              <div className="flex items-start gap-2">
-                <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs text-red-400 font-semibold">{missedNonLembur.length} absen terlewat</p>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Segera hubungi admin untuk koreksi absensi. Absen yang tidak dikoreksi akan dipotong setengah hari gaji.
-                  </p>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-red-400 font-semibold">{missedNonLembur.length} absen terlewat</p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Segera laporkan alasan & foto bukti ke admin untuk koreksi absensi.
+                    </p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenLapor(missedNonLembur[0])}
+                  className="text-xs bg-red-500 hover:bg-red-600 text-white font-medium px-2.5 py-1.5 rounded-lg shrink-0 flex items-center gap-1 transition-colors"
+                >
+                  <FileWarning size={12} /> Lapor
+                </button>
               </div>
             </div>
           )
         })()}
       </div>
+
+      {/* Modal Lapor Absen Terlewat */}
+      {modalSlot && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl animate-fade-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <FileWarning size={18} className="text-red-400" />
+                <h3 className="text-sm font-bold text-slate-100">Lapor Absen Terlewat</h3>
+              </div>
+              <button onClick={handleCloseLapor} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-xs space-y-1">
+              <div className="text-slate-400">Pekerja: <span className="text-slate-200 font-medium">{karyawan?.nama}</span></div>
+              <div className="text-slate-400">Slot Terlewat: <span className="text-red-400 font-semibold">{modalSlot.jam.slice(0, 5)} ({modalSlot.label})</span></div>
+              <div className="text-slate-400">Tanggal: <span className="text-slate-200">{fmtDate}</span></div>
+            </div>
+
+            <form onSubmit={handleLaporSubmit} className="space-y-4">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1.5">Alasan Kendala <span className="text-red-400">*</span></label>
+                <textarea
+                  value={laporAlasan}
+                  onChange={e => setLaporAlasan(e.target.value)}
+                  placeholder="Jelaskan alasan terlewat (misal: Lupa scan saat masuk lokasi proyek, HP mati, sedang tugas lapangan...)"
+                  rows={3}
+                  className="user-input resize-none"
+                  required
+                />
+              </div>
+
+              <PhotoInput
+                preview={laporFotoPreview}
+                onCapture={(file, url) => {
+                  setLaporFotoFile(file)
+                  setLaporFotoPreview(url)
+                }}
+                onRemove={() => {
+                  setLaporFotoFile(null)
+                  if (laporFotoPreview) URL.revokeObjectURL(laporFotoPreview)
+                  setLaporFotoPreview(null)
+                }}
+                label="Foto Evidence / Bukti (opsional)"
+              />
+
+              {laporError && (
+                <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                  <AlertTriangle size={14} className="shrink-0" /> {laporError}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button type="button" onClick={handleCloseLapor} className="user-btn-secondary flex-1 text-xs py-2.5">
+                  Batal
+                </button>
+                <button type="submit" disabled={submittingLapor} className="user-btn-primary flex-1 text-xs py-2.5 flex items-center justify-center gap-1.5">
+                  <Send size={14} />
+                  {submittingLapor ? 'Mengirim...' : 'Kirim Laporan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
