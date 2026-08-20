@@ -66,28 +66,34 @@ export default function App() {
       {/* User app (separate from admin) */}
       <Route path="/user/*" element={<UserRoutes />} />
 
-      {/* Admin routes */}
+      {/* Admin login */}
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
+
+      {/* Root route: if admin is logged in, show Admin App; if not, redirect to User App */}
       <Route path="/*" element={
-        <ProtectedRoute>
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/import" element={<ImportAbsensi />} />
-              <Route path="/rekap-harian" element={<RekapHarian />} />
-              <Route path="/koreksi" element={<Koreksi />} />
-              <Route path="/approval-lembur" element={<ApprovalLembur />} />
-              <Route path="/rekap-bulanan" element={<RekapBulanan />} />
-              <Route path="/master-karyawan" element={<MasterKaryawan />} />
-              <Route path="/kalender" element={<KalenderKerja />} />
-              <Route path="/konfigurasi" element={<Konfigurasi />} />
-              <Route path="/manajemen-user" element={<ManajemenUser />} />
-              <Route path="/jadwal-slot" element={<JadwalSlot />} />
-              <Route path="/laporan-izin" element={<LaporanIzin />} />
-              <Route path="/audit-log" element={<AuditLog />} />
-            </Routes>
-          </Layout>
-        </ProtectedRoute>
+        !user ? (
+          <Navigate to="/user" replace />
+        ) : (
+          <ProtectedRoute>
+            <Layout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/import" element={<ImportAbsensi />} />
+                <Route path="/rekap-harian" element={<RekapHarian />} />
+                <Route path="/koreksi" element={<Koreksi />} />
+                <Route path="/approval-lembur" element={<ApprovalLembur />} />
+                <Route path="/rekap-bulanan" element={<RekapBulanan />} />
+                <Route path="/master-karyawan" element={<MasterKaryawan />} />
+                <Route path="/kalender" element={<KalenderKerja />} />
+                <Route path="/konfigurasi" element={<Konfigurasi />} />
+                <Route path="/manajemen-user" element={<ManajemenUser />} />
+                <Route path="/jadwal-slot" element={<JadwalSlot />} />
+                <Route path="/laporan-izin" element={<LaporanIzin />} />
+                <Route path="/audit-log" element={<AuditLog />} />
+              </Routes>
+            </Layout>
+          </ProtectedRoute>
+        )
       } />
     </Routes>
   )
