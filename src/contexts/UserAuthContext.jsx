@@ -34,7 +34,11 @@ export function UserAuthProvider({ children }) {
   const [projectTz, setProjectTz] = useState('Asia/Jayapura')
 
   useEffect(() => {
-    const stored = localStorage.getItem('siwajah_user')
+    // Clear legacy localStorage session if present
+    localStorage.removeItem('siwajah_user')
+
+    // Use sessionStorage so closing app / opening shortcut requires fresh login
+    const stored = sessionStorage.getItem('siwajah_user')
     if (stored) {
       try { setKaryawan(JSON.parse(stored)) } catch { /* ignore */ }
     }
@@ -65,12 +69,13 @@ export function UserAuthProvider({ children }) {
       jabatan: data.jabatan,
     }
     setKaryawan(user)
-    localStorage.setItem('siwajah_user', JSON.stringify(user))
+    sessionStorage.setItem('siwajah_user', JSON.stringify(user))
     return user
   }
 
   function logout() {
     setKaryawan(null)
+    sessionStorage.removeItem('siwajah_user')
     localStorage.removeItem('siwajah_user')
   }
 
