@@ -20,11 +20,8 @@ export default function Login() {
       await signIn(email, password)
       navigate('/')
     } catch (err) {
-      let msg = err.message
-      if (msg === 'Invalid login credentials' || msg?.includes('Database error')) {
-        msg = 'Email atau password salah. Periksa kembali ejaan email & password Anda.'
-      }
-      setError(msg)
+      console.error('Login error:', err)
+      setError(err.message || 'Gagal login')
     } finally {
       setLoading(false)
     }
