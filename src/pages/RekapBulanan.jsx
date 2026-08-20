@@ -34,19 +34,60 @@ export default function RekapBulanan() {
     const lastDay = new Date(tahun, bulan, 0).getDate()
     const endDate = `${tahun}-${padBulan}-${String(lastDay).padStart(2, '0')}`
 
-    const { data: harian, error: errHarian } = await supabase
-      .from('absen_harian')
-      .select('id, tanggal, jam_masuk, jam_pulang, status, jam_lembur, status_lembur, catatan')
-      .eq('karyawan_id', item.karyawan_id)
-      .gte('tanggal', startDate)
-      .lte('tanggal', endDate)
-      .order('tanggal', { ascending: false })
+    const [harianRes, scanRes, laporanRes] = await Promise.all([
+      supabase
+        .from('absen_harian')
+        .select('id, tanggal, jam_masuk, jam_pulang, status, jam_lembur, status_lembur, catatan')
+        .eq('karyawan_id', item.karyawan_id)
+        .gte('tanggal', startDate)
+        .lte('tanggal', endDate)
+        .order('tanggal', { ascending: false }),
+      supabase
+        .from('absen_scan_wajah')
+        .select('tanggal, slot_id')
+        .eq('karyawan_id', item.karyawan_id)
+        .gte('tanggal', startDate)
+        .lte('tanggal', endDate),
+      supabase
+        .from('absen_laporan_terlewat')
+        .select('tanggal, slot_id, status')
+        .eq('karyawan_id', item.karyawan_id)
+        .gte('tanggal', startDate)
+        .lte('tanggal', endDate)
+    ])
 
-    if (errHarian) {
-      console.error('Error loading harian history for modal:', errHarian)
-    }
+    const harianList = harianRes.data || []
+    const scanList = scanRes.data || []
+    const laporanList = laporanRes.data || []
 
-    setDetailHarian(harian || [])
+    // Calculate per-day slot statistics
+    const statsByDate = {}
+    scanList.forEach(s => {
+      if (!statsByDate[s.tanggal]) statsByDate[s.tanggal] = { slots: new Set(), pendingCount: 0 }
+      statsByDate[s.tanggal].slots.add(s.slot_id)
+    })
+    laporanList.forEach(l => {
+      if (!statsByDate[l.tanggal]) statsByDate[l.tanggal] = { slots: new Set(), pendingCount: 0 }
+      if (l.status === 'APPROVED') {
+        statsByDate[l.tanggal].slots.add(l.slot_id)
+      } else if (l.status === 'PENDING') {
+        statsByDate[l.tanggal].pendingCount += 1
+      }
+    })
+
+    const enrichedHarian = harianList.map(h => {
+      const st = statsByDate[h.tanggal] || { slots: new Set(), pendingCount: 0 }
+      const verifiedSlots = st.slots.size
+      const pendingCount = st.pendingCount
+      return {
+        ...h,
+        verifiedSlots,
+        pendingCount,
+        bobot: Math.min(1.0, verifiedSlots / 6.0)
+      }
+    })
+
+    setDetailHarian(enrichedHarian)
     setLoadingDetail(false)
   }
 
@@ -772,10 +813,10 @@ export default function RekapBulanan() {
                     <thead className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider font-semibold sticky top-0">
                       <tr>
                         <th className="px-3.5 py-2.5">Tanggal</th>
-                        <th className="px-3.5 py-2.5">Jam Masuk</th>
-                        <th className="px-3.5 py-2.5">Jam Pulang</th>
-                        <th className="px-3.5 py-2.5 text-center">Jam Lembur</th>
-                        <th className="px-3.5 py-2.5 text-center">Status Presensi</th>
+                        <th className="px-3.5 py-2.5 text-center">Slot Disetujui</th>
+                        <th className="px-3.5 py-2.5 text-center">Bobot Gaji Harian</th>
+                        <th className="px-3.5 py-2.5">Jam Scan</th>
+                        <th className="px-3.5 py-2.5 text-center">Status Approval & Keterangan</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 bg-slate-900/40 text-slate-300 text-[11px]">
@@ -785,20 +826,38 @@ export default function RekapBulanan() {
                           ? dObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
                           : h.tanggal
 
+                        const verifiedCount = typeof h.verifiedSlots === 'number' ? h.verifiedSlots : (h.status === 'LENGKAP' ? 6 : (h.jam_masuk ? 1 : 0))
+                        const pct = Math.round((verifiedCount / 6.0) * 100)
+                        const bobotVal = (verifiedCount / 6.0).toFixed(2)
+
                         return (
                           <tr key={h.id || h.tanggal} className="hover:bg-slate-800/40 transition-colors">
-                            <td className="px-3.5 py-2 font-mono font-medium text-slate-200">{tglFmt}</td>
-                            <td className="px-3.5 py-2 font-mono text-cyan-400 font-bold">{h.jam_masuk ? h.jam_masuk.slice(0,5) : '-'}</td>
-                            <td className="px-3.5 py-2 font-mono text-indigo-400 font-bold">{h.jam_pulang ? h.jam_pulang.slice(0,5) : '-'}</td>
-                            <td className="px-3.5 py-2 text-center font-mono text-amber-400 font-bold">{h.jam_lembur ? `${h.jam_lembur}j` : '-'}</td>
-                            <td className="px-3.5 py-2 text-center">
-                              <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                                h.status === 'LENGKAP' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                                h.status === 'IZIN' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                                'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                              }`}>
-                                {h.status || 'MASUK'}
-                              </span>
+                            <td className="px-3.5 py-2.5 font-mono font-medium text-slate-200">{tglFmt}</td>
+                            <td className="px-3.5 py-2.5 text-center font-mono font-bold text-cyan-300">
+                              {verifiedCount} / 6 Slot
+                            </td>
+                            <td className="px-3.5 py-2.5 text-center font-mono font-bold text-emerald-400">
+                              {pct}% ({bobotVal} Hari)
+                            </td>
+                            <td className="px-3.5 py-2.5 font-mono text-slate-300">
+                              <span className="text-cyan-400">{h.jam_masuk ? h.jam_masuk.slice(0,5) : '-'}</span>
+                              <span className="text-slate-500 mx-1">s/d</span>
+                              <span className="text-indigo-400">{h.jam_pulang ? h.jam_pulang.slice(0,5) : '-'}</span>
+                            </td>
+                            <td className="px-3.5 py-2.5 text-center">
+                              {h.pendingCount > 0 ? (
+                                <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
+                                  <Info size={11} /> {verifiedCount}/6 Disetujui ({h.pendingCount} Menunggu Approval Admin)
+                                </span>
+                              ) : verifiedCount === 6 || h.status === 'LENGKAP' ? (
+                                <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1">
+                                  <CheckCircle size={11} /> 100% Lengkap (6/6 Disetujui)
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-slate-800 text-slate-300 border border-slate-700 inline-flex items-center gap-1">
+                                  {verifiedCount}/6 Disetujui ({6 - verifiedCount} Terlewat)
+                                </span>
+                              )}
                             </td>
                           </tr>
                         )
