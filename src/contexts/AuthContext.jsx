@@ -24,6 +24,8 @@ export function AuthProvider({ children }) {
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
       setLoading(false)
+    }).catch(() => {
+      setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -32,7 +34,7 @@ export function AuthProvider({ children }) {
       else setProfile(null)
     })
 
-    return () => subscription.unsubscribe()
+    return () => subscription?.unsubscribe?.()
   }, [])
 
   async function signIn(email, password) {
