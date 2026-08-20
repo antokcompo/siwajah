@@ -39,9 +39,11 @@ BEGIN
   -- 2. Ambil List Pekerja yang Terdaftar Lembur Hari Ini
   FOR v_rec IN
     SELECT dl.id, dl.tanggal, dl.catatan, dl.created_at,
-           k.nama AS karyawan_nama, COALESCE(k.jabatan, '-') AS jabatan, COALESCE(k.mandor, '-') AS mandor
+           k.nama AS karyawan_nama, COALESCE(k.jabatan, '-') AS jabatan,
+           COALESCE(up.nama, '-') AS atasan_nama
     FROM absen_daftar_lembur dl
     JOIN absen_karyawan k ON k.id = dl.karyawan_id
+    LEFT JOIN absen_user_profiles up ON up.id = k.atasan_id
     WHERE dl.tanggal = v_today
     ORDER BY k.nama ASC
   LOOP
@@ -49,7 +51,7 @@ BEGIN
     v_list_lembur := v_list_lembur || jsonb_build_object(
       'nama', v_rec.karyawan_nama,
       'jabatan', v_rec.jabatan,
-      'mandor', v_rec.mandor,
+      'atasan', v_rec.atasan_nama,
       'catatan', COALESCE(v_rec.catatan, '-')
     );
   END LOOP;
@@ -114,17 +116,18 @@ BEGIN
     || '<div class="alert-title">🌙 Total ' || v_count_lembur || ' Pekerja Terdaftar Lembur</div>'
     || '<div class="alert-desc">Pekerja di bawah ini telah didaftarkan oleh Admin dan berhak melakukan presensi scan lembur.</div>'
     || '</div>'
-    || '<table><thead><tr><th>Karyawan</th><th>Mandor</th><th>Catatan Lembur</th></tr></thead><tbody>';
+    || '<table><thead><tr><th>Karyawan</th><th>Atasan / Mandor</th><th>Catatan Lembur</th></tr></thead><tbody>';
 
   FOR v_rec IN
-    SELECT dl.catatan, k.nama, k.jabatan, COALESCE(k.mandor, '-') AS mandor
+    SELECT dl.catatan, k.nama, k.jabatan, COALESCE(up.nama, '-') AS atasan_nama
     FROM absen_daftar_lembur dl
     JOIN absen_karyawan k ON k.id = dl.karyawan_id
+    LEFT JOIN absen_user_profiles up ON up.id = k.atasan_id
     WHERE dl.tanggal = v_today
     ORDER BY k.nama ASC
   LOOP
     v_html := v_html || '<tr><td><strong>' || v_rec.nama || '</strong><br><span style="color:#64748b;font-size:11px;">' || COALESCE(v_rec.jabatan,'-') || '</span></td>'
-      || '<td>' || v_rec.mandor || '</td>'
+      || '<td>' || v_rec.atasan_nama || '</td>'
       || '<td>' || COALESCE(v_rec.catatan, '-') || '</td></tr>';
   END LOOP;
 
