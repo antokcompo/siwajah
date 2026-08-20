@@ -82,8 +82,7 @@ function TrendChart({ data, chartId, formatValue, renderTooltip, colors, emptyMe
           </linearGradient>
         </defs>
         <path d={areaPath} fill={`url(#${areaGradId})`} />
-        <path d={areaD} fill={`url(#${gradientId})`} />
-        <path d={pathD} fill="none" stroke={colors.start} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={linePath} fill="none" stroke={`url(#${lineGradId})`} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
         {points.map((p, i) => (
           <g key={i}>
@@ -111,9 +110,23 @@ function TrendChart({ data, chartId, formatValue, renderTooltip, colors, emptyMe
           </g>
         ))}
       </svg>
-      {hover !== null && (
-        <div className="absolute top-0 right-0 bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg border border-slate-700">
-           {namaBulanFull[points[hover].bulan]}: {points[hover].value}
+      {hover !== null && points[hover] && (
+        <div
+          className="absolute rounded-xl px-3.5 py-2 text-xs pointer-events-none z-10 font-sans"
+          style={{
+            left: `${(points[hover].x / W) * 100}%`,
+            top: `${(points[hover].y / H) * 100 - 10}%`,
+            transform: 'translate(-50%, -100%)',
+            background: 'rgba(6, 11, 24, 0.95)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <div className="font-semibold text-white mb-0.5">{namaBulanFull[points[hover].bulan]} {points[hover].tahun || ''}</div>
+          {renderTooltip ? renderTooltip(points[hover]) : (
+            <div className="font-bold tabular-nums" style={{ color: colors.start }}>{fmt(points[hover].value)}</div>
+          )}
         </div>
       )}
     </div>
