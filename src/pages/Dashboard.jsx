@@ -188,12 +188,13 @@ export default function Dashboard() {
     const cfgMap = {}
     configRes.data?.forEach(r => { cfgMap[r.key] = r.value })
 
-    const sLat = Number(cfgMap.site_lat || -6.200000)
-    const sLng = Number(cfgMap.site_lng || 106.816666)
-    const sRadius = Number(cfgMap.site_radius_meter || 500)
-    const sNama = cfgMap.site_nama || 'Site Proyek Utama'
+    const sLat = Number(cfgMap.site_lat || -4.824518)
+    const sLng = Number(cfgMap.site_lng || 136.844673)
+    const sRadius = Number(cfgMap.site_radius_meter || 400)
+    const sNama = cfgMap.site_nama || 'Portsite Accommodation Project'
+    const sTz = cfgMap.zona_waktu || 'Asia/Jayapura'
 
-    setSiteConfig({ lat: sLat, lng: sLng, radius: sRadius, nama: sNama })
+    setSiteConfig({ lat: sLat, lng: sLng, radius: sRadius, nama: sNama, zona_waktu: sTz })
 
     const offsiteList = []
     scansGpsRes.data?.forEach(s => {
@@ -385,9 +386,11 @@ export default function Dashboard() {
                   </thead>
                   <tbody className="divide-y text-slate-200" style={{ borderColor: 'var(--card-border)' }}>
                     {offsiteScans.map(item => {
+                      const siteTz = siteConfig.zona_waktu || 'Asia/Jayapura'
+                      const tzShort = siteTz === 'Asia/Jayapura' ? 'WIT' : siteTz === 'Asia/Makassar' ? 'WITA' : 'WIB'
                       const scanTime = new Date(item.waktu_scan)
-                      const tglStr = scanTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
-                      const jamStr = scanTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                      const tglStr = scanTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: siteTz })
+                      const jamStr = scanTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: siteTz })
 
                       return (
                         <tr key={item.id} className="hover:bg-slate-900/60 transition-colors">
@@ -396,7 +399,7 @@ export default function Dashboard() {
                             <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{item.absen_karyawan?.jabatan || 'Pekerja'}</div>
                           </td>
                           <td className="px-4 py-3 font-mono">
-                            <div className="text-cyan-300 font-bold">{tglStr} • {jamStr}</div>
+                            <div className="text-cyan-300 font-bold">{tglStr} • {jamStr} {tzShort}</div>
                             <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                               {item.absen_jadwal_slot?.label || 'Presensi'} ({item.absen_jadwal_slot?.jam?.slice(0,5)})
                             </div>
