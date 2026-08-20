@@ -170,19 +170,22 @@ export default function ManajemenUser() {
     if (!confirmDelete) return
     setError('')
 
-    const { error: err } = await supabase.rpc('absen_delete_user_profile', {
+    const { data, error: err } = await supabase.rpc('absen_delete_auth_user', {
       p_user_id: confirmDelete.id,
     })
 
-    if (err) {
-      setError(err.message)
-      setConfirmDelete(null)
-      return
+    if (err || data?.error) {
+      const res = await supabase.rpc('absen_delete_user_profile', { p_user_id: confirmDelete.id })
+      if (res.error) {
+        setError(res.error.message)
+        setConfirmDelete(null)
+        return
+      }
     }
 
     setConfirmDelete(null)
-    setSuccess('Akses user ke SI Wajah berhasil dicabut')
-    setTimeout(() => setSuccess(''), 3000)
+    setSuccess(`User ${confirmDelete.email} berhasil dihapus dari sistem`)
+    setTimeout(() => setSuccess(''), 4000)
     load()
   }
 

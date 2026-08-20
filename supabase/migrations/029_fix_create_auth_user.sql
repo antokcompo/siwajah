@@ -1,5 +1,5 @@
 -- ============================================================
--- 029: Fix RPC create auth user & reset password agar include auth.identities
+-- 029: Fix RPC create auth user, reset password, & delete user
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
@@ -116,6 +116,23 @@ BEGIN
   ) ON CONFLICT (provider_id, provider) DO UPDATE
     SET identity_data = jsonb_build_object('sub', p_user_id::text, 'email', v_email),
         updated_at = now();
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 3. RPC: Hapus user auth & profile secara permanen
+CREATE OR REPLACE FUNCTION absen_delete_auth_user(p_user_id uuid)
+RETURNS jsonb AS $$
+BEGIN
+  IF absen_get_user_role() != 'admin' THEN
+    RETURN jsonb_build_object('error', 'Hanya admin yang dapat menghapus user');
+  END IF;
+
+  DELETE FROM absen_user_profiles WHERE id = p_user_id;
+  DELETE FROM auth.identities WHERE user_id = p_user_id;
+  DELETE FROM auth.users WHERE id = p_user_id;
 
   RETURN jsonb_build_object('success', true);
 END;
