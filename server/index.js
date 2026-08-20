@@ -17,8 +17,8 @@ const supabaseAdmin = (SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_AN
   : null
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY || ''
-const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'kuswibowo.heri@11843045.brevosend.com'
-const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'SI WAJAH — PT PP (Persero) Tbk'
+const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'kuswibowo.heri@gmail.com'
+const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'SiWajah'
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -111,17 +111,16 @@ app.post('/api/admin/delete-user', async (req, res) => {
   return res.json({ success: true })
 })
 
-// Handler for sending email via Brevo API Key
-async function handleNotifyEmail(req, res) {
+// Send email notification using BREVO_API_KEY from Render Environment Variables (SIMONIKA Architecture)
+app.post('/api/notify-lembur', async (req, res) => {
   if (!BREVO_API_KEY) {
-    console.error('BREVO_API_KEY not configured in environment variables')
-    return res.status(500).json({ error: 'BREVO_API_KEY not configured' })
+    console.error('BREVO_API_KEY not configured in Render environment variables')
+    return res.status(500).json({ error: 'BREVO_API_KEY not configured in Render Environment Variables' })
   }
 
-  const { to, subject, tanggal, karyawan, created_by, sender_name, app_url, htmlContent, html } = req.body
+  const { to, subject, tanggal, karyawan, created_by, sender_name, sender_email, app_url, htmlContent, html } = req.body
 
-  // Always use official Brevo domain sender address (like SIMONIKA) to pass DMARC/SPF checks
-  const finalSenderEmail = 'kuswibowo.heri@11843045.brevosend.com'
+  const finalSenderEmail = (typeof sender_email === 'string' && sender_email.trim().length > 0) ? sender_email.trim() : BREVO_SENDER_EMAIL
   const finalSenderName = (typeof sender_name === 'string' && sender_name.trim().length > 0) ? sender_name.trim() : BREVO_SENDER_NAME
 
   // Sanitize recipients list
@@ -134,7 +133,7 @@ async function handleNotifyEmail(req, res) {
 
   // Fallback recipient
   if (validRecipients.length === 0) {
-    validRecipients.push({ email: 'kuswibowo.heri@gmail.com', name: 'Admin SI WAJAH' })
+    validRecipients.push({ email: BREVO_SENDER_EMAIL, name: BREVO_SENDER_NAME })
   }
 
   let finalHtml = htmlContent || html
@@ -219,12 +218,11 @@ async function handleNotifyEmail(req, res) {
     console.error('Email send failed:', err)
     res.status(500).json({ error: err.message })
   }
-}
+})
 
 // Register route handlers for root, /api/notify-lembur, and /api/notify-digest
-app.post('/', handleNotifyEmail)
-app.post('/api/notify-lembur', handleNotifyEmail)
-app.post('/api/notify-digest', handleNotifyEmail)
+app.post('/', (req, res) => res.redirect(307, '/api/notify-lembur'))
+app.post('/api/notify-digest', (req, res) => res.redirect(307, '/api/notify-lembur'))
 
 app.listen(PORT, () => {
   console.log(`SI WAJAH API running on port ${PORT}`)
