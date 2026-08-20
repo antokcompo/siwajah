@@ -5,7 +5,7 @@
 --    apabila terdapat Laporan Terlewat (PENDING) atau Izin Pekerja (PENDING / CANCEL_REQUESTED).
 -- 2. Email TIDAK AKAN TERKIRIM jika tidak ada item yang berstatus pending.
 -- 3. Menggunakan API Key Brevo yang tersimpan di Render (seperti SIMONIKA)
---    dengan struktur payload kompatibel langsung ke Brevo API & Render webhook.
+--    dengan fallback otomatis ke email pengirim kuswibowo.heri@gmail.com.
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
@@ -26,16 +26,17 @@ DECLARE
   v_total_pending integer := 0;
   v_subject text;
   v_html text;
+  v_found_sender bool := false;
 BEGIN
   -- 1. Ambil Konfigurasi Email Webhook
   SELECT value INTO v_webhook_url FROM absen_konfigurasi WHERE key = 'email_webhook_url';
   IF v_webhook_url IS NULL OR v_webhook_url = '' THEN
-    RETURN jsonb_build_object('sent', false, 'reason', 'email_webhook_url belum dikonfigurasi');
+    v_webhook_url := 'https://siwajah-api.onrender.com/api/notify-lembur';
   END IF;
 
-  SELECT COALESCE((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_name'), 'SI WAJAH') INTO v_sender_name;
-  SELECT COALESCE((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_email'), '') INTO v_sender_email;
-  SELECT COALESCE((SELECT value FROM absen_konfigurasi WHERE key = 'app_url'), 'https://siwajah.pages.dev') INTO v_app_url;
+  SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_name'), ''), 'SI WAJAH') INTO v_sender_name;
+  SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_email'), ''), 'kuswibowo.heri@gmail.com') INTO v_sender_email;
+  SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'app_url'), ''), 'https://siwajah.pages.dev') INTO v_app_url;
 
   -- 2. Ambil List Laporan Terlewat Berstatus PENDING
   FOR v_rec IN
@@ -97,11 +98,15 @@ BEGIN
       AND au.email IS NOT NULL
       AND au.email != ''
   LOOP
+    IF lower(v_rec.email) = lower(v_sender_email) THEN
+      v_found_sender := true;
+    END IF;
     v_to := v_to || jsonb_build_object('email', v_rec.email, 'name', COALESCE(v_rec.nama, 'Admin'));
   END LOOP;
 
-  IF jsonb_array_length(v_to) = 0 THEN
-    RETURN jsonb_build_object('sent', false, 'reason', 'Tidak ada email Admin/Manajemen yang ditemukan');
+  -- Jika email pengirim belum ada di daftar penerima, tambahkan agar Admin pengirim selalu menerima salinan
+  IF NOT v_found_sender THEN
+    v_to := v_to || jsonb_build_object('email', v_sender_email, 'name', v_sender_name);
   END IF;
 
   -- 6. Buat Subject & HTML Email Template Profesional

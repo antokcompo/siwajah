@@ -17,13 +17,14 @@ const supabaseAdmin = (SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_AN
   : null
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY || ''
-const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'noreply@siwajah.app'
+const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'kuswibowo.heri@gmail.com'
 const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'SI WAJAH'
 
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     brevo_configured: !!BREVO_API_KEY,
+    brevo_sender_email: BREVO_SENDER_EMAIL,
     supabase_configured: !!supabaseAdmin,
     has_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
   })
@@ -113,13 +114,31 @@ app.post('/api/admin/delete-user', async (req, res) => {
 // Send email notification (Supports both Lembur and Daily Digest HTML payloads via Brevo API Key)
 app.post('/api/notify-lembur', async (req, res) => {
   if (!BREVO_API_KEY) {
+    console.error('BREVO_API_KEY not configured in environment variables')
     return res.status(500).json({ error: 'BREVO_API_KEY not configured' })
   }
 
   const { to, subject, tanggal, karyawan, created_by, sender_name, sender_email, app_url, htmlContent, html } = req.body
 
-  if (!to || !Array.isArray(to) || to.length === 0) {
-    return res.status(400).json({ error: 'Missing recipients (to)' })
+  // Sanitize sender email and name
+  const finalSenderEmail = (typeof sender_email === 'string' && sender_email.trim().length > 0) ? sender_email.trim() : BREVO_SENDER_EMAIL
+  const finalSenderName = (typeof sender_name === 'string' && sender_name.trim().length > 0) ? sender_name.trim() : BREVO_SENDER_NAME
+
+  // Sanitize recipients list
+  let validRecipients = []
+  if (Array.isArray(to)) {
+    validRecipients = to
+      .map(item => typeof item === 'string' ? { email: item.trim() } : item)
+      .filter(item => item && typeof item.email === 'string' && item.email.includes('@'))
+  }
+
+  // Fallback to sender email if no valid recipients specified
+  if (validRecipients.length === 0 && finalSenderEmail) {
+    validRecipients.push({ email: finalSenderEmail, name: 'Admin SI WAJAH' })
+  }
+
+  if (validRecipients.length === 0) {
+    return res.status(400).json({ error: 'Missing valid recipients (to)' })
   }
 
   let finalHtml = htmlContent || html
@@ -169,6 +188,18 @@ app.post('/api/notify-lembur', async (req, res) => {
     </body></html>`
   }
 
+  const payload = {
+    sender: {
+      name: finalSenderName,
+      email: finalSenderEmail,
+    },
+    to: validRecipients,
+    subject: subject || `Notifikasi SI WAJAH - ${tanggal || ''}`,
+    htmlContent: finalHtml,
+  }
+
+  console.log('Sending Brevo payload:', JSON.stringify({ sender: payload.sender, to_count: payload.to.length, subject: payload.subject }))
+
   try {
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
@@ -176,26 +207,18 @@ app.post('/api/notify-lembur', async (req, res) => {
         'Content-Type': 'application/json',
         'api-key': BREVO_API_KEY,
       },
-      body: JSON.stringify({
-        sender: {
-          name: sender_name || BREVO_SENDER_NAME,
-          email: sender_email || BREVO_SENDER_EMAIL,
-        },
-        to,
-        subject: subject || `Notifikasi SI WAJAH - ${tanggal || ''}`,
-        htmlContent: finalHtml,
-      }),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {
       const err = await response.text()
-      console.error('Brevo API error:', response.status, err)
+      console.error('Brevo API Error:', response.status, err)
       return res.status(502).json({ error: 'Brevo API error', status: response.status, detail: err })
     }
 
     const result = await response.json()
     console.log('Brevo Email Sent Successfully! Message ID:', result.messageId)
-    res.json({ success: true, messageId: result.messageId })
+    res.json({ success: true, messageId: result.messageId, recipients: validRecipients.length })
   } catch (err) {
     console.error('Email send failed:', err)
     res.status(500).json({ error: err.message })
