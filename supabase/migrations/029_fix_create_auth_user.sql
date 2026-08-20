@@ -53,14 +53,14 @@ BEGIN
     false, '', '', ''
   );
 
-  -- Insert to auth.identities (PENTING untuk Supabase GoTrue Auth)
+  -- Insert to auth.identities (provider_id HARUS v_user_id::text untuk GoTrue Auth)
   INSERT INTO auth.identities (
     id, user_id, provider_id, identity_data, provider,
     last_sign_in_at, created_at, updated_at
   ) VALUES (
     v_user_id,
     v_user_id,
-    v_clean_email,
+    v_user_id::text,
     jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
     'email',
     now(), now(), now()
@@ -102,20 +102,20 @@ BEGIN
       updated_at = now()
   WHERE id = p_user_id;
 
-  -- Ensure auth.identities has email provider
+  -- Ensure auth.identities has email provider with provider_id = p_user_id::text
+  DELETE FROM auth.identities WHERE user_id = p_user_id AND provider = 'email';
+
   INSERT INTO auth.identities (
     id, user_id, provider_id, identity_data, provider,
     last_sign_in_at, created_at, updated_at
   ) VALUES (
     p_user_id,
     p_user_id,
-    v_email,
+    p_user_id::text,
     jsonb_build_object('sub', p_user_id::text, 'email', v_email),
     'email',
     now(), now(), now()
-  ) ON CONFLICT (provider_id, provider) DO UPDATE
-    SET identity_data = jsonb_build_object('sub', p_user_id::text, 'email', v_email),
-        updated_at = now();
+  );
 
   RETURN jsonb_build_object('success', true);
 END;
