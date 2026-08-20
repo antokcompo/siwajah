@@ -33,6 +33,7 @@ const menuGroups = [
       { path: '/master-karyawan', label: 'Master Karyawan', icon: Users, roles: ['admin','hrd'] },
       { path: '/kalender', label: 'Kalender Kerja', icon: CalendarCheck, roles: ['admin'] },
       { path: '/jadwal-slot', label: 'Jadwal Slot Absen', icon: Timer, roles: ['admin'] },
+      { path: '/tutup-absen', label: 'Tutup Absen', icon: Lock, roles: ['admin','manajemen','hrd'] },
       { path: '/manajemen-user', label: 'Manajemen User', icon: UserCog, roles: ['admin'] },
       { path: '/konfigurasi', label: 'Konfigurasi', icon: Settings, roles: ['admin'] },
       { path: '/audit-log', label: 'Audit Log', icon: Shield, roles: ['admin','hrd','manajemen'] },
