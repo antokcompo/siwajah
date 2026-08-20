@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { Plus, Pencil, Search, Upload, FileSpreadsheet, CheckCircle, AlertTriangle, X, Users } from 'lucide-react'
+import { Plus, Pencil, Search, Upload, FileSpreadsheet, CheckCircle, AlertTriangle, X, Users, Eye, EyeOff } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 function fmtRupiah(val) {
@@ -20,6 +20,7 @@ export default function MasterKaryawan() {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ nama: '', jabatan: '', uid_mesin: '', gaji_bulanan: '', tunjangan: '0', tgl_masuk: '', status_aktif: true, atasan_id: '', no_hp: '', pin: '' })
+  const [showPin, setShowPin] = useState(false)
   const [saving, setSaving] = useState(false)
   const [mandorList, setMandorList] = useState([])
 
@@ -52,6 +53,7 @@ export default function MasterKaryawan() {
   function openAdd() {
     setEditing(null)
     setForm({ nama: '', jabatan: '', uid_mesin: '', gaji_bulanan: '', tunjangan: '0', tgl_masuk: '', status_aktif: true, atasan_id: '', no_hp: '', pin: '' })
+    setShowPin(false)
     setShowModal(true)
   }
 
@@ -69,6 +71,7 @@ export default function MasterKaryawan() {
       no_hp: row.no_hp || '',
       pin: row.pin || '',
     })
+    setShowPin(false)
     setShowModal(true)
   }
 
@@ -331,7 +334,25 @@ export default function MasterKaryawan() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">PIN</label>
-                    <input type="text" inputMode="numeric" maxLength={6} value={form.pin} onChange={e => setForm({...form, pin: e.target.value.replace(/\D/g, '')})} className="input-field" placeholder="4-6 digit" />
+                    <div className="relative">
+                      <input
+                        type={showPin ? 'text' : 'password'}
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={form.pin}
+                        onChange={e => setForm({...form, pin: e.target.value.replace(/\D/g, '')})}
+                        className="input-field pr-10 font-mono tracking-widest"
+                        placeholder="4-6 digit"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPin(!showPin)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 transition-colors p-1 rounded-lg flex items-center justify-center"
+                        title={showPin ? 'Sembunyikan PIN' : 'Tampilkan PIN'}
+                      >
+                        {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
