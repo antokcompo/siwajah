@@ -37,13 +37,40 @@ export default function TutupAbsen() {
 
   async function loadData() {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('absen_tutup_bulan')
-      .select('*, request_user:absen_karyawan!request_by(nama), approved_user:absen_karyawan!approved_by(nama)')
+      .select('*')
       .eq('tahun', tahun)
       .order('bulan', { ascending: true })
 
-    setLockList(data || [])
+    if (error) {
+      console.error('Error loading tutup absen:', error)
+    }
+
+    const rawList = data || []
+    const userIds = [...new Set(
+      rawList.flatMap(d => [d.request_by, d.approved_by, d.closed_by]).filter(Boolean)
+    )]
+
+    let karyawanMap = {}
+    if (userIds.length > 0) {
+      const { data: kData } = await supabase
+        .from('absen_karyawan')
+        .select('id, nama')
+        .in('id', userIds)
+      
+      if (kData) {
+        karyawanMap = kData.reduce((acc, k) => ({ ...acc, [k.id]: k.nama }), {})
+      }
+    }
+
+    const enriched = rawList.map(d => ({
+      ...d,
+      request_user: d.request_by && karyawanMap[d.request_by] ? { nama: karyawanMap[d.request_by] } : null,
+      approved_user: d.approved_by && karyawanMap[d.approved_by] ? { nama: karyawanMap[d.approved_by] } : null,
+    }))
+
+    setLockList(enriched)
     setLoading(false)
   }
 
