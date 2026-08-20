@@ -16,6 +16,10 @@ export default function TutupAbsen() {
   const [lockList, setLockList] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Confirm Lock Modal State
+  const [confirmLockModal, setConfirmLockModal] = useState(null) // { bulan, namaBulan, tahun }
+  const [lockSubmitting, setLockSubmitting] = useState(false)
+
   // Request Modal State
   const [requestModal, setRequestModal] = useState(null) // { tahun, bulan, namaBulan }
   const [requestAlasan, setRequestAlasan] = useState('')
@@ -40,19 +44,26 @@ export default function TutupAbsen() {
     setLoading(false)
   }
 
-  // Handle direct close month
-  async function handleLockBulan(bln) {
-    if (!confirm(`Apakah Anda yakin ingin MENUTUP absensi bulan ${namaBulan[bln]} ${tahun}? Pengabsenan dan pengeditan data akan terkunci.`)) return
+  function openConfirmLockModal(bln, namaBln) {
+    setConfirmLockModal({ bulan: bln, namaBulan: namaBln, tahun })
+  }
+
+  async function doConfirmLockBulan() {
+    if (!confirmLockModal) return
+    setLockSubmitting(true)
     try {
       const { data, error } = await supabase.rpc('absen_lock_bulan', {
-        p_tahun: tahun,
-        p_bulan: bln,
+        p_tahun: confirmLockModal.tahun,
+        p_bulan: confirmLockModal.bulan,
         p_user_id: profile?.id || null
       })
       if (error) throw error
+      setConfirmLockModal(null)
       loadData()
     } catch (err) {
       alert('Gagal menutup absen: ' + err.message)
+    } finally {
+      setLockSubmitting(false)
     }
   }
 
@@ -282,7 +293,7 @@ export default function TutupAbsen() {
                   <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
                     {m.lockState === 'OPEN' && (
                       <button
-                        onClick={() => handleLockBulan(m.bulan)}
+                        onClick={() => openConfirmLockModal(m.bulan, m.nama)}
                         className="w-full py-1.5 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
                       >
                         <Lock size={13} /> Tutup Absen
@@ -300,7 +311,7 @@ export default function TutupAbsen() {
 
                     {m.lockState === 'UNLOCKED_TEMPORARY' && (
                       <button
-                        onClick={() => handleLockBulan(m.bulan)}
+                        onClick={() => openConfirmLockModal(m.bulan, m.nama)}
                         className="w-full py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
                       >
                         <Lock size={13} /> Kunci Kembali Sekarang
@@ -397,6 +408,62 @@ export default function TutupAbsen() {
           </div>
         )}
       </div>
+
+      {/* Modal 0: Custom Futuristic Lock Confirmation Modal */}
+      {confirmLockModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-rose-500/40 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl shadow-rose-950/50 relative overflow-hidden">
+            <div className="absolute -top-12 -left-12 w-32 h-32 bg-rose-500/20 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="flex items-start gap-3.5 relative">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0 shadow-inner">
+                <Lock size={24} />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Konfirmasi Tutup Absen Bulanan</h3>
+                <p className="text-xs text-rose-300/90 mt-0.5 font-medium">
+                  Bulan {confirmLockModal.namaBulan} {confirmLockModal.tahun}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2 text-xs text-slate-300 font-sans relative">
+              <p className="flex items-start gap-2">
+                <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  Apakah Anda yakin ingin <strong className="text-rose-300">MENUTUP absensi</strong> bulan <strong>{confirmLockModal.namaBulan} {confirmLockModal.tahun}</strong>?
+                </span>
+              </p>
+              <p className="text-[11px] text-slate-400 pl-5">
+                Seluruh pengabsenan dan pengeditan data pada bulan ini akan <strong>terkunci rapat</strong> dan hanya dapat dibuka kembali melalui persetujuan Manajemen.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setConfirmLockModal(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={doConfirmLockBulan}
+                disabled={lockSubmitting}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-lg shadow-rose-950/60"
+              >
+                {lockSubmitting ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Lock size={14} />
+                )}
+                <span>Ya, Tutup Absen Sekarang</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal 1: Request Buka Lock */}
       {requestModal && (
