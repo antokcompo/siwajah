@@ -52,6 +52,10 @@ export async function syncPendingScans() {
         p_gps_lng: scan.gps_lng || null,
         p_confidence: scan.confidence,
         p_client_tz: scan.client_tz || null,
+        p_is_mock_gps: scan.is_mock_gps || false,
+        p_gps_accuracy: scan.gps_accuracy || null,
+        p_fake_gps_score: scan.fake_gps_score || 0,
+        p_fake_gps_reason: scan.fake_gps_reason || null,
         p_waktu_scan: scan.waktu_scan,
       })
 

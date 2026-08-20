@@ -219,7 +219,7 @@ export default function Dashboard() {
       supabase.from('absen_konfigurasi').select('key, value'),
       supabase
         .from('absen_scan_wajah')
-        .select('id, karyawan_id, tanggal, slot_id, waktu_scan, client_tz, gps_lat, gps_lng, lokasi_kerja, foto_url, absen_karyawan(nama, jabatan), absen_jadwal_slot(label, jam)')
+        .select('id, karyawan_id, tanggal, slot_id, waktu_scan, client_tz, gps_lat, gps_lng, lokasi_kerja, foto_url, is_mock_gps, gps_accuracy, fake_gps_score, fake_gps_reason, absen_karyawan(nama, jabatan), absen_jadwal_slot(label, jam)')
         .gte('tanggal', startDate)
         .lte('tanggal', endDate)
         .not('gps_lat', 'is', null)
@@ -628,7 +628,14 @@ export default function Dashboard() {
                                 {item.absen_karyawan?.nama ? item.absen_karyawan.nama.charAt(0).toUpperCase() : '?'}
                               </div>
                               <div>
-                                <div className="font-bold text-white text-sm">{item.absen_karyawan?.nama}</div>
+                                <div className="font-bold text-white text-sm flex items-center gap-1.5 flex-wrap">
+                                  <span>{item.absen_karyawan?.nama}</span>
+                                  {(item.is_mock_gps || item.fake_gps_score >= 50) && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-rose-950/90 text-rose-300 border border-rose-600/80 font-extrabold shadow-sm" title={item.fake_gps_reason || 'Terdeteksi sinyal Fake GPS'}>
+                                      <ShieldAlert size={11} className="text-rose-400" /> Fake GPS ({item.fake_gps_score || 100}%)
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-slate-800/90 border border-slate-700/80 text-cyan-300 font-semibold">
                                   {item.absen_karyawan?.jabatan || 'Pekerja'}
                                 </div>

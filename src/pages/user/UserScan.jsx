@@ -3,9 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
 import { loadModels, detectFace, findBestMatch, getConfidenceLevel } from '../../lib/faceApi'
-import { CheckCircle, AlertTriangle, Camera, MapPin, MapPinOff, WifiOff } from 'lucide-react'
+import { CheckCircle, AlertTriangle, Camera, MapPin, MapPinOff, WifiOff, ShieldAlert } from 'lucide-react'
 import { savePendingScan, cacheFaceData, getCachedFaceData } from '../../lib/offlineQueue'
 import { compressImage } from '../../lib/imageCompressor'
+import { analyzeGpsIntegrity } from '../../lib/geoUtils'
 
 function captureSnapshot(videoEl) {
   const canvas = document.createElement('canvas')
@@ -98,8 +99,19 @@ export default function UserScan() {
   function getGps() {
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
-      pos => setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {}
+      pos => {
+        const analysis = analyzeGpsIntegrity(pos)
+        setGps({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          isMock: analysis.isMock,
+          fakeGpsScore: analysis.score,
+          reasons: analysis.reasons
+        })
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   }
 
@@ -175,6 +187,10 @@ export default function UserScan() {
       gps_lng: gps?.lng || null,
       confidence,
       client_tz: getUserTz(),
+      is_mock_gps: gps?.isMock || false,
+      gps_accuracy: gps?.accuracy || null,
+      fake_gps_score: gps?.fakeGpsScore || 0,
+      fake_gps_reason: gps?.reasons ? gps.reasons.join(', ') : null,
       waktu_scan: waktuScan,
       waktu_scan_epoch: Date.now(),
       slot_label: slot.label,
@@ -232,6 +248,10 @@ export default function UserScan() {
         p_gps_lng: gps?.lng || null,
         p_confidence: confidence,
         p_client_tz: getUserTz(),
+        p_is_mock_gps: gps?.isMock || false,
+        p_gps_accuracy: gps?.accuracy || null,
+        p_fake_gps_score: gps?.fakeGpsScore || 0,
+        p_fake_gps_reason: gps?.reasons ? gps.reasons.join(', ') : null,
       })
       if (rpcError) throw rpcError
       if (data.error) throw new Error(data.error)
@@ -321,6 +341,18 @@ export default function UserScan() {
           {fotoPreview && (
             <div className="mb-4 flex justify-center">
               <img src={fotoPreview} alt="Foto scan" className="w-24 h-24 rounded-xl object-cover border-2 border-white/10" />
+            </div>
+          )}
+
+          {gps?.isMock && (
+            <div className="bg-rose-950/60 border border-rose-500/50 rounded-xl p-3 flex items-start gap-2.5 mb-4 text-xs text-rose-200">
+              <ShieldAlert size={18} className="text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-rose-300 block mb-0.5">⚠️ Proteksi Anti-Fake GPS Terdeteksi</span>
+                <span>
+                  Sistem mendeteksi indikasi sinyal GPS buatan ({gps.reasons?.join('; ')}). Scan presensi Anda akan ditandai untuk peninjauan khusus atasan.
+                </span>
+              </div>
             </div>
           )}
 
