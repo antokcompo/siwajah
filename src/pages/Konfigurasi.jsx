@@ -175,29 +175,116 @@ export default function Konfigurasi() {
   async function handleTestLemburDigest() {
     setTesting(true)
     try {
-      // 1. Panggil RPC Supabase untuk cek daftar lembur hari ini
-      const { data, error } = await supabase.rpc('absen_kirim_digest_daftar_lembur')
-      if (error) throw error
+      // 1. Ambil tanggal hari ini (WIT UTC+9)
+      const nowJayapura = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jayapura' }))
+      const yyyy = nowJayapura.getFullYear()
+      const mm = String(nowJayapura.getMonth() + 1).padStart(2, '0')
+      const dd = String(nowJayapura.getDate()).padStart(2, '0')
+      const todayStr = `${yyyy}-${mm}-${dd}`
+      const todayFmt = `${dd}/${mm}/${yyyy}`
 
-      if (!data?.sent) {
+      // 2. Query data lembur hari ini dari Supabase
+      const { data: listLembur, error: errLembur } = await supabase
+        .from('absen_daftar_lembur')
+        .select(`
+          id, tanggal, catatan,
+          karyawan:absen_karyawan!inner(id, nama, jabatan, atasan:absen_user_profiles(nama))
+        `)
+        .eq('tanggal', todayStr)
+
+      if (errLembur) throw errLembur
+
+      if (!listLembur || listLembur.length === 0) {
         setTestResultModal({
           success: false,
-          reason: data?.reason || 'Tidak ada daftar lembur hari ini',
-          message: `Dibatalkan: ${data?.reason || 'Tidak ada daftar pekerja lembur untuk tanggal hari ini'}`
+          reason: `Tidak ada pekerja terdaftar lembur untuk tanggal hari ini (${todayFmt}).`,
+          message: `Dibatalkan: Tidak ada pekerja terdaftar lembur untuk tanggal hari ini (${todayFmt}). Daftarkan lembur terlebih dahulu pada menu Daftar Lembur.`
         })
         return
       }
 
-      setTestResultModal({
-        success: true,
-        recipientsCount: data.recipients_count || 1,
-        totalPending: data.count_lembur || 0,
-        countLaporan: data.count_lembur || 0,
-        countIzin: 0,
-        senderEmail: 'Dikonfigurasi di Environment Render (kuswibowo.heri@gmail.com)',
-        messageId: 'Success',
-        message: `Berhasil! Email Digest Daftar Lembur Hari Ini (${data.count_lembur} pekerja) telah dikirimkan via Brevo API ke Admin & Manajemen!`
+      const rowsHtml = listLembur.map(item => {
+        const atasanNama = item.karyawan?.atasan?.nama || 'Harian Kantor'
+        return `<tr>
+          <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;"><strong>${item.karyawan?.nama || '-'}</strong><br><span style="color:#64748b;font-size:11px;">${item.karyawan?.jabatan || '-'}</span></td>
+          <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;">${atasanNama}</td>
+          <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;">${item.catatan || '-'}</td>
+        </tr>`
+      }).join('')
+
+      const htmlTemplate = `<!DOCTYPE html><html><head><meta charset="utf-8">
+        <style>
+          body{font-family:Arial,Helvetica,sans-serif;background-color:#f8fafc;color:#334155;margin:0;padding:20px;}
+          .container{max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;}
+          .header{background-color:#0f172a;padding:24px;text-align:center;color:#ffffff;}
+          .header h1{margin:0;font-size:22px;color:#67e8f9;letter-spacing:1px;}
+          .header p{margin:4px 0 0 0;font-size:12px;color:#94a3b8;}
+          .content{padding:24px;}
+          .section-box{background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;margin-bottom:20px;}
+          .section-title{font-size:15px;font-weight:bold;color:#15803d;margin:0 0 4px 0;}
+          .section-subtitle{font-size:12px;color:#16a34a;margin:0;}
+          .intro-text{font-size:14px;color:#475569;line-height:1.5;margin-bottom:20px;}
+          .alert-box{background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin-bottom:20px;}
+          .alert-title{font-size:14px;font-weight:bold;color:#1d4ed8;margin:0 0 4px 0;}
+          .alert-desc{font-size:12px;color:#2563eb;margin:0;}
+          table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;}
+          th{background-color:#f1f5f9;color:#475569;text-align:left;padding:10px 12px;border:1px solid #cbd5e1;font-weight:600;}
+          td{padding:10px 12px;border:1px solid #e2e8f0;color:#334155;}
+          .footer{font-size:11px;color:#94a3b8;text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid #f1f5f9;}
+        </style></head><body>
+        <div class="container">
+          <div class="header"><h1>SI WAJAH</h1><p>Sistem Informasi Web Absensi & Aktifitas Harian — PT PP (Persero) Tbk</p></div>
+          <div class="content">
+            <div class="section-box">
+              <div class="section-title">Informasi Daftar Pekerja Lembur</div>
+              <div class="section-subtitle">PENGINGAT LEMBUR HARIAN (PUKUL 19.10 WIT)</div>
+            </div>
+            <p class="intro-text">Yth. Bapak/Ibu Pimpinan Proyek & Tim Manajemen,<br><br>Berikut adalah daftar pekerja yang <strong>terdaftar untuk melaksanakan lembur</strong> pada hari ini (<strong>${todayFmt}</strong>):</p>
+            <div class="alert-box">
+              <div class="alert-title">Total ${listLembur.length} Pekerja Terdaftar Lembur</div>
+              <div class="alert-desc">Pekerja di bawah ini telah didaftarkan oleh Admin dan berhak melakukan presensi scan lembur.</div>
+            </div>
+            <table><thead><tr><th>Karyawan</th><th>Atasan / Mandor</th><th>Catatan Lembur</th></tr></thead><tbody>
+              ${rowsHtml}
+            </tbody></table>
+            <div class="footer">Email ini dikirim otomatis oleh sistem SI WAJAH — PT PP (Persero) Tbk setiap pukul 19.10 WIT. Mohon tidak membalas email ini.</div>
+          </div>
+        </div></body></html>`
+
+      // 3. Panggil Render Service untuk kirim via Brevo API Key
+      const res = await fetch('https://siwajah-api.onrender.com/api/notify-lembur', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'overtime_digest',
+          subject: `[SI WAJAH] Informasi Daftar Lembur Hari Ini (${listLembur.length} Pekerja) — PT PP (Persero) Tbk`,
+          html: htmlTemplate,
+          to: [{ email: 'kuswibowo.heri@gmail.com', name: 'Kuswibowo Heri' }]
+        })
       })
+
+      const resText = await res.text()
+      let resJson = {}
+      try { resJson = JSON.parse(resText) } catch (e) {}
+
+      if (res.ok && resJson.success) {
+        setTestResultModal({
+          success: true,
+          recipientsCount: resJson.recipients || 1,
+          totalPending: listLembur.length,
+          countLaporan: listLembur.length,
+          countIzin: 0,
+          senderEmail: 'Dikonfigurasi di Environment Render (kuswibowo.heri@gmail.com)',
+          messageId: resJson.messageId || 'Success',
+          message: `Berhasil! Server Render API mengonfirmasi email digest lembur (${listLembur.length} pekerja) terkirim (Message ID: ${resJson.messageId || 'Success'}). Email telah dikirimkan ke kuswibowo.heri@gmail.com!`
+        })
+      } else {
+        setTestResultModal({
+          success: false,
+          reason: resJson.error || resJson.detail || resText || `HTTP Status ${res.status}`,
+          message: `Render Brevo API Error (${res.status}): ${resJson.detail || resJson.error || resText || 'Server Render gagal memproses pengiriman email'}`
+        })
+      }
     } catch (err) {
       setTestResultModal({
         success: false,
