@@ -4,7 +4,7 @@
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
 
--- 1. Fix RPC absen_create_auth_user
+-- 1. Fix RPC absen_create_auth_user (menggunakan gen_salt('bf', 10) sesuai GoTrue Auth standard)
 CREATE OR REPLACE FUNCTION absen_create_auth_user(
   p_email text,
   p_password text,
@@ -32,7 +32,7 @@ BEGIN
 
   v_user_id := gen_random_uuid();
 
-  -- Insert to auth.users
+  -- Insert to auth.users with bcrypt cost 10
   INSERT INTO auth.users (
     instance_id, id, aud, role, email,
     encrypted_password, email_confirmed_at,
@@ -45,7 +45,7 @@ BEGIN
     'authenticated',
     'authenticated',
     v_clean_email,
-    crypt(p_password, gen_salt('bf')),
+    crypt(p_password, gen_salt('bf', 10)),
     now(),
     now(), now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
@@ -53,7 +53,7 @@ BEGIN
     false, '', '', ''
   );
 
-  -- Insert to auth.identities (provider_id HARUS v_user_id::text untuk GoTrue Auth)
+  -- Insert to auth.identities (provider_id HARUS v_user_id::text)
   INSERT INTO auth.identities (
     id, user_id, provider_id, identity_data, provider,
     last_sign_in_at, created_at, updated_at
@@ -76,7 +76,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 2. Fix RPC absen_admin_reset_password
+-- 2. Fix RPC absen_admin_reset_password (menggunakan gen_salt('bf', 10))
 CREATE OR REPLACE FUNCTION absen_admin_reset_password(
   p_user_id uuid,
   p_new_password text
@@ -94,9 +94,9 @@ BEGIN
     RETURN jsonb_build_object('error', 'User tidak ditemukan');
   END IF;
 
-  -- Update auth.users
+  -- Update auth.users with bcrypt cost 10
   UPDATE auth.users
-  SET encrypted_password = crypt(p_new_password, gen_salt('bf')),
+  SET encrypted_password = crypt(p_new_password, gen_salt('bf', 10)),
       email_confirmed_at = COALESCE(email_confirmed_at, now()),
       raw_app_meta_data = '{"provider":"email","providers":["email"]}'::jsonb,
       updated_at = now()
