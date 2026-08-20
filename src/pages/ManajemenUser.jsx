@@ -170,6 +170,26 @@ export default function ManajemenUser() {
     if (!confirmDelete) return
     setError('')
 
+    const apiUrl = import.meta.env.VITE_API_URL || ''
+    if (apiUrl) {
+      try {
+        const res = await fetch(`${apiUrl}/api/admin/delete-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: confirmDelete.id })
+        })
+        if (res.ok) {
+          setConfirmDelete(null)
+          setSuccess(`User ${confirmDelete.email} berhasil dihapus dari sistem`)
+          setTimeout(() => setSuccess(''), 4000)
+          load()
+          return
+        }
+      } catch (_err) {
+        // Fallback
+      }
+    }
+
     const { data, error: err } = await supabase.rpc('absen_delete_auth_user', {
       p_user_id: confirmDelete.id,
     })
@@ -210,6 +230,37 @@ export default function ManajemenUser() {
 
     setCreating(true)
     const cleanEmail = createForm.email.trim().toLowerCase()
+
+    const apiUrl = import.meta.env.VITE_API_URL || ''
+    if (apiUrl) {
+      try {
+        const res = await fetch(`${apiUrl}/api/admin/create-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password: createForm.password,
+            nama: createForm.nama,
+            role: createForm.role,
+          })
+        })
+        const resData = await res.json()
+        if (res.ok && resData.success) {
+          setCreating(false)
+          setShowCreateModal(false)
+          setSuccess(`User ${cleanEmail} berhasil dibuat! User dapat langsung login di SI Wajah.`)
+          setTimeout(() => setSuccess(''), 4000)
+          load()
+          return
+        } else if (resData?.error) {
+          setError(resData.error)
+          setCreating(false)
+          return
+        }
+      } catch (_err) {
+        // Fallback to RPC
+      }
+    }
 
     const { data, error: err } = await supabase.rpc('absen_create_auth_user', {
       p_email: cleanEmail,
@@ -258,6 +309,35 @@ export default function ManajemenUser() {
     }
 
     setResetting(true)
+
+    const apiUrl = import.meta.env.VITE_API_URL || ''
+    if (apiUrl) {
+      try {
+        const res = await fetch(`${apiUrl}/api/admin/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: resetTarget.id,
+            password: resetForm.password,
+          })
+        })
+        const resData = await res.json()
+        if (res.ok && resData.success) {
+          setResetting(false)
+          setShowResetModal(false)
+          setSuccess(`Password ${resetTarget.email} berhasil direset!`)
+          setTimeout(() => setSuccess(''), 4000)
+          return
+        } else if (resData?.error) {
+          setError(resData.error)
+          setResetting(false)
+          return
+        }
+      } catch (_err) {
+        // Fallback to RPC
+      }
+    }
+
     const { data, error: err } = await supabase.rpc('absen_admin_reset_password', {
       p_user_id: resetTarget.id,
       p_new_password: resetForm.password,

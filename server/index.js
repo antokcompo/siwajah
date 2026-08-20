@@ -8,7 +8,7 @@ app.use(express.json({ limit: '1mb' }))
 
 const PORT = process.env.PORT || 3001
 
-const SUPABASE_URL = process.env.SUPABASE_URL || ''
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://htveuwyqfkiqsvpbceet.supabase.co'
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || ''
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
@@ -25,7 +25,89 @@ app.get('/health', (_req, res) => {
     status: 'ok',
     brevo_configured: !!BREVO_API_KEY,
     supabase_configured: !!supabaseAdmin,
+    has_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
   })
+})
+
+// Create user via Supabase GoTrue Admin API
+app.post('/api/admin/create-user', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase Admin Client not configured' })
+  }
+  const { email, password, nama, role } = req.body
+  if (!email || !password || !nama || !role) {
+    return res.status(400).json({ error: 'Missing required fields (email, password, nama, role)' })
+  }
+
+  const cleanEmail = email.trim().toLowerCase()
+
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email: cleanEmail,
+    password,
+    email_confirm: true,
+    user_metadata: { nama }
+  })
+
+  if (error) {
+    console.error('Create user error:', error)
+    return res.status(400).json({ error: error.message })
+  }
+
+  const userId = data.user.id
+
+  const { error: profileErr } = await supabaseAdmin
+    .from('absen_user_profiles')
+    .upsert({ id: userId, nama, role }, { onConflict: 'id' })
+
+  if (profileErr) {
+    console.error('Profile upsert error:', profileErr)
+  }
+
+  return res.json({ success: true, user: data.user })
+})
+
+// Reset password via Supabase GoTrue Admin API
+app.post('/api/admin/reset-password', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase Admin Client not configured' })
+  }
+  const { user_id, password } = req.body
+  if (!user_id || !password) {
+    return res.status(400).json({ error: 'Missing required fields (user_id, password)' })
+  }
+
+  const { data, error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
+    password,
+    email_confirm: true
+  })
+
+  if (error) {
+    console.error('Reset password error:', error)
+    return res.status(400).json({ error: error.message })
+  }
+
+  return res.json({ success: true, user: data.user })
+})
+
+// Delete user via Supabase GoTrue Admin API
+app.post('/api/admin/delete-user', async (req, res) => {
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase Admin Client not configured' })
+  }
+  const { user_id } = req.body
+  if (!user_id) {
+    return res.status(400).json({ error: 'Missing user_id' })
+  }
+
+  await supabaseAdmin.from('absen_user_profiles').delete().eq('id', user_id)
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(user_id)
+
+  if (error) {
+    console.error('Delete user error:', error)
+    return res.status(400).json({ error: error.message })
+  }
+
+  return res.json({ success: true })
 })
 
 app.post('/api/notify-lembur', async (req, res) => {
