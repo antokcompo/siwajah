@@ -289,28 +289,6 @@ export default function UserBeranda() {
 
   return (
     <div className={`px-4 py-4 min-h-screen transition-colors duration-200 ${outdoorMode ? 'bg-slate-950 text-white' : ''}`}>
-      {/* Sunlight Outdoor Mode Toggle Header Bar */}
-      <div className="mb-4 flex items-center justify-between bg-slate-900/90 border border-slate-800 p-2.5 rounded-2xl shadow-md backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <Sun size={18} className={outdoorMode ? 'text-amber-400 animate-spin' : 'text-slate-400'} />
-          <span className="text-xs font-bold text-white">
-            {outdoorMode ? 'Mode Outdoor Terik Matahari (Kontras Tinggi)' : 'Mode Standar'}
-          </span>
-        </div>
-
-        <button
-          onClick={toggleOutdoorMode}
-          className={`px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-md ${
-            outdoorMode
-              ? 'bg-amber-400 text-slate-950 shadow-amber-400/40 border border-amber-300'
-              : 'bg-slate-800 text-slate-300 hover:text-white border border-slate-700'
-          }`}
-        >
-          {outdoorMode ? <Sun size={14} /> : <Moon size={14} />}
-          <span>{outdoorMode ? 'Mode Terik Aktif' : 'Aktifkan Mode Outdoor'}</span>
-        </button>
-      </div>
-
       {/* Header Profile Info */}
       <div className={`text-center mb-5 p-4 rounded-2xl border transition-all ${
         outdoorMode

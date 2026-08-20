@@ -106,18 +106,18 @@ export default function UserLayout() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Outdoor Mode Toggle Button */}
+          {/* 1 Single Global Outdoor Mode Toggle Button */}
           <button
             onClick={toggleOutdoorMode}
             title="Sakelar Mode Terik Matahari / Outdoor"
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-md ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-md ${
               outdoorMode
-                ? 'bg-amber-400 text-slate-950 shadow-amber-400/40 border border-amber-300'
-                : 'bg-slate-800 text-slate-300 hover:text-white border border-slate-700'
+                ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/50 border border-amber-300'
+                : 'bg-slate-800 text-cyan-300 hover:text-white border border-slate-700'
             }`}
           >
-            {outdoorMode ? <Sun size={14} className="animate-spin text-slate-950" /> : <Moon size={14} />}
-            <span className="hidden sm:inline">{outdoorMode ? 'Outdoor' : 'Indoor'}</span>
+            <Sun size={14} className={outdoorMode ? 'animate-spin text-slate-950' : 'text-amber-400'} />
+            <span>{outdoorMode ? '☀️ Terik Aktif' : 'Mode Outdoor'}</span>
           </button>
 
           <button onClick={handleLogout} title="Keluar" className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white">
