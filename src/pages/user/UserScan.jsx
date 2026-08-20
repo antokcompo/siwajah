@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { loadModels, detectFace, findBestMatch, getConfidenceLevel } from '../../lib/faceApi'
 import { CheckCircle, AlertTriangle, Camera, MapPin, MapPinOff, WifiOff } from 'lucide-react'
 import { savePendingScan, cacheFaceData, getCachedFaceData } from '../../lib/offlineQueue'
+import { compressImage } from '../../lib/imageCompressor'
 
 function captureSnapshot(videoEl) {
   const canvas = document.createElement('canvas')
@@ -202,10 +203,18 @@ export default function UserScan() {
     try {
       let fotoUrl = null
       if (fotoBlob) {
+        let uploadBlob = fotoBlob
+        try {
+          const comp = await compressImage(fotoBlob, { maxWidth: 600, maxHeight: 600, quality: 0.7 })
+          uploadBlob = comp.blob
+        } catch (err) {
+          console.warn('Scan photo compress failed, using original blob:', err)
+        }
+
         const filePath = `${karyawan.id}/${Date.now()}.jpg`
         const { error: uploadError } = await supabase.storage
           .from('scan-photos')
-          .upload(filePath, fotoBlob, { contentType: 'image/jpeg', upsert: false })
+          .upload(filePath, uploadBlob, { contentType: 'image/jpeg', upsert: false })
         if (!uploadError) {
           const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(filePath)
           fotoUrl = urlData.publicUrl
