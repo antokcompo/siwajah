@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 
 export default function UserRiwayat() {
-  const { karyawan } = useUserAuth()
+  const { karyawan, outdoorMode } = useUserAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [data, setData] = useState([])
   const [slotsList, setSlotsList] = useState([])

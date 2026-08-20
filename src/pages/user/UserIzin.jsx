@@ -27,7 +27,7 @@ const statusLabel = {
 }
 
 export default function UserIzin() {
-  const { karyawan } = useUserAuth()
+  const { karyawan, outdoorMode } = useUserAuth()
   const navigate = useNavigate()
 
   const [activeTab, setActiveTab] = useState('izin') // 'izin' | 'laporan'

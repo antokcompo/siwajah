@@ -33,6 +33,19 @@ export function UserAuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [projectTz, setProjectTz] = useState('Asia/Jayapura')
 
+  // Global Outdoor Mode state for all user pages
+  const [outdoorMode, setOutdoorMode] = useState(() => {
+    return localStorage.getItem('siwajah_outdoor_mode') === 'true'
+  })
+
+  const toggleOutdoorMode = () => {
+    setOutdoorMode(prev => {
+      const next = !prev
+      localStorage.setItem('siwajah_outdoor_mode', next.toString())
+      return next
+    })
+  }
+
   useEffect(() => {
     // Clear legacy localStorage session if present
     localStorage.removeItem('siwajah_user')
@@ -80,7 +93,16 @@ export function UserAuthProvider({ children }) {
   }
 
   return (
-    <UserAuthContext.Provider value={{ karyawan, loading, login, logout, projectTz, getProjectTime: () => getProjectTime(projectTz) }}>
+    <UserAuthContext.Provider value={{
+      karyawan,
+      loading,
+      login,
+      logout,
+      projectTz,
+      outdoorMode,
+      toggleOutdoorMode,
+      getProjectTime: () => getProjectTime(projectTz)
+    }}>
       {children}
     </UserAuthContext.Provider>
   )
