@@ -82,6 +82,7 @@ export default function RekapHarian() {
   const [selectedScan, setSelectedScan] = useState(null)
   const [zoomPhoto, setZoomPhoto] = useState(null)
   const [projectTz, setProjectTz] = useState('Asia/Jayapura')
+  const [siteConfig, setSiteConfig] = useState({ lat: -6.200000, lng: 106.816666, radius: 500 })
 
   const bulan = currentDate.getMonth() + 1
   const tahun = currentDate.getFullYear()
@@ -99,12 +100,19 @@ export default function RekapHarian() {
   }, [selectedDate, filter])
 
   async function loadTimezone() {
-    const { data } = await supabase
+    const { data: configData } = await supabase
       .from('absen_konfigurasi')
-      .select('value')
-      .eq('key', 'zona_waktu')
-      .maybeSingle()
-    if (data?.value) setProjectTz(data.value)
+      .select('key, value')
+    if (configData) {
+      const map = {}
+      configData.forEach(r => { map[r.key] = r.value })
+      if (map.zona_waktu) setProjectTz(map.zona_waktu)
+      setSiteConfig({
+        lat: Number(map.site_lat || -6.200000),
+        lng: Number(map.site_lng || 106.816666),
+        radius: Number(map.site_radius_meter || 500)
+      })
+    }
   }
 
   async function loadMonth() {
@@ -482,12 +490,26 @@ export default function RekapHarian() {
                     <span className="text-gray-900">{selectedScan.keterangan}</span>
                   </div>
                 )}
-                {selectedScan.di_luar_lokasi && (
-                  <div className="flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
-                    <MapPinOff size={14} className="shrink-0" />
-                    Di luar lokasi proyek
-                  </div>
-                )}
+                {(() => {
+                  const scanDist = selectedScan?.gps_lat && selectedScan?.gps_lng
+                    ? getDistanceMeters(selectedScan.gps_lat, selectedScan.gps_lng, siteConfig.lat, siteConfig.lng)
+                    : 0
+                  const isOffsite = (scanDist > siteConfig.radius && scanDist > 0) || selectedScan?.di_luar_lokasi
+
+                  if (!isOffsite) return null
+
+                  return (
+                    <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-rose-700">
+                        <AlertTriangle size={15} />
+                        <span>⚠️ Presensi Di Luar Site Proyek (Off-Site)</span>
+                      </div>
+                      <p className="text-gray-600 font-sans">
+                        Jarak Scan: <strong className="text-rose-700 font-bold">{formatDistance(scanDist)}</strong> dari titik site (Batas Radius: <strong>{siteConfig.radius} m</strong>)
+                      </p>
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* GPS */}

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 import { Check, X, Clock, Search, Plus, Trash2, Users, ClipboardCheck, CalendarPlus, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
 
 const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
@@ -439,11 +440,44 @@ function ApprovalTab() {
     if (tab === 'pending') q = q.eq('status_lembur', 'PENDING_APPROVAL')
     else q = q.in('status_lembur', ['APPROVED','REJECTED'])
 
-    const [harianRes, mandorRes] = await Promise.all([
+    const [harianRes, mandorRes, configRes, scanRes] = await Promise.all([
       q,
       supabase.from('absen_karyawan').select('id, nama').ilike('jabatan', '%mandor%').eq('status_aktif', true),
+      supabase.from('absen_konfigurasi').select('key, value'),
+      supabase.from('absen_scan_wajah').select('karyawan_id, tanggal, slot_id, gps_lat, gps_lng, lokasi_kerja').gte('tanggal', startDate).lt('tanggal', endDate)
     ])
-    setData(harianRes.data || [])
+
+    const cfgMap = {}
+    configRes.data?.forEach(r => { cfgMap[r.key] = r.value })
+    const siteLat = Number(cfgMap.site_lat || -6.200000)
+    const siteLng = Number(cfgMap.site_lng || 106.816666)
+    const siteRadius = Number(cfgMap.site_radius_meter || 500)
+
+    const scanMap = {}
+    scanRes.data?.forEach(s => {
+      const key = `${s.karyawan_id}_${s.tanggal}`
+      if (!scanMap[key]) scanMap[key] = []
+      if (s.gps_lat && s.gps_lng) {
+        const dist = getDistanceMeters(s.gps_lat, s.gps_lng, siteLat, siteLng)
+        s.distanceMeters = dist
+        s.isOffsite = dist > siteRadius
+      }
+      scanMap[key].push(s)
+    })
+
+    const enriched = (harianRes.data || []).map(h => {
+      const key = `${h.karyawan_id}_${h.tanggal}`
+      const scans = scanMap[key] || []
+      const offsiteScan = scans.find(s => s.isOffsite)
+      return {
+        ...h,
+        scans,
+        isOffsite: !!offsiteScan,
+        offsiteDist: offsiteScan?.distanceMeters || 0
+      }
+    })
+
+    setData(enriched)
     const mMap = {}
     ;(mandorRes.data || []).forEach(m => { mMap[m.id] = m.nama })
     setMandorMap(mMap)
@@ -552,7 +586,16 @@ function ApprovalTab() {
                     </tr>
                     {items.map(d => (
                       <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-5 py-3 font-medium text-gray-900">{d.absen_karyawan?.nama}</td>
+                        <td className="px-5 py-3 font-medium text-gray-900">
+                          <div>{d.absen_karyawan?.nama}</div>
+                          {d.isOffsite && (
+                            <div className="mt-1">
+                              <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold text-[10px] border border-rose-500/30 inline-flex items-center gap-1">
+                                <AlertTriangle size={11} /> Off-Site ({formatDistance(d.offsiteDist)})
+                              </span>
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-center text-gray-600 whitespace-nowrap">{new Date(d.tanggal + 'T00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                         <td className="px-4 py-3 text-center text-gray-600">{d.jam_pulang?.slice(0, 5)}</td>
                         <td className="px-4 py-3 text-center">
