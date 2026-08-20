@@ -14,9 +14,17 @@ const statusColor = {
   PENDING: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
   APPROVED: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
   REJECTED: 'bg-red-500/15 text-red-400 border-red-500/20',
+  CANCEL_REQUESTED: 'bg-purple-500/15 text-purple-400 border-purple-500/20',
+  CANCELLED: 'bg-slate-500/15 text-slate-400 border-slate-500/20',
 }
 
-const statusLabel = { PENDING: 'Menunggu', APPROVED: 'Disetujui', REJECTED: 'Ditolak' }
+const statusLabel = {
+  PENDING: 'Menunggu',
+  APPROVED: 'Disetujui',
+  REJECTED: 'Ditolak',
+  CANCEL_REQUESTED: 'Menunggu Batal Izin',
+  CANCELLED: 'Batal Izin (Disetujui)',
+}
 
 export default function UserIzin() {
   const { karyawan } = useUserAuth()
@@ -37,6 +45,11 @@ export default function UserIzin() {
   const [fotoPreview, setFotoPreview] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // Batal Izin modal state
+  const [batalModal, setBatalModal] = useState(null)
+  const [alasanBatal, setAlasanBatal] = useState('')
+  const [submittingBatal, setSubmittingBatal] = useState(false)
 
   useEffect(() => { loadData() }, [activeTab])
 
@@ -126,6 +139,32 @@ export default function UserIzin() {
       setError(err.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleRequestCancel(e) {
+    e.preventDefault()
+    if (alasanBatal.trim().length < 5) { setError('Alasan pembatalan harus minimal 5 karakter'); return }
+
+    setSubmittingBatal(true)
+    setError('')
+
+    try {
+      const { data, error: rpcErr } = await supabase.rpc('absen_ajukan_batal_izin', {
+        p_izin_id: batalModal.id,
+        p_karyawan_id: karyawan.id,
+        p_alasan_batal: alasanBatal.trim(),
+      })
+      if (rpcErr) throw rpcErr
+      if (data?.error) throw new Error(data.error)
+
+      setBatalModal(null)
+      setAlasanBatal('')
+      loadData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSubmittingBatal(false)
     }
   }
 
@@ -304,6 +343,23 @@ export default function UserIzin() {
                       </div>
                     </div>
                   )}
+
+                  {izin.status === 'APPROVED' && (
+                    <div className="mt-2.5 pt-2 border-t border-white/10 flex justify-end">
+                      <button
+                        onClick={() => { setBatalModal(izin); setAlasanBatal(''); setError('') }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-semibold flex items-center gap-1 hover:bg-amber-500/30 transition-colors"
+                      >
+                        <FileWarning size={12} /> Ajukan Batal Izin
+                      </button>
+                    </div>
+                  )}
+
+                  {izin.status === 'CANCEL_REQUESTED' && (
+                    <div className="mt-2 text-[10px] text-amber-300/80 bg-amber-500/10 p-2 rounded-lg italic">
+                      Alasan Pembatalan: {izin.alasan_batal || '-'}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -371,6 +427,52 @@ export default function UserIzin() {
             })}
           </div>
         )
+      )}
+
+      {/* Modal Ajukan Batal Izin */}
+      {batalModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setBatalModal(null)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-4 space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-sm font-bold text-slate-100">Ajukan Pembatalan Izin</h3>
+              <button onClick={() => setBatalModal(null)} className="p-1 text-slate-400 hover:text-slate-200">
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRequestCancel} className="space-y-3">
+              <div className="text-xs text-slate-400">
+                Anda mengajukan pembatalan izin periode <strong className="text-slate-200">{batalModal.tanggal_mulai} s/d {batalModal.tanggal_selesai}</strong>.
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Alasan Pembatalan <span className="text-red-400">*</span></label>
+                <textarea
+                  value={alasanBatal}
+                  onChange={e => setAlasanBatal(e.target.value)}
+                  placeholder="Contoh: Acara keluarga selesai lebih cepat, saya kembali masuk kerja..."
+                  rows={3}
+                  className="user-input text-xs resize-none"
+                />
+              </div>
+
+              {error && (
+                <div className="text-xs text-red-400 bg-red-500/10 p-2.5 rounded-xl border border-red-500/20">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setBatalModal(null)} className="flex-1 py-2 rounded-xl border border-slate-700 text-xs text-slate-300">
+                  Batal
+                </button>
+                <button type="submit" disabled={submittingBatal} className="user-btn-primary flex-1 text-xs">
+                  {submittingBatal ? 'Mengirim...' : 'Kirim Pengajuan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Zoom Photo Modal */}

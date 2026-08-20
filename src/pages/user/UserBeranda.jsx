@@ -31,6 +31,7 @@ export default function UserBeranda() {
   const [slots, setSlots] = useState([])
   const [todayScans, setTodayScans] = useState([])
   const [todayLaporan, setTodayLaporan] = useState([])
+  const [todayIzin, setTodayIzin] = useState(null)
   const [lemburRegistered, setLemburRegistered] = useState(false)
   const [hasFace, setHasFace] = useState(null)
   const [now, setNow] = useState(new Date())
@@ -59,18 +60,20 @@ export default function UserBeranda() {
     setLoading(true)
     const todayStr = new Date().toISOString().split('T')[0]
 
-    const [slotsRes, scansRes, faceRes, lemburRes, laporanRes] = await Promise.all([
+    const [slotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes] = await Promise.all([
       supabase.rpc('absen_get_jadwal_slot'),
       supabase.rpc('absen_scan_hari_ini', { p_karyawan_id: karyawan.id }),
       supabase.from('absen_face_data').select('id').eq('karyawan_id', karyawan.id).maybeSingle(),
       supabase.rpc('absen_cek_lembur_hari_ini', { p_karyawan_id: karyawan.id }),
       supabase.from('absen_laporan_terlewat').select('*').eq('karyawan_id', karyawan.id).eq('tanggal', todayStr),
+      supabase.from('absen_izin').select('*').eq('karyawan_id', karyawan.id).eq('status', 'APPROVED').lte('tanggal_mulai', todayStr).gte('tanggal_selesai', todayStr).maybeSingle(),
     ])
     setSlots(slotsRes.data || [])
     setTodayScans(scansRes.data || [])
     setLemburRegistered(lemburRes.data === true)
     setHasFace(!!faceRes.data)
     setTodayLaporan(laporanRes.data || [])
+    setTodayIzin(izinRes.data || null)
     setLoading(false)
 
     if (navigator.onLine && faceRes.data) {
@@ -88,6 +91,8 @@ export default function UserBeranda() {
   }
 
   function getSlotStatus(slot) {
+    if (todayIzin) return 'on_leave'
+
     const scanned = todayScans.find(s => s.slot_id === slot.id)
     if (scanned) return 'done'
 
@@ -255,8 +260,30 @@ export default function UserBeranda() {
         </div>
       )}
 
-      {/* Next scan card */}
-      {nextSlot && (
+      {/* Today Approved Leave Banner */}
+      {todayIzin ? (
+        <div className="bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 rounded-2xl p-5 mb-5 text-center shadow-lg">
+          <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-3 text-amber-400 border border-amber-500/30">
+            <Ban size={24} />
+          </div>
+          <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">STATUS HARI INI</span>
+          <h3 className="text-base font-bold text-amber-300 mt-1">Sedang Masa Izin (Disetujui)</h3>
+          <p className="text-xs text-amber-200/80 mt-1.5 max-w-xs mx-auto">
+            Anda telah mendapatkan persetujuan {todayIzin.jenis === 'PAID' ? 'Izin Berbayar' : 'Izin Tidak Berbayar'} untuk hari ini ({todayIzin.alasan}).
+          </p>
+          <p className="text-[11px] text-amber-300/60 mt-2.5 italic bg-black/20 py-1.5 px-3 rounded-lg inline-block">
+            Tombol absen dinonaktifkan selama masa izin.
+          </p>
+          <div className="mt-4 pt-3 border-t border-amber-500/20 flex justify-center">
+            <button
+              onClick={() => navigate('/user/izin')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold transition-all"
+            >
+              <FileWarning size={14} /> Ajukan Batal Izin ke Admin
+            </button>
+          </div>
+        </div>
+      ) : nextSlot && (
         <div className="bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-5 text-center">
           <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Absen Berikutnya</p>
           <p className="text-3xl font-extrabold text-emerald-400 mt-1">{nextSlot.jam.slice(0, 5)}</p>

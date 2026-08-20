@@ -12,9 +12,17 @@ const statusBadge = {
   PENDING: 'bg-amber-500/15 text-amber-400',
   APPROVED: 'bg-emerald-500/15 text-emerald-400',
   REJECTED: 'bg-red-500/15 text-red-400',
+  CANCEL_REQUESTED: 'bg-purple-500/15 text-purple-400',
+  CANCELLED: 'bg-gray-500/15 text-gray-400',
 }
 
-const statusLabel = { PENDING: 'Menunggu', APPROVED: 'Disetujui', REJECTED: 'Ditolak' }
+const statusLabel = {
+  PENDING: 'Menunggu',
+  APPROVED: 'Disetujui',
+  REJECTED: 'Ditolak',
+  CANCEL_REQUESTED: 'Pengajuan Batal Izin',
+  CANCELLED: 'Batal Izin',
+}
 
 export default function LaporanIzin() {
   const { profile } = useAuth()
@@ -78,6 +86,27 @@ export default function LaporanIzin() {
     try {
       const { data, error } = await supabase.rpc('absen_proses_izin', {
         p_izin_id: id, p_status: status, p_catatan: catatan || null, p_user_id: profile?.id || null, p_jenis: jenis || null,
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      setIzinModal(null)
+      setCatatan('')
+      load()
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  async function handleBatalAction(id, action) {
+    setProcessing(true)
+    try {
+      const { data, error } = await supabase.rpc('absen_proses_batal_izin', {
+        p_izin_id: id,
+        p_action: action,
+        p_catatan: catatan || null,
+        p_user_id: profile?.id || null,
       })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
@@ -255,11 +284,11 @@ export default function LaporanIzin() {
                           <span className={`badge ${statusBadge[i.status]}`}>{statusLabel[i.status]}</span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {i.status === 'PENDING' ? (
+                          {i.status === 'PENDING' || i.status === 'CANCEL_REQUESTED' ? (
                             <button
                               onClick={() => { setIzinModal(i); setCatatan('') }}
                               className="p-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 transition-colors"
-                              title="Proses Izin"
+                              title="Proses Izin / Batal Izin"
                             >
                               <Edit3 size={16} />
                             </button>
@@ -364,7 +393,7 @@ export default function LaporanIzin() {
         </div>
       )}
 
-      {/* Izin process modal (can change jenis) */}
+      {/* Izin process modal */}
       {izinModal && <IzinProcessModal
         izin={izinModal}
         catatan={catatan}
@@ -372,6 +401,8 @@ export default function LaporanIzin() {
         processing={processing}
         onApprove={(jenis) => handleIzinAction(izinModal.id, 'APPROVED', jenis)}
         onReject={() => handleIzinAction(izinModal.id, 'REJECTED', null)}
+        onApproveCancel={() => handleBatalAction(izinModal.id, 'APPROVE_CANCEL')}
+        onRejectCancel={() => handleBatalAction(izinModal.id, 'REJECT_CANCEL')}
         onClose={() => { setIzinModal(null); setCatatan('') }}
       />}
 
@@ -388,7 +419,8 @@ export default function LaporanIzin() {
   )
 }
 
-function IzinProcessModal({ izin, catatan, setCatatan, processing, onApprove, onReject, onClose }) {
+function IzinProcessModal({ izin, catatan, setCatatan, processing, onApprove, onReject, onApproveCancel, onRejectCancel, onClose }) {
+  const isCancelReq = izin.status === 'CANCEL_REQUESTED'
   const [jenisOverride, setJenisOverride] = useState(izin.jenis)
   const changed = jenisOverride !== izin.jenis
 
@@ -400,7 +432,9 @@ function IzinProcessModal({ izin, catatan, setCatatan, processing, onApprove, on
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content max-w-md" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <span className="font-semibold text-gray-900">Proses Izin</span>
+          <span className="font-semibold text-gray-900">
+            {isCancelReq ? 'Proses Pembatalan Izin' : 'Proses Izin'}
+          </span>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
             <X size={16} className="text-gray-400" />
           </button>
@@ -414,64 +448,81 @@ function IzinProcessModal({ izin, catatan, setCatatan, processing, onApprove, on
             <div className="text-xs text-gray-600 mt-1">
               {mulai === selesai ? mulai : `${mulai} – ${selesai}`} ({hari} hari)
             </div>
-            <div className="text-xs text-gray-600 mt-1">Alasan: {izin.alasan}</div>
-          </div>
-
-          {/* Jenis selector */}
-          <div>
-            <label className="text-xs text-gray-500 block mb-2">Jenis Izin</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setJenisOverride('PAID')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  jenisOverride === 'PAID'
-                    ? 'border-emerald-500 bg-emerald-500/10'
-                    : 'border-gray-200 bg-white/5 hover:border-gray-300'
-                }`}
-              >
-                <div className={`text-sm font-semibold ${jenisOverride === 'PAID' ? 'text-emerald-500' : 'text-gray-500'}`}>
-                  Berbayar
-                </div>
-                <div className="text-[10px] text-gray-400 mt-0.5">Dihitung hadir</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setJenisOverride('UNPAID')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  jenisOverride === 'UNPAID'
-                    ? 'border-amber-500 bg-amber-500/10'
-                    : 'border-gray-200 bg-white/5 hover:border-gray-300'
-                }`}
-              >
-                <div className={`text-sm font-semibold ${jenisOverride === 'UNPAID' ? 'text-amber-500' : 'text-gray-500'}`}>
-                  Tidak Berbayar
-                </div>
-                <div className="text-[10px] text-gray-400 mt-0.5">Gaji dipotong</div>
-              </button>
-            </div>
-            {changed && (
-              <p className="text-[11px] text-amber-400 mt-2">
-                Jenis izin diubah dari {izin.jenis === 'PAID' ? 'Berbayar' : 'Tidak Berbayar'} → {jenisOverride === 'PAID' ? 'Berbayar' : 'Tidak Berbayar'}
-              </p>
+            <div className="text-xs text-gray-600 mt-1">Alasan Izin Awal: {izin.alasan}</div>
+            {isCancelReq && (
+              <div className="text-xs font-semibold text-purple-400 bg-purple-500/10 p-2 rounded-lg mt-2">
+                Alasan Pengajuan Batal Izin: {izin.alasan_batal || '-'}
+              </div>
             )}
           </div>
 
+          {!isCancelReq && (
+            <div>
+              <label className="text-xs text-gray-500 block mb-2">Jenis Izin</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setJenisOverride('PAID')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    jenisOverride === 'PAID'
+                      ? 'border-emerald-500 bg-emerald-500/10'
+                      : 'border-gray-200 bg-white/5 hover:border-gray-300'
+                  }`}
+                >
+                  <div className={`text-sm font-semibold ${jenisOverride === 'PAID' ? 'text-emerald-500' : 'text-gray-500'}`}>
+                    Berbayar
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">Dihitung hadir</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJenisOverride('UNPAID')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    jenisOverride === 'UNPAID'
+                      ? 'border-amber-500 bg-amber-500/10'
+                      : 'border-gray-200 bg-white/5 hover:border-gray-300'
+                  }`}
+                >
+                  <div className={`text-sm font-semibold ${jenisOverride === 'UNPAID' ? 'text-amber-500' : 'text-gray-500'}`}>
+                    Tidak Berbayar
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">Gaji dipotong</div>
+                </button>
+              </div>
+              {changed && (
+                <p className="text-[11px] text-amber-400 mt-2">
+                  Jenis izin diubah dari {izin.jenis === 'PAID' ? 'Berbayar' : 'Tidak Berbayar'} → {jenisOverride === 'PAID' ? 'Berbayar' : 'Tidak Berbayar'}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Catatan */}
           <div>
-            <label className="text-xs text-gray-500 block mb-1.5">Catatan (opsional)</label>
+            <label className="text-xs text-gray-500 block mb-1.5">Catatan Admin (opsional)</label>
             <textarea value={catatan} onChange={e => setCatatan(e.target.value)} placeholder="Tulis catatan untuk karyawan..." rows={2} className="input-field resize-none" />
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2">
-            <button onClick={onReject} disabled={processing} className="btn-danger flex-1">
-              {processing ? '...' : 'Tolak'}
-            </button>
-            <button onClick={() => onApprove(jenisOverride)} disabled={processing} className="btn-success flex-1">
-              {processing ? 'Memproses...' : changed ? 'Ubah & Setujui' : 'Setujui'}
-            </button>
-          </div>
+          {isCancelReq ? (
+            <div className="flex gap-2">
+              <button onClick={onRejectCancel} disabled={processing} className="btn-danger flex-1">
+                {processing ? '...' : 'Tolak Batal Izin'}
+              </button>
+              <button onClick={onApproveCancel} disabled={processing} className="btn-success flex-1">
+                {processing ? 'Memproses...' : 'Setujui Batal Izin'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={onReject} disabled={processing} className="btn-danger flex-1">
+                {processing ? '...' : 'Tolak'}
+              </button>
+              <button onClick={() => onApprove(jenisOverride)} disabled={processing} className="btn-success flex-1">
+                {processing ? 'Memproses...' : changed ? 'Ubah & Setujui' : 'Setujui'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
