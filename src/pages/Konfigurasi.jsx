@@ -88,6 +88,8 @@ export default function Konfigurasi() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [collapsed, setCollapsed] = useState({})
+  const [changed, setChanged] = useState({})
+  const [origValues, setOrigValues] = useState({})
   const [testing, setTesting] = useState(false)
 
   useEffect(() => { load() }, [])
