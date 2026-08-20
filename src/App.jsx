@@ -56,16 +56,20 @@ function UserRoutes() {
   )
 }
 
-function isStandalonePWA() {
-  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+function AdminProtectedLayout() {
+  const { user } = useAuth()
+  if (!user) return <Navigate to="/user" replace />
+  return (
+    <ProtectedRoute>
+      <Layout />
+    </ProtectedRoute>
+  )
 }
 
 export default function App() {
   const { user, loading } = useAuth()
 
   if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
-
-  const isStandalone = isStandalonePWA()
 
   return (
     <Routes>
@@ -75,32 +79,25 @@ export default function App() {
       {/* Admin login */}
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
 
-      {/* Root route: Standalone PWA mode or non-admin users ALWAYS go to User App */}
-      <Route path="/*" element={
-        (isStandalone || !user) ? (
-          <Navigate to="/user" replace />
-        ) : (
-          <ProtectedRoute>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/import" element={<ImportAbsensi />} />
-                <Route path="/rekap-harian" element={<RekapHarian />} />
-                <Route path="/koreksi" element={<Koreksi />} />
-                <Route path="/approval-lembur" element={<ApprovalLembur />} />
-                <Route path="/rekap-bulanan" element={<RekapBulanan />} />
-                <Route path="/master-karyawan" element={<MasterKaryawan />} />
-                <Route path="/kalender" element={<KalenderKerja />} />
-                <Route path="/konfigurasi" element={<Konfigurasi />} />
-                <Route path="/manajemen-user" element={<ManajemenUser />} />
-                <Route path="/jadwal-slot" element={<JadwalSlot />} />
-                <Route path="/laporan-izin" element={<LaporanIzin />} />
-                <Route path="/audit-log" element={<AuditLog />} />
-              </Routes>
-            </Layout>
-          </ProtectedRoute>
-        )
-      } />
+      {/* Admin protected routes with layout outlet */}
+      <Route element={<AdminProtectedLayout />}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/import" element={<ImportAbsensi />} />
+        <Route path="/rekap-harian" element={<RekapHarian />} />
+        <Route path="/koreksi" element={<Koreksi />} />
+        <Route path="/approval-lembur" element={<ApprovalLembur />} />
+        <Route path="/rekap-bulanan" element={<RekapBulanan />} />
+        <Route path="/master-karyawan" element={<MasterKaryawan />} />
+        <Route path="/kalender" element={<KalenderKerja />} />
+        <Route path="/konfigurasi" element={<Konfigurasi />} />
+        <Route path="/manajemen-user" element={<ManajemenUser />} />
+        <Route path="/jadwal-slot" element={<JadwalSlot />} />
+        <Route path="/laporan-izin" element={<LaporanIzin />} />
+        <Route path="/audit-log" element={<AuditLog />} />
+      </Route>
+
+      {/* Fallback route */}
+      <Route path="*" element={<Navigate to="/user" replace />} />
     </Routes>
   )
 }

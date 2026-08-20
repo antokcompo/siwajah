@@ -131,7 +131,7 @@ export default function Layout({ children }) {
 
       {/* Main content */}
       <div className="main-area">
-        {children}
+        {children || <Outlet />}
       </div>
 
       {/* Change Password Modal */}
