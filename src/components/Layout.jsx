@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Upload, CalendarDays, FileEdit, Clock,
   Users, Settings, CalendarCheck, FileSpreadsheet, Shield, UserCog,
   Menu, X, LogOut, KeyRound, Eye, EyeOff, CheckCircle, AlertTriangle,
-  Timer, FileWarning
+  Timer, FileWarning, Lock
 } from 'lucide-react'
 
 const menuGroups = [
