@@ -101,9 +101,12 @@ export default function UserDaftarWajah() {
       }
       for (let i = 0; i < 128; i++) avgDescriptor[i] /= descs.length
 
+      // Save average vector + all 5 individual angle vectors for 100% multi-angle coverage
+      const multiDescriptors = [avgDescriptor, ...descs]
+
       const { data, error: rpcError } = await supabase.rpc('absen_simpan_face_data', {
         p_karyawan_id: karyawan.id,
-        p_descriptor: avgDescriptor,
+        p_descriptor: multiDescriptors,
       })
       if (rpcError) throw rpcError
       setStatus('saved')
