@@ -20,6 +20,7 @@ import LaporanIzin from './pages/LaporanIzin'
 
 import UserLayout from './pages/user/UserLayout'
 import UserIzin from './pages/user/UserIzin'
+import UserLaporanTerlewat from './pages/user/UserLaporanTerlewat'
 import UserLogin from './pages/user/UserLogin'
 import UserBeranda from './pages/user/UserBeranda'
 import UserDaftarWajah from './pages/user/UserDaftarWajah'
@@ -46,6 +47,7 @@ function UserRoutes() {
             <Route path="scan" element={<UserScan />} />
             <Route path="riwayat" element={<UserRiwayat />} />
             <Route path="izin" element={<UserIzin />} />
+            <Route path="laporan-terlewat" element={<UserLaporanTerlewat />} />
             <Route path="profil" element={<UserProfil />} />
           </Route>
         </Route>

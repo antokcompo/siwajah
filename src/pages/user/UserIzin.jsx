@@ -258,175 +258,114 @@ export default function UserIzin() {
   }
 
   return (
-    <div className="px-4 py-4">
+    <div className="px-4 py-4 min-h-[85vh]">
       <button onClick={() => navigate('/user')} className="flex items-center gap-1 text-sm text-slate-400 mb-4 hover:text-slate-200 transition-colors">
         <ChevronLeft size={16} /> Beranda
       </button>
 
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-bold text-slate-100">Izin & Laporan</h2>
+        <div>
+          <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+            <Calendar size={18} className="text-cyan-400" /> Pengajuan Izin
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">Izin berbayar & tidak berbayar</p>
+        </div>
         <button onClick={() => setView('form')} className="user-btn-primary text-xs py-2 px-3 flex items-center gap-1.5">
           <Calendar size={12} /> Ajukan Izin
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-4 bg-white/5 p-1 rounded-xl border border-white/10">
-        <button
-          onClick={() => setActiveTab('izin')}
-          className={`flex-1 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-            activeTab === 'izin'
-              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Calendar size={14} /> Izin Saya
-        </button>
-        <button
-          onClick={() => setActiveTab('laporan')}
-          className={`flex-1 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-            activeTab === 'laporan'
-              ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <FileWarning size={14} /> Laporan Terlewat
-        </button>
-      </div>
+      {/* Direct link banner to Laporan Terlewat */}
+      <button
+        onClick={() => navigate('/user/laporan-terlewat')}
+        className="w-full mb-4 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 flex items-center justify-between transition-all"
+      >
+        <div className="flex items-center gap-2.5">
+          <FileWarning size={16} className="text-amber-400 shrink-0" />
+          <div className="text-left">
+            <span className="text-xs font-bold text-slate-200 block">Status Laporan Terlewat</span>
+            <span className="text-[10px] text-slate-400 block">Cek status laporan absen terlewat & catatan admin</span>
+          </div>
+        </div>
+        <span className="text-xs font-bold text-amber-400">Lihat ➔</span>
+      </button>
 
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
         </div>
-      ) : activeTab === 'izin' ? (
-        riwayatIzin.length === 0 ? (
-          <div className="text-center py-12">
-            <Calendar size={32} className="mx-auto text-slate-600 mb-2" />
-            <p className="text-sm text-slate-500">Belum ada pengajuan izin</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {riwayatIzin.map(izin => {
-              const mulai = new Date(izin.tanggal_mulai + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
-              const selesai = new Date(izin.tanggal_selesai + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-              const hari = Math.ceil((new Date(izin.tanggal_selesai) - new Date(izin.tanggal_mulai)) / 86400000) + 1
-
-              return (
-                <div key={izin.id} className={`border rounded-xl p-3 ${statusColor[izin.status]}`}>
-                  <div className="flex items-start justify-between mb-1">
-                    <div>
-                      <span className="text-sm font-semibold text-slate-100">
-                        {mulai === selesai ? mulai : `${mulai} – ${selesai}`}
-                      </span>
-                      <span className="text-[10px] text-slate-500 ml-2">{hari} hari</span>
-                    </div>
-                    <span className="text-[10px] font-semibold">{statusLabel[izin.status]}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px]">
-                    <span className={`px-1.5 py-0.5 rounded ${izin.jenis === 'PAID' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>
-                      {izin.jenis === 'PAID' ? 'Berbayar' : 'Tidak Berbayar'}
-                    </span>
-                    <span className="text-slate-400 truncate">{izin.alasan}</span>
-                  </div>
-                  {izin.catatan_admin && (
-                    <div className={`mt-2.5 p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
-                      izin.status === 'REJECTED'
-                        ? 'bg-red-500/10 border-red-500/20 text-red-300'
-                        : izin.status === 'APPROVED'
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                        : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
-                    }`}>
-                      <MessageSquare size={13} className="shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-semibold text-[11px] block">Catatan Admin:</span>
-                        <span className="text-[11px] leading-relaxed opacity-90">{izin.catatan_admin}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {izin.status === 'APPROVED' && (
-                    <div className="mt-2.5 pt-2 border-t border-white/10 flex justify-end">
-                      <button
-                        onClick={() => { setBatalModal(izin); setAlasanBatal(''); setError('') }}
-                        className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-semibold flex items-center gap-1 hover:bg-amber-500/30 transition-colors"
-                      >
-                        <FileWarning size={12} /> Ajukan Batal Izin
-                      </button>
-                    </div>
-                  )}
-
-                  {izin.status === 'CANCEL_REQUESTED' && (
-                    <div className="mt-2 text-[10px] text-amber-300/80 bg-amber-500/10 p-2 rounded-lg italic">
-                      Alasan Pembatalan: {izin.alasan_batal || '-'}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )
+      ) : riwayatIzin.length === 0 ? (
+        <div className="text-center py-16 bg-white/5 rounded-2xl border border-white/10 p-6">
+          <Calendar size={36} className="mx-auto text-slate-600 mb-2" />
+          <p className="text-sm font-semibold text-slate-300">Belum Ada Pengajuan Izin</p>
+          <p className="text-xs text-slate-500 mt-1 mb-4">Anda belum pernah mengajukan izin kerja</p>
+          <button onClick={() => setView('form')} className="user-btn-primary text-xs">
+            Ajukan Izin Sekarang
+          </button>
+        </div>
       ) : (
-        /* Laporan Terlewat Tab */
-        riwayatLaporan.length === 0 ? (
-          <div className="text-center py-12">
-            <FileWarning size={32} className="mx-auto text-slate-600 mb-2" />
-            <p className="text-sm text-slate-500">Belum ada laporan absen terlewat</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {riwayatLaporan.map(lap => {
-              const tgl = new Date(lap.tanggal + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-              return (
-                <div key={lap.id} className={`border rounded-xl p-3 ${statusColor[lap.status]}`}>
-                  <div className="flex items-start justify-between mb-1">
-                    <div>
-                      <span className="text-xs font-bold text-slate-100">
-                        {tgl} &bull; {lap.absen_jadwal_slot?.jam?.slice(0, 5)} ({lap.absen_jadwal_slot?.label})
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-semibold">{statusLabel[lap.status]}</span>
+        <div className="space-y-2.5">
+          {riwayatIzin.map(izin => {
+            const mulai = new Date(izin.tanggal_mulai + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+            const selesai = new Date(izin.tanggal_selesai + 'T00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+            const hari = Math.ceil((new Date(izin.tanggal_selesai) - new Date(izin.tanggal_mulai)) / 86400000) + 1
+
+            return (
+              <div key={izin.id} className={`border rounded-2xl p-4 ${statusColor[izin.status]}`}>
+                <div className="flex items-start justify-between mb-1">
+                  <div>
+                    <span className="text-sm font-semibold text-slate-100">
+                      {mulai === selesai ? mulai : `${mulai} – ${selesai}`}
+                    </span>
+                    <span className="text-[10px] text-slate-500 ml-2">{hari} hari</span>
                   </div>
-
-                  <p className="text-[11px] text-slate-300 mt-1 bg-black/20 p-2 rounded-lg">{lap.alasan}</p>
-
-                  <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
-                    {lap.foto_url ? (
-                      <button
-                        onClick={() => setZoomPhoto(lap.foto_url)}
-                        className="flex items-center gap-1 text-cyan-400 hover:underline"
-                      >
-                        <Image size={12} /> Lihat Foto Evidence
-                      </button>
-                    ) : <span />}
-
-                    {lap.gps_lat && lap.gps_lng && (
-                      <span className="flex items-center gap-1 text-slate-400 font-mono">
-                        <MapPin size={11} className="text-cyan-400 shrink-0" />
-                        {Number(lap.gps_lat).toFixed(4)}, {Number(lap.gps_lng).toFixed(4)}
-                      </span>
-                    )}
-                  </div>
-
-                  {lap.catatan_admin && (
-                    <div className={`mt-2.5 p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
-                      lap.status === 'REJECTED'
-                        ? 'bg-red-500/10 border-red-500/20 text-red-300'
-                        : lap.status === 'APPROVED'
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                        : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
-                    }`}>
-                      <MessageSquare size={13} className="shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-semibold text-[11px] block">Catatan Admin:</span>
-                        <span className="text-[11px] leading-relaxed opacity-90">{lap.catatan_admin}</span>
-                      </div>
-                    </div>
-                  )}
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-current">
+                    {statusLabel[izin.status]}
+                  </span>
                 </div>
-              )
-            })}
-          </div>
-        )
+                <div className="flex items-center gap-2 text-[10px] mt-1">
+                  <span className={`px-1.5 py-0.5 rounded ${izin.jenis === 'PAID' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-500/20 text-slate-400'}`}>
+                    {izin.jenis === 'PAID' ? 'Berbayar' : 'Tidak Berbayar'}
+                  </span>
+                  <span className="text-slate-300 truncate">{izin.alasan}</span>
+                </div>
+
+                {izin.catatan_admin && (
+                  <div className={`mt-2.5 p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
+                    izin.status === 'REJECTED'
+                      ? 'bg-red-500/10 border-red-500/20 text-red-300'
+                      : izin.status === 'APPROVED'
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                      : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                  }`}>
+                    <MessageSquare size={13} className="shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-[11px] block">Catatan Admin:</span>
+                      <span className="text-[11px] leading-relaxed opacity-90">{izin.catatan_admin}</span>
+                    </div>
+                  </div>
+                )}
+
+                {izin.status === 'APPROVED' && (
+                  <div className="mt-2.5 pt-2 border-t border-white/10 flex justify-end">
+                    <button
+                      onClick={() => { setBatalModal(izin); setAlasanBatal(''); setError('') }}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-semibold flex items-center gap-1 hover:bg-amber-500/30 transition-colors"
+                    >
+                      <FileWarning size={12} /> Ajukan Batal Izin
+                    </button>
+                  </div>
+                )}
+
+                {izin.status === 'CANCEL_REQUESTED' && (
+                  <div className="mt-2 text-[10px] text-amber-300/80 bg-amber-500/10 p-2 rounded-lg italic">
+                    Alasan Pembatalan: {izin.alasan_batal || '-'}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       )}
 
       {/* Modal Ajukan Batal Izin */}

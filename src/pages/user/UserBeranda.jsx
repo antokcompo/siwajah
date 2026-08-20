@@ -312,16 +312,26 @@ export default function UserBeranda() {
         </div>
       )}
 
-      {/* Quick actions */}
-      <div className="mb-4">
+      {/* Menu Cards */}
+      <div className="grid grid-cols-2 gap-2 mb-5">
         <button
           onClick={() => navigate('/user/izin')}
-          className="w-full flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-xl hover:border-cyan-500/30 transition-colors"
+          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 hover:border-cyan-500/30 transition-all text-left"
         >
           <CalendarDays size={18} className="text-cyan-400 shrink-0" />
           <div className="text-left">
-            <div className="text-sm font-semibold text-slate-200">Ajukan Izin & Laporan</div>
-            <div className="text-[10px] text-slate-500">Izin berbayar / tidak berbayar & riwayat laporan</div>
+            <div className="text-xs font-bold text-slate-200">Ajukan Izin</div>
+            <div className="text-[10px] text-slate-500">Izin berbayar / tidak berbayar</div>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/user/laporan-terlewat')}
+          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all text-left"
+        >
+          <FileWarning size={18} className="text-amber-400 shrink-0" />
+          <div className="text-left">
+            <div className="text-xs font-bold text-slate-200">Laporan Terlewat</div>
+            <div className="text-[10px] text-slate-500">Cek status laporan & catatan</div>
           </div>
         </button>
       </div>
