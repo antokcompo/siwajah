@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image, ExternalLink, ZoomIn } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image, ExternalLink, ZoomIn, AlertTriangle, CheckCircle } from 'lucide-react'
+import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 
 const statusColor = {
   LENGKAP: 'bg-emerald-100 text-emerald-700',
