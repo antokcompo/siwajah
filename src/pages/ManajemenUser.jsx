@@ -206,7 +206,7 @@ export default function ManajemenUser() {
     }
 
     setCreating(true)
-    const { error: err } = await supabase.rpc('absen_create_auth_user', {
+    const { data, error: err } = await supabase.rpc('absen_create_auth_user', {
       p_email: createForm.email,
       p_password: createForm.password,
       p_nama: createForm.nama,
@@ -219,10 +219,16 @@ export default function ManajemenUser() {
       return
     }
 
+    if (data?.error) {
+      setError(data.error)
+      setCreating(false)
+      return
+    }
+
     setCreating(false)
     setShowCreateModal(false)
-    setSuccess('User baru berhasil dibuat')
-    setTimeout(() => setSuccess(''), 3000)
+    setSuccess('User baru berhasil dibuat. User dapat langsung login di portal SI Wajah!')
+    setTimeout(() => setSuccess(''), 4000)
     load()
   }
 
@@ -247,7 +253,7 @@ export default function ManajemenUser() {
     }
 
     setResetting(true)
-    const { error: err } = await supabase.rpc('absen_admin_reset_password', {
+    const { data, error: err } = await supabase.rpc('absen_admin_reset_password', {
       p_user_id: resetTarget.id,
       p_new_password: resetForm.password,
     })
@@ -258,10 +264,16 @@ export default function ManajemenUser() {
       return
     }
 
+    if (data?.error) {
+      setError(data.error)
+      setResetting(false)
+      return
+    }
+
     setResetting(false)
     setShowResetModal(false)
-    setSuccess(`Password ${resetTarget.email} berhasil direset`)
-    setTimeout(() => setSuccess(''), 3000)
+    setSuccess(`Password ${resetTarget.email} berhasil direset!`)
+    setTimeout(() => setSuccess(''), 4000)
   }
 
   function fmtDate(d) {
