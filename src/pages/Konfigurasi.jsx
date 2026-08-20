@@ -58,15 +58,15 @@ const sections = [
   },
   {
     id: 'email',
-    title: 'Notifikasi Email (Brevo)',
+    title: 'Notifikasi Email (Brevo API Key)',
     icon: Mail,
     color: 'indigo',
-    description: 'Pengaturan email notifikasi otomatis. API Key Brevo dikonfigurasi di Render.',
+    description: 'Pengaturan email notifikasi menggunakan API Key Brevo langsung (seperti SIMONIKA).',
     fields: [
-      { key: 'email_webhook_url', label: 'URL Webhook Email', type: 'text', default: '', help: 'Endpoint Render API (contoh: https://siwajah-api.onrender.com/api/notify-lembur)' },
-      { key: 'email_sender_name', label: 'Nama Pengirim', type: 'text', default: 'SI WAJAH', help: 'Nama yang tampil sebagai pengirim email' },
-      { key: 'email_sender_email', label: 'Email Pengirim', type: 'text', default: '', help: 'Harus email yang sudah terverifikasi di akun Brevo' },
-      { key: 'app_url', label: 'URL Aplikasi', type: 'text', default: '', help: 'URL SI WAJAH untuk link di email (contoh: https://siwajah.example.com)' },
+      { key: 'brevo_api_key', label: 'API Key Brevo', type: 'password', default: '', help: 'API Key v3 dari Dashboard Brevo (contoh: xkeysib-...)' },
+      { key: 'email_sender_name', label: 'Nama Pengirim', type: 'text', default: 'SI WAJAH — PT PP (Persero) Tbk', help: 'Nama yang tampil sebagai pengirim email' },
+      { key: 'email_sender_email', label: 'Email Pengirim', type: 'text', default: 'kuswibowo.heri@gmail.com', help: 'Email yang terverifikasi di akun Brevo Anda' },
+      { key: 'app_url', label: 'URL Aplikasi', type: 'text', default: 'https://siwajah.pages.dev', help: 'URL SI WAJAH untuk link di email' },
     ],
   },
 ]
@@ -98,28 +98,29 @@ export default function Konfigurasi() {
   async function handleTestDigest() {
     setTesting(true)
     try {
-      // 1. Ambil data pending dari Supabase
-      const { data, error } = await supabase.rpc('absen_kirim_digest_pending_approval')
-      if (error) throw error
-
-      if (!data?.sent) {
+      const apiKey = values.brevo_api_key?.trim()
+      if (!apiKey) {
         setTestResultModal({
           success: false,
-          reason: data?.reason || 'Tidak ada pengajuan pending',
-          message: `Dibatalkan: ${data?.reason || 'Tidak ada pengajuan pending'}`
+          reason: 'API Key Brevo belum diisi.',
+          message: 'Silakan isi bidang "API Key Brevo" pada formulir di atas dan simpan perubahan terlebih dahulu.'
         })
         return
       }
 
-      // 2. Eksekusi panggilan langsung dari browser ke Render API untuk mendapatkan respons HTTP & Brevo secara real-time
-      const rawUrl = (values.email_webhook_url || 'https://siwajah-api.onrender.com/api/notify-lembur').trim()
-      const cleanBase = rawUrl.endsWith('/') ? rawUrl.slice(0, -1) : rawUrl
-      const webhookUrl = cleanBase.includes('/api/') ? cleanBase : `${cleanBase}/api/notify-lembur`
-      
+      // 1. Ambil data pending dari Supabase
+      const { data, error } = await supabase.rpc('absen_kirim_digest_pending_approval')
+      if (error) throw error
+
+      const senderEmail = values.email_sender_email?.trim() || 'kuswibowo.heri@gmail.com'
+      const senderName = values.email_sender_name?.trim() || 'SI WAJAH — PT PP (Persero) Tbk'
+      const appUrl = values.app_url?.trim() || 'https://siwajah.pages.dev'
+
       const testPayload = {
-        type: 'pending_digest',
+        sender: { name: senderName, email: senderEmail },
+        to: [{ email: senderEmail, name: senderName }],
         subject: '[SI WAJAH] Ringkasan Pengajuan Pending Approval — PT PP (Persero) Tbk',
-        html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:20px;background:#f8fafc;">
+        htmlContent: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:20px;background:#f8fafc;">
           <div style="max-width:600px;margin:0 auto;background:#ffffff;padding:24px;border-radius:12px;border:1px solid #e2e8f0;">
             <div style="background:#0f172a;padding:20px;border-radius:10px 10px 0 0;text-align:center;">
               <h2 style="color:#67e8f9;margin:0;">SI WAJAH</h2>
@@ -128,27 +129,28 @@ export default function Konfigurasi() {
             <div style="padding:20px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;">
               <h3 style="color:#0284c7;margin:0 0 8px;">📋 Tes Email Digest Pending Approval</h3>
               <p style="color:#475569;font-size:14px;line-height:1.5;">
-                Email tes ini dikirim dari portal SI WAJAH menggunakan <strong>API Key Brevo Render</strong>.
+                Email tes ini dikirim langsung menggunakan <strong>API Key Brevo</strong> (arsitektur SIMONIKA).
               </p>
               <div style="background:#fffbeb;border:1px solid #fef3c7;padding:12px;border-radius:8px;margin:16px 0;">
-                <strong style="color:#b45309;font-size:13px;">⚠️ Total ${data.total_pending} Item Pending</strong>
-                <p style="color:#d97706;font-size:12px;margin:4px 0 0;">(${data.count_laporan} Laporan Terlewat, ${data.count_izin} Pengajuan Izin)</p>
+                <strong style="color:#b45309;font-size:13px;">⚠️ Total ${data?.total_pending || 0} Item Pending</strong>
+                <p style="color:#d97706;font-size:12px;margin:4px 0 0;">(${data?.count_laporan || 0} Laporan Terlewat, ${data?.count_izin || 0} Pengajuan Izin)</p>
               </div>
               <div style="text-align:center;margin-top:20px;">
-                <a href="https://siwajah.pages.dev/laporan-izin" style="display:inline-block;background:#0ea5e9;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;">Buka Portal Approval Admin ➔</a>
+                <a href="${appUrl}/laporan-izin" style="display:inline-block;background:#0ea5e9;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;">Buka Portal Approval Admin ➔</a>
               </div>
             </div>
             <p style="color:#94a3b8;font-size:11px;text-align:center;margin-top:16px;">Email dikirim otomatis oleh SI WAJAH — PT PP (Persero) Tbk.</p>
           </div>
-        </body></html>`,
-        to: [{ email: 'kuswibowo.heri@gmail.com', name: 'Kuswibowo Heri' }],
-        sender_name: 'SI WAJAH — PT PP (Persero) Tbk',
-        sender_email: 'kuswibowo.heri@11843045.brevosend.com'
+        </body></html>`
       }
 
-      const res = await fetch(webhookUrl, {
+      // 2. Eksekusi panggilan langsung dari browser ke API Brevo (Arsitektur SIMONIKA)
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': apiKey
+        },
         body: JSON.stringify(testPayload)
       })
 
@@ -156,30 +158,29 @@ export default function Konfigurasi() {
       let resJson = {}
       try { resJson = JSON.parse(resText) } catch (e) {}
 
-      if (res.ok && resJson.success) {
+      if (res.ok && (resJson.messageId || res.status === 201 || res.status === 200)) {
         setTestResultModal({
           success: true,
-          recipientsCount: data.recipients_count,
-          totalPending: data.total_pending,
-          countLaporan: data.count_laporan,
-          countIzin: data.count_izin,
-          webhookUrl,
-          senderEmail: 'kuswibowo.heri@11843045.brevosend.com',
+          recipientsCount: 1,
+          totalPending: data?.total_pending || 0,
+          countLaporan: data?.count_laporan || 0,
+          countIzin: data?.count_izin || 0,
+          senderEmail,
           messageId: resJson.messageId || 'Success',
-          message: `Berhasil! Server Brevo mengonfirmasi email terkirim (Message ID: ${resJson.messageId || 'Success'}). Email telah dikirimkan ke kuswibowo.heri@gmail.com!`
+          message: `Berhasil! API Brevo mengonfirmasi pengiriman langsung (Message ID: ${resJson.messageId || 'Success'}). Email telah dikirimkan ke ${senderEmail}!`
         })
       } else {
         setTestResultModal({
           success: false,
-          reason: resJson.error || resJson.detail || resText || `HTTP Status ${res.status}`,
-          message: `Brevo / Render API Error (${res.status}): ${resJson.detail || resJson.error || resText || 'Server Render gagal memproses permintaan'}`
+          reason: resJson.message || resJson.error || resText || `HTTP Status ${res.status}`,
+          message: `Brevo API Error (${res.status}): ${resJson.message || resJson.error || resText}`
         })
       }
     } catch (err) {
       setTestResultModal({
         success: false,
         reason: err.message,
-        message: `Gagal memicu webhook email: ${err.message}`
+        message: `Gagal mengirim email via Brevo API: ${err.message}`
       })
     } finally {
       setTesting(false)

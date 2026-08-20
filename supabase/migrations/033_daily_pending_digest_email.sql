@@ -4,8 +4,7 @@
 -- 1. Mengirim notifikasi email otomatis ke Admin & Manajemen pukul 19:00
 --    apabila terdapat Laporan Terlewat (PENDING) atau Izin Pekerja (PENDING / CANCEL_REQUESTED).
 -- 2. Email TIDAK AKAN TERKIRIM jika tidak ada item yang berstatus pending.
--- 3. Menggunakan domain pengirim resmi Brevo SIMONIKA (kuswibowo.heri@11843045.brevosend.com)
---    sehingga lolos pemeriksaan DMARC/SPF pada Outlook, PTPP, dan Gmail.
+-- 3. Menggunakan API Key Brevo Langsung (Arsitektur SIMONIKA - Tanpa Webhook)
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
@@ -13,7 +12,7 @@
 CREATE OR REPLACE FUNCTION absen_kirim_digest_pending_approval()
 RETURNS jsonb AS $$
 DECLARE
-  v_webhook_url text;
+  v_brevo_api_key text;
   v_sender_name text;
   v_sender_email text;
   v_app_url text;
@@ -28,15 +27,10 @@ DECLARE
   v_html text;
   v_found_sender bool := false;
 BEGIN
-  -- 1. Ambil Konfigurasi Email Webhook & Sender Brevo SIMONIKA
-  SELECT value INTO v_webhook_url FROM absen_konfigurasi WHERE key = 'email_webhook_url';
-  IF v_webhook_url IS NULL OR v_webhook_url = '' THEN
-    v_webhook_url := 'https://siwajah-api.onrender.com/api/notify-lembur';
-  END IF;
-
-  v_sender_name := 'SI WAJAH — PT PP (Persero) Tbk';
-  v_sender_email := 'kuswibowo.heri@11843045.brevosend.com';
-
+  -- 1. Ambil API Key Brevo & Konfigurasi dari Tabel absen_konfigurasi (Arsitektur SIMONIKA)
+  SELECT value INTO v_brevo_api_key FROM absen_konfigurasi WHERE key = 'brevo_api_key';
+  SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_name'), ''), 'SI WAJAH — PT PP (Persero) Tbk') INTO v_sender_name;
+  SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_email'), ''), 'kuswibowo.heri@gmail.com') INTO v_sender_email;
   SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'app_url'), ''), 'https://siwajah.pages.dev') INTO v_app_url;
 
   -- 2. Ambil List Laporan Terlewat Berstatus PENDING
@@ -99,15 +93,15 @@ BEGIN
       AND au.email IS NOT NULL
       AND au.email != ''
   LOOP
-    IF lower(v_rec.email) = 'kuswibowo.heri@gmail.com' THEN
+    IF lower(v_rec.email) = lower(v_sender_email) THEN
       v_found_sender := true;
     END IF;
     v_to := v_to || jsonb_build_object('email', v_rec.email, 'name', COALESCE(v_rec.nama, 'Admin'));
   END LOOP;
 
-  -- Selalu sertakan email penguji kuswibowo.heri@gmail.com agar salinan tes pasti diterima
+  -- Selalu sertakan email pengirim/penguji kuswibowo.heri@gmail.com agar salinan tes pasti diterima
   IF NOT v_found_sender THEN
-    v_to := v_to || jsonb_build_object('email', 'kuswibowo.heri@gmail.com', 'name', 'Kuswibowo Heri');
+    v_to := v_to || jsonb_build_object('email', v_sender_email, 'name', v_sender_name);
   END IF;
 
   -- 6. Buat Subject & HTML Email Template Resmi Bergaya SIMONIKA
@@ -187,27 +181,22 @@ BEGIN
     || '<div class="footer">Email ini dikirim otomatis oleh sistem SI WAJAH — PT PP (Persero) Tbk setiap pukul 19.00 WIT. Mohon tidak membalas email ini.</div>'
     || '</div></div></body></html>';
 
-  -- 7. Trigger HTTP POST Webhook via pg_net (Payload Kompatibel dengan Sender Brevo SIMONIKA)
-  PERFORM net.http_post(
-    url := v_webhook_url,
-    headers := '{"Content-Type": "application/json"}'::jsonb,
-    body := jsonb_build_object(
-      'type', 'pending_digest',
-      'subject', v_subject,
-      'htmlContent', v_html,
-      'html', v_html,
-      'to', v_to,
-      'sender', jsonb_build_object('name', v_sender_name, 'email', v_sender_email),
-      'sender_name', v_sender_name,
-      'sender_email', v_sender_email,
-      'total_pending', v_total_pending,
-      'count_laporan', v_count_laporan,
-      'count_izin', v_count_izin,
-      'list_laporan', v_list_laporan,
-      'list_izin', v_list_izin,
-      'app_url', v_app_url || '/laporan-izin'
-    )
-  );
+  -- 7. Trigger Direct HTTP POST to Brevo API (https://api.brevo.com/v3/smtp/email) - Arsitektur SIMONIKA
+  IF v_brevo_api_key IS NOT NULL AND v_brevo_api_key != '' THEN
+    PERFORM net.http_post(
+      url := 'https://api.brevo.com/v3/smtp/email',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'api-key', v_brevo_api_key
+      ),
+      body := jsonb_build_object(
+        'sender', jsonb_build_object('name', v_sender_name, 'email', v_sender_email),
+        'to', v_to,
+        'subject', v_subject,
+        'htmlContent', v_html
+      )
+    );
+  END IF;
 
   RETURN jsonb_build_object(
     'sent', true,
