@@ -25,24 +25,24 @@ export default function PhotoInput({ preview, onCapture, onRemove, label = 'Foto
 
   return (
     <div>
-      <label className="text-xs text-slate-400 block mb-1.5">{label}</label>
+      <label className="text-xs font-black text-white block mb-2">{label}</label>
       {preview ? (
         <div className="relative inline-block">
-          <img src={preview} alt="Foto" className="w-32 h-32 rounded-xl object-cover border-2 border-white/10" />
-          <button type="button" onClick={onRemove} className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-            <X size={12} className="text-white" />
+          <img src={preview} alt="Foto" className="w-36 h-36 rounded-2xl object-cover border-2 border-cyan-400 shadow-xl" />
+          <button type="button" onClick={onRemove} className="absolute -top-2 -right-2 w-7 h-7 bg-rose-500 hover:bg-rose-400 rounded-full flex items-center justify-center text-white shadow-md">
+            <X size={14} />
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => setShowCamera(true)}
             disabled={compressing}
-            className="flex flex-col items-center gap-2 py-5 border-2 border-dashed border-slate-700 rounded-xl hover:border-cyan-500/50 transition-colors disabled:opacity-50"
+            className="flex flex-col items-center gap-2 py-5 border-2 border-dashed border-cyan-400/80 bg-slate-950 rounded-2xl hover:border-cyan-300 hover:bg-slate-900 transition-all disabled:opacity-50 shadow-md"
           >
-            <Camera size={22} className="text-cyan-400" />
-            <span className="text-[11px] text-slate-400">
+            <Camera size={26} className="text-cyan-400" />
+            <span className="text-xs font-black text-white">
               {compressing ? 'Mengompresi...' : 'Ambil Foto'}
             </span>
           </button>
@@ -50,10 +50,10 @@ export default function PhotoInput({ preview, onCapture, onRemove, label = 'Foto
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={compressing}
-            className="flex flex-col items-center gap-2 py-5 border-2 border-dashed border-slate-700 rounded-xl hover:border-cyan-500/50 transition-colors disabled:opacity-50"
+            className="flex flex-col items-center gap-2 py-5 border-2 border-dashed border-slate-700 bg-slate-950 rounded-2xl hover:border-cyan-400 hover:bg-slate-900 transition-all disabled:opacity-50 shadow-md"
           >
-            <FolderOpen size={22} className="text-slate-400" />
-            <span className="text-[11px] text-slate-400">
+            <FolderOpen size={26} className="text-cyan-300" />
+            <span className="text-xs font-black text-white">
               {compressing ? 'Mengompresi...' : 'Pilih File'}
             </span>
           </button>
@@ -98,13 +98,8 @@ function CameraModal({ onClose, onCapture }) {
         videoRef.current.onloadedmetadata = () => setReady(true)
       }
     } catch (err) {
-      if (err.name === 'NotAllowedError') {
-        setError('Akses kamera ditolak. Izinkan akses kamera di pengaturan browser.')
-      } else if (err.name === 'NotFoundError') {
-        setError('Kamera tidak ditemukan pada perangkat ini.')
-      } else {
-        setError('Gagal mengakses kamera: ' + err.message)
-      }
+      console.warn('Camera failed:', err)
+      setError('Kamera tidak tersedia')
     }
   }, [])
 
@@ -115,104 +110,72 @@ function CameraModal({ onClose, onCapture }) {
         streamRef.current.getTracks().forEach(t => t.stop())
       }
     }
-  }, [])
+  }, [facingMode, startCamera])
 
-  function switchCamera() {
-    const next = facingMode === 'environment' ? 'user' : 'environment'
-    setFacingMode(next)
-    startCamera(next)
+  function toggleCamera() {
+    setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')
   }
 
-  async function capture() {
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    if (!video || !canvas || capturing) return
-
+  async function handleCapture() {
+    if (!videoRef.current || capturing) return
     setCapturing(true)
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext('2d')
-    ctx.drawImage(video, 0, 0)
+    try {
+      const video = videoRef.current
+      const canvas = canvasRef.current || document.createElement('canvas')
+      canvas.width = video.videoWidth || 800
+      canvas.height = video.videoHeight || 600
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
-    canvas.toBlob(async blob => {
-      if (!blob) {
-        setCapturing(false)
-        return
-      }
-      try {
-        const result = await compressImage(blob, { maxWidth: 800, maxHeight: 800, quality: 0.7 })
-        onCapture(result.file, result.url)
-      } catch (err) {
-        console.warn('Compress camera image failed, fallback:', err)
-        const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' })
-        const url = URL.createObjectURL(blob)
-        onCapture(file, url)
-      } finally {
-        setCapturing(false)
-      }
-    }, 'image/jpeg', 0.85)
-  }
-
-  function handleClose() {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8))
+      const file = new File([blob], `evidence_${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const url = URL.createObjectURL(blob)
+      onCapture(file, url)
+    } catch (err) {
+      console.error('Capture failed:', err)
+    } finally {
+      setCapturing(false)
     }
-    onClose()
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/80">
-        <button type="button" onClick={handleClose} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
-          <X size={22} className="text-white" />
-        </button>
-        <span className="text-sm font-medium text-white">Ambil Foto</span>
-        <button type="button" onClick={switchCamera} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
-          <SwitchCamera size={20} className="text-white" />
+    <div className="fixed inset-0 z-[70] bg-black/95 flex flex-col items-center justify-between p-4 backdrop-blur-md">
+      <div className="w-full flex items-center justify-between py-2">
+        <h4 className="text-sm font-black text-white">Ambil Foto Evidence</h4>
+        <button onClick={onClose} className="p-2 bg-slate-900 border border-slate-700 rounded-full text-white">
+          <X size={20} />
         </button>
       </div>
 
-      {/* Video area */}
-      <div className="flex-1 flex items-center justify-center bg-black overflow-hidden relative">
+      <div className="relative w-full max-w-sm aspect-[4/3] bg-slate-950 rounded-3xl overflow-hidden border-2 border-cyan-400 shadow-2xl flex items-center justify-center">
         {error ? (
-          <div className="text-center px-8">
-            <Camera size={48} className="mx-auto text-slate-600 mb-3" />
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
+          <div className="text-center p-4 text-xs font-bold text-rose-300">{error}</div>
         ) : (
-          <>
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="max-w-full max-h-full object-contain"
-              style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
-            />
-            {(!ready || capturing) && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 gap-2">
-                <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                {capturing && <span className="text-xs text-white font-medium">Mengompresi Foto...</span>}
-              </div>
-            )}
-          </>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover"
+          />
         )}
       </div>
 
-      {/* Capture button */}
-      <div className="flex items-center justify-center py-6 bg-black/80">
+      <div className="w-full max-w-sm flex items-center justify-around py-4">
         <button
-          type="button"
-          onClick={capture}
-          disabled={!ready || capturing}
-          className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center transition-all active:scale-90 disabled:opacity-30"
+          onClick={toggleCamera}
+          className="p-3.5 bg-slate-900 border border-slate-700 rounded-2xl text-cyan-300 font-extrabold text-xs flex items-center gap-1.5"
         >
-          <div className="w-12 h-12 rounded-full bg-white" />
+          <SwitchCamera size={18} /> Putar Kamera
+        </button>
+        <button
+          onClick={handleCapture}
+          disabled={!ready || capturing}
+          className="p-4 bg-cyan-400 hover:bg-cyan-300 text-slate-950 rounded-full font-black shadow-xl shadow-cyan-400/50 disabled:opacity-40"
+        >
+          <Camera size={24} />
         </button>
       </div>
-
-      <canvas ref={canvasRef} className="hidden" />
     </div>
   )
 }
