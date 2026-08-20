@@ -5,7 +5,7 @@ import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 import { 
   Users, CheckCircle, AlertTriangle, Clock, TrendingUp, 
   BarChart3, Timer, UserCheck, Hammer, MapPinOff, ExternalLink, MapPin, X,
-  ShieldAlert, Radio, Navigation, Building2, ZoomIn, Eye, ScanFace, Globe
+  ShieldAlert, Radio, Navigation, Building2, ZoomIn, Eye, ScanFace, Globe, Maximize2
 } from 'lucide-react'
 
 const namaBulan = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
