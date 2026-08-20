@@ -21,10 +21,8 @@ export default function Login() {
       navigate('/')
     } catch (err) {
       let msg = err.message
-      if (msg === 'Invalid login credentials') {
-        msg = 'Email atau password salah'
-      } else if (msg?.includes('Database error querying schema') || msg?.includes('Database error')) {
-        msg = 'Gagal login. Email mungkin terdaftar sebagai OAuth/Google di Supabase'
+      if (msg === 'Invalid login credentials' || msg?.includes('Database error')) {
+        msg = 'Email atau password salah. Periksa kembali ejaan email & password Anda.'
       }
       setError(msg)
     } finally {
