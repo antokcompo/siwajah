@@ -427,15 +427,19 @@ export default function UserRiwayat() {
 
       {/* Modal Detail Presensi per Hari */}
       {selectedDateDetail && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md ${outdoorMode ? 'bg-black/90' : 'bg-slate-950/80'}`}>
+          <div className={`rounded-3xl w-full max-w-md p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 transition-all ${
+            outdoorMode
+              ? 'bg-black border-2 border-cyan-400 text-white shadow-cyan-950/80'
+              : 'bg-slate-900 border border-slate-800'
+          }`}>
             {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
-                <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                  <Calendar size={18} className="text-blue-400" /> Rincian Presensi Harian
+                <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                  <Calendar size={18} className="text-cyan-400" /> Rincian Presensi Harian
                 </h3>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                <p className="text-xs text-slate-300 font-mono font-bold mt-0.5">
                   {new Date(selectedDateDetail.tanggal + 'T00:00').toLocaleDateString('id-ID', {
                     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
                   })}
@@ -450,16 +454,16 @@ export default function UserRiwayat() {
             </div>
 
             {/* Banner Ringkasan Slot */}
-            <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between text-xs font-mono">
+            <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between text-xs font-mono">
               <div>
-                <span className="text-[10px] text-slate-400 block uppercase font-semibold">Slot Disetujui</span>
-                <span className="text-sm font-extrabold text-cyan-300">
+                <span className="text-[10px] text-slate-300 block uppercase font-bold">Slot Disetujui</span>
+                <span className="text-sm font-black text-cyan-300">
                   {selectedDateDetail.verifiedRegCount} / {regularSlotsList.length || 6} Slot Reguler
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block uppercase font-semibold">Bobot Gaji Hari Ini</span>
-                <span className="text-sm font-extrabold text-emerald-400">
+                <span className="text-[10px] text-slate-300 block uppercase font-bold">Bobot Gaji Hari Ini</span>
+                <span className="text-sm font-black text-emerald-400">
                   {Math.round((selectedDateDetail.verifiedRegCount / (regularSlotsList.length || 6)) * 100)}% ({ (selectedDateDetail.verifiedRegCount / (regularSlotsList.length || 6)).toFixed(2) } Hari)
                 </span>
               </div>
@@ -489,30 +493,30 @@ export default function UserRiwayat() {
                 return (
                   <div 
                     key={item.slot.id || idx}
-                    className="bg-slate-950/50 border border-slate-800/80 rounded-2xl p-3 flex items-center justify-between text-xs"
+                    className="bg-slate-950 border border-slate-800 rounded-2xl p-3 flex items-center justify-between text-xs"
                   >
                     <div className="space-y-0.5">
-                      <div className="font-bold text-slate-200 flex items-center gap-2">
-                        <span className="text-cyan-400 font-mono font-extrabold">{item.slot.jam.slice(0, 5)}</span>
+                      <div className="font-bold text-white flex items-center gap-2">
+                        <span className="text-cyan-300 font-mono font-extrabold">{item.slot.jam.slice(0, 5)}</span>
                         <span>{item.slot.label}</span>
                       </div>
                       {item.alasan && (
-                        <div className="text-[10px] text-slate-400 italic">Laporan: "{item.alasan}"</div>
+                        <div className="text-[10px] text-slate-300 italic">Laporan: "{item.alasan}"</div>
                       )}
                     </div>
 
                     <div className="flex items-center gap-2">
                       {item.status === 'VERIFIED' ? (
-                        <span className="px-2.5 py-1 rounded-full font-bold text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1">
+                        <span className="px-2.5 py-1 rounded-full font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400 inline-flex items-center gap-1">
                           <CheckCircle2 size={12} /> {item.scanTime || 'Hadir'}
                         </span>
                       ) : item.status === 'PENDING' ? (
-                        <span className="px-2.5 py-1 rounded-full font-bold text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
+                        <span className="px-2.5 py-1 rounded-full font-black text-[10px] bg-amber-500/20 text-amber-300 border border-amber-400 inline-flex items-center gap-1">
                           <Clock size={12} /> Pending Approval
                         </span>
                       ) : (
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30 inline-flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-full font-black text-[10px] bg-rose-500/20 text-rose-300 border border-rose-400 inline-flex items-center gap-1">
                             <XCircle size={11} /> Terlewat
                           </span>
                           {canLapor && (
@@ -521,7 +525,7 @@ export default function UserRiwayat() {
                                 e.stopPropagation()
                                 setLaporModalSlot(item.slot)
                               }}
-                              className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors inline-flex items-center gap-1"
+                              className="px-2 py-0.5 rounded-full font-black text-[10px] bg-amber-400 text-slate-950 border border-amber-300 hover:bg-amber-300 transition-colors inline-flex items-center gap-1 shadow-sm"
                             >
                               <FileWarning size={11} /> Lapor (H+1)
                             </button>
@@ -537,7 +541,7 @@ export default function UserRiwayat() {
             {/* Footer Modal */}
             <button
               onClick={() => setSelectedDateDetail(null)}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-2xl transition-colors"
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-black rounded-2xl transition-colors"
             >
               Tutup
             </button>
@@ -547,8 +551,12 @@ export default function UserRiwayat() {
 
       {/* Modal Form Submit Lapor Terlewat */}
       {laporModalSlot && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[60] flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+        <div className={`fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-md ${outdoorMode ? 'bg-black/90' : 'bg-slate-950/90'}`}>
+          <div className={`rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl animate-in fade-in zoom-in-95 ${
+            outdoorMode
+              ? 'bg-black border-2 border-cyan-400 text-white shadow-cyan-950/80'
+              : 'bg-slate-900 border border-slate-800'
+          }`}>
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">

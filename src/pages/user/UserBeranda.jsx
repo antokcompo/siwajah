@@ -546,8 +546,12 @@ export default function UserBeranda() {
 
       {/* Lapor Terlewat Modal */}
       {modalSlot && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <form onSubmit={handleLaporSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md ${outdoorMode ? 'bg-black/90' : 'bg-slate-950/80'}`}>
+          <form onSubmit={handleLaporSubmit} className={`rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl transition-all ${
+            outdoorMode
+              ? 'bg-black border-2 border-cyan-400 text-white shadow-cyan-950/80'
+              : 'bg-slate-900 border border-slate-800'
+          }`}>
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <FileWarning className="text-amber-400" size={20} />

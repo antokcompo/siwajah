@@ -258,20 +258,20 @@ export default function UserIzin() {
   }
 
   return (
-    <div className="px-4 py-4 min-h-[85vh]">
-      <button onClick={() => navigate('/user')} className="flex items-center gap-1 text-sm text-slate-400 mb-4 hover:text-slate-200 transition-colors">
+    <div className={`px-4 py-4 min-h-[85vh] transition-colors ${outdoorMode ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'}`}>
+      <button onClick={() => navigate('/user')} className="flex items-center gap-1 text-sm text-cyan-400 mb-4 hover:text-white font-bold transition-colors">
         <ChevronLeft size={16} /> Beranda
       </button>
 
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+          <h2 className="text-base font-extrabold text-white flex items-center gap-2">
             <Calendar size={18} className="text-cyan-400" /> Pengajuan Izin
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">Izin berbayar & tidak berbayar</p>
+          <p className="text-xs text-slate-300 font-medium mt-0.5">Izin berbayar & tidak berbayar</p>
         </div>
-        <button onClick={() => setView('form')} className="user-btn-primary text-xs py-2 px-3 flex items-center gap-1.5">
-          <Calendar size={12} /> Ajukan Izin
+        <button onClick={() => setView('form')} className="px-3.5 py-2 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md">
+          <Calendar size={13} /> Ajukan Izin
         </button>
       </div>
 
@@ -368,10 +368,14 @@ export default function UserIzin() {
         </div>
       )}
 
-      {/* Modal Ajukan Batal Izin */}
+      {/* Batal Izin Modal */}
       {batalModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setBatalModal(null)}>
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-4 space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md ${outdoorMode ? 'bg-black/90' : 'bg-slate-950/80'}`}>
+          <div className={`rounded-3xl p-5 max-w-md w-full space-y-3 shadow-2xl transition-all ${
+            outdoorMode
+              ? 'bg-black border-2 border-cyan-400 text-white shadow-cyan-950/80'
+              : 'bg-slate-900 border border-slate-800'
+          }`} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm font-bold text-slate-100">Ajukan Pembatalan Izin</h3>
               <button onClick={() => setBatalModal(null)} className="p-1 text-slate-400 hover:text-slate-200">

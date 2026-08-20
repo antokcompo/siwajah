@@ -13,7 +13,7 @@ const statusColor = {
 const statusLabel = { PENDING: 'Menunggu', APPROVED: 'Disetujui', REJECTED: 'Ditolak' }
 
 export default function UserLaporanTerlewat() {
-  const { karyawan } = useUserAuth()
+  const { karyawan, outdoorMode } = useUserAuth()
   const navigate = useNavigate()
 
   const [filter, setFilter] = useState('ALL') // 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'
@@ -42,7 +42,7 @@ export default function UserLaporanTerlewat() {
   }
 
   return (
-    <div className="px-4 py-4 min-h-[85vh]">
+    <div className={`px-4 py-4 min-h-[85vh] transition-colors ${outdoorMode ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'}`}>
       {/* Header */}
       <button onClick={() => navigate('/user')} className="flex items-center gap-1 text-sm text-slate-400 mb-4 hover:text-slate-200 transition-colors">
         <ChevronLeft size={16} /> Beranda

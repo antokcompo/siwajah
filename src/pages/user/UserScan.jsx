@@ -22,7 +22,7 @@ function getUserTz() {
 }
 
 export default function UserScan() {
-  const { karyawan, projectTz } = useUserAuth()
+  const { karyawan, projectTz, outdoorMode } = useUserAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const slot = location.state?.slot
@@ -45,6 +45,10 @@ export default function UserScan() {
 
   const [masterLokasi, setMasterLokasi] = useState([])
   const [masterPekerjaan, setMasterPekerjaan] = useState([])
+
+  const confLevel = getConfidenceLevel(confidence)
+  const userTz = getUserTz()
+  const isOffsite = userTz && userTz !== projectTz
 
   useEffect(() => {
     if (!slot) { navigate('/user'); return }
@@ -269,17 +273,13 @@ export default function UserScan() {
     }
   }
 
-  const confLevel = getConfidenceLevel(confidence)
-  const userTz = getUserTz()
-  const isOffsite = userTz && userTz !== projectTz
-
   if (!slot) return null
 
   return (
-    <div className="px-4 py-4">
+    <div className={`px-4 py-4 min-h-screen transition-colors ${outdoorMode ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'}`}>
       {/* Header */}
       <div className="text-center mb-4">
-        <p className="text-[10px] text-blue-400 uppercase tracking-wider font-semibold">
+        <p className="text-xs text-cyan-400 uppercase tracking-wider font-black">
           Absen {slot.jam.slice(0, 5)} — {slot.label}
         </p>
       </div>

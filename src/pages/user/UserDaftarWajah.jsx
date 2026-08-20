@@ -126,9 +126,9 @@ export default function UserDaftarWajah() {
   }
 
   return (
-    <div className="flex flex-col items-center px-4 py-6 min-h-full">
-      <h2 className="text-lg font-bold text-slate-100 mb-1">Daftar Wajah</h2>
-      <p className="text-xs text-slate-500 mb-4">Ambil 5 foto wajah untuk pendaftaran</p>
+    <div className={`flex flex-col items-center px-4 py-6 min-h-screen transition-colors ${outdoorMode ? 'bg-black text-white' : 'bg-slate-950 text-slate-100'}`}>
+      <h2 className="text-lg font-extrabold text-white mb-1">Daftar Wajah Presensi</h2>
+      <p className="text-xs text-slate-300 font-medium mb-4">Ambil 5 foto sudut wajah untuk pendaftaran</p>
 
       {/* Progress dots */}
       <div className="flex gap-2 mb-5">
