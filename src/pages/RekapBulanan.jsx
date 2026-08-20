@@ -31,16 +31,20 @@ export default function RekapBulanan() {
 
     const padBulan = String(bulan).padStart(2, '0')
     const startDate = `${tahun}-${padBulan}-01`
-    const daysCount = new Date(tahun, bulan, 0).getDate()
-    const endDate = `${tahun}-${padBulan}-${String(daysCount).padStart(2, '0')}`
+    const lastDay = new Date(tahun, bulan, 0).getDate()
+    const endDate = `${tahun}-${padBulan}-${String(lastDay).padStart(2, '0')}`
 
-    const { data: harian } = await supabase
+    const { data: harian, error: errHarian } = await supabase
       .from('absen_harian')
-      .select('*, absen_jadwal_slot(label)')
+      .select('id, tanggal, jam_masuk, jam_pulang, status, jam_lembur, status_lembur, catatan')
       .eq('karyawan_id', item.karyawan_id)
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
-      .order('tanggal', { ascending: true })
+      .order('tanggal', { ascending: false })
+
+    if (errHarian) {
+      console.error('Error loading harian history for modal:', errHarian)
+    }
 
     setDetailHarian(harian || [])
     setLoadingDetail(false)
@@ -54,7 +58,7 @@ export default function RekapBulanan() {
     setSelected(new Set())
     const [gajiRes, periodeRes, mandorRes] = await Promise.all([
       supabase.from('absen_gaji_bulanan')
-        .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+        .select('*, absen_karyawan(nama, jabatan, atasan_id, gaji_bulanan, tunjangan)')
         .eq('bulan', bulan).eq('tahun', tahun)
         .order('absen_karyawan(nama)'),
       supabase.from('absen_periode_gaji')
@@ -619,117 +623,131 @@ export default function RekapBulanan() {
             </div>
 
             {/* Banner Karyawan */}
-            <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/50 flex flex-wrap items-center justify-between gap-4 text-xs">
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Identitas Pekerja</span>
-                <div className="text-sm font-bold text-slate-100">{detailModalItem.absen_karyawan?.nama}</div>
-                <div className="text-slate-400">{detailModalItem.absen_karyawan?.jabatan || 'Pekerja'}</div>
-              </div>
+            {(() => {
+              const daysInMonth = new Date(tahun, bulan, 0).getDate()
+              const rawMasterGaji = Number(detailModalItem.absen_karyawan?.gaji_bulanan || 0)
+              const gajiMasterVal = rawMasterGaji > 0
+                ? rawMasterGaji
+                : (detailModalItem.is_gaji_full
+                    ? Number(detailModalItem.gaji_pokok || 0)
+                    : Math.round((Number(detailModalItem.gaji_pokok || 0) / (detailModalItem.hari_kerja || 1)) * daysInMonth))
 
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Gaji Master & Tunjangan</span>
-                <div className="text-sm font-bold text-cyan-400">Rp {fmt(detailModalItem.absen_karyawan?.gaji_bulanan || 0)} / Bulan</div>
-                <div className="text-slate-400">Tunjangan: Rp {fmt(detailModalItem.absen_karyawan?.tunjangan || 0)}</div>
-              </div>
+              return (
+                <>
+                  <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/50 flex flex-wrap items-center justify-between gap-4 text-xs">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Identitas Pekerja</span>
+                      <div className="text-sm font-bold text-slate-100">{detailModalItem.absen_karyawan?.nama}</div>
+                      <div className="text-slate-400">{detailModalItem.absen_karyawan?.jabatan || 'Pekerja'}</div>
+                    </div>
 
-              <div className="space-y-1">
-                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Status Kehadiran</span>
-                <div>
-                  {detailModalItem.is_gaji_full ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold text-xs">
-                      <CheckCircle size={13} /> Full Attendance (100% Gaji Penuh)
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold text-xs">
-                      <Info size={13} /> Pro-Rata Kehadiran ({detailModalItem.hari_kerja} / {new Date(tahun, bulan, 0).getDate()} Hari)
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Gaji Master & Tunjangan</span>
+                      <div className="text-sm font-bold text-cyan-400">Rp {fmt(gajiMasterVal)} / Bulan</div>
+                      <div className="text-slate-400">Tunjangan: Rp {fmt(detailModalItem.absen_karyawan?.tunjangan || detailModalItem.tunjangan || 0)}</div>
+                    </div>
 
-            {/* Grid 4 Kartu Komponen Gaji Transparan */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
-              
-              {/* Kartu 1: Gaji Pokok */}
-              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
-                    <DollarSign size={14} className="text-cyan-400" /> 1. Gaji Pokok
-                  </span>
-                  <span className="font-bold text-cyan-400 text-sm">Rp {fmt(detailModalItem.gaji_pokok)}</span>
-                </div>
-                <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
-                  {detailModalItem.is_gaji_full ? (
-                    <div className="text-emerald-300">✓ Masuk di seluruh hari kerja bulan ini → Mendapatkan 100% Gaji Bulanan Penuh (Rp {fmt(detailModalItem.absen_karyawan?.gaji_bulanan)})</div>
-                  ) : (
-                    <>
-                      <div className="text-slate-400">Rumus Pro-Rata Harian:</div>
-                      <div className="text-amber-300">(Gaji Master ÷ Total Hari Kalender) × Hari Masuk</div>
-                      <div className="text-slate-300">
-                        (Rp {fmt(detailModalItem.absen_karyawan?.gaji_bulanan || 0)} ÷ {new Date(tahun, bulan, 0).getDate()} Hari) × {detailModalItem.hari_kerja} Hari = Rp {fmt(detailModalItem.gaji_pokok)}
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Status Kehadiran</span>
+                      <div>
+                        {detailModalItem.is_gaji_full ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold text-xs">
+                            <CheckCircle size={13} /> Full Attendance (100% Gaji Penuh)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold text-xs">
+                            <Info size={13} /> Pro-Rata Kehadiran ({detailModalItem.hari_kerja} / {daysInMonth} Hari)
+                          </span>
+                        )}
                       </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Kartu 2: Gaji Lembur */}
-              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
-                    <Clock size={14} className="text-amber-400" /> 2. Gaji Lembur
-                  </span>
-                  <span className="font-bold text-amber-400 text-sm">Rp {fmt(detailModalItem.gaji_lembur)}</span>
-                </div>
-                <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
-                  <div>Total Jam Lembur Approved: <strong className="text-slate-200">{detailModalItem.jam_lembur_total || 0} Jam</strong></div>
-                  {Number(detailModalItem.jam_lembur_total) > 0 ? (
-                    <>
-                      <div className="text-slate-300">Tarif Per Jam = Gaji Master ÷ 26 ÷ 8 Jam = Rp {fmt((detailModalItem.absen_karyawan?.gaji_bulanan || 0) / 208)}</div>
-                      <div className="text-amber-300">Aturan Standard: Jam 1 (1.5x) + Jam Berikutnya (2.0x)</div>
-                    </>
-                  ) : (
-                    <div className="text-slate-500">Tidak ada akumulasi jam lembur pada bulan ini</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Kartu 3: Tunjangan & Potongan */}
-              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
-                    <Building2 size={14} className="text-purple-400" /> 3. Tunjangan & Potongan
-                  </span>
-                  <span className="font-bold text-purple-400 text-sm">Rp {fmt(detailModalItem.tunjangan - (detailModalItem.potongan || 0))}</span>
-                </div>
-                <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
-                  <div className="flex justify-between">
-                    <span>+ Tunjangan Jabatan:</span>
-                    <span className="text-slate-200">Rp {fmt(detailModalItem.tunjangan)}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-rose-400">
-                    <span>- Potongan / Denda:</span>
-                    <span>Rp {fmt(detailModalItem.potongan || 0)}</span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Kartu 4: Take Home Pay */}
-              <div className="bg-slate-950/90 p-4 rounded-2xl border border-emerald-500/40 space-y-2 bg-gradient-to-br from-emerald-950/30 to-slate-950">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-400 text-xs uppercase tracking-wider">4. Total Gaji (Take Home Pay)</span>
-                  <span className="font-extrabold text-emerald-400 text-base">Rp {fmt(detailModalItem.total_gaji)}</span>
-                </div>
-                <div className="text-[11px] text-slate-300 leading-relaxed bg-slate-900/90 p-2.5 rounded-xl border border-emerald-500/20 space-y-1 font-mono">
-                  <div>= Gaji Pokok + Gaji Lembur + Tunjangan - Potongan</div>
-                  <div className="text-emerald-400 font-bold">
-                    = Rp {fmt(detailModalItem.gaji_pokok)} + Rp {fmt(detailModalItem.gaji_lembur)} + Rp {fmt(detailModalItem.tunjangan)} - Rp {fmt(detailModalItem.potongan || 0)}
-                  </div>
-                </div>
-              </div>
+                  {/* Grid 4 Kartu Komponen Gaji Transparan */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+                    
+                    {/* Kartu 1: Gaji Pokok */}
+                    <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
+                          <DollarSign size={14} className="text-cyan-400" /> 1. Gaji Pokok
+                        </span>
+                        <span className="font-bold text-cyan-400 text-sm">Rp {fmt(detailModalItem.gaji_pokok)}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
+                        {detailModalItem.is_gaji_full ? (
+                          <div className="text-emerald-300">✓ Masuk di seluruh hari kerja bulan ini → Mendapatkan 100% Gaji Bulanan Penuh (Rp {fmt(gajiMasterVal)})</div>
+                        ) : (
+                          <>
+                            <div className="text-slate-400">Rumus Pro-Rata Harian:</div>
+                            <div className="text-amber-300">(Gaji Master ÷ Total Hari Kalender) × Hari Masuk</div>
+                            <div className="text-slate-300">
+                              (Rp {fmt(gajiMasterVal)} ÷ {daysInMonth} Hari) × {detailModalItem.hari_kerja} Hari = Rp {fmt(detailModalItem.gaji_pokok)}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
 
-            </div>
+                    {/* Kartu 2: Gaji Lembur */}
+                    <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
+                          <Clock size={14} className="text-amber-400" /> 2. Gaji Lembur
+                        </span>
+                        <span className="font-bold text-amber-400 text-sm">Rp {fmt(detailModalItem.gaji_lembur)}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
+                        <div>Total Jam Lembur Approved: <strong className="text-slate-200">{detailModalItem.jam_lembur_total || 0} Jam</strong></div>
+                        {Number(detailModalItem.jam_lembur_total) > 0 ? (
+                          <>
+                            <div className="text-slate-300">Tarif Per Jam = Gaji Master ÷ 26 ÷ 8 Jam = Rp {fmt(gajiMasterVal / 208)}</div>
+                            <div className="text-amber-300">Aturan Standard: Jam 1 (1.5x) + Jam Berikutnya (2.0x)</div>
+                          </>
+                        ) : (
+                          <div className="text-slate-500">Tidak ada akumulasi jam lembur pada bulan ini</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Kartu 3: Tunjangan & Potongan */}
+                    <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
+                          <Building2 size={14} className="text-purple-400" /> 3. Tunjangan & Potongan
+                        </span>
+                        <span className="font-bold text-purple-400 text-sm">Rp {fmt(detailModalItem.tunjangan - (detailModalItem.potongan || 0))}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
+                        <div className="flex justify-between">
+                          <span>+ Tunjangan Jabatan:</span>
+                          <span className="text-slate-200">Rp {fmt(detailModalItem.tunjangan)}</span>
+                        </div>
+                        <div className="flex justify-between text-rose-400">
+                          <span>- Potongan / Denda:</span>
+                          <span>Rp {fmt(detailModalItem.potongan || 0)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Kartu 4: Take Home Pay */}
+                    <div className="bg-slate-950/90 p-4 rounded-2xl border border-emerald-500/40 space-y-2 bg-gradient-to-br from-emerald-950/30 to-slate-950">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-emerald-400 text-xs uppercase tracking-wider">4. Total Gaji (Take Home Pay)</span>
+                        <span className="font-extrabold text-emerald-400 text-base">Rp {fmt(detailModalItem.total_gaji)}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-300 leading-relaxed bg-slate-900/90 p-2.5 rounded-xl border border-emerald-500/20 space-y-1 font-mono">
+                        <div>= Gaji Pokok + Gaji Lembur + Tunjangan - Potongan</div>
+                        <div className="text-emerald-400 font-bold">
+                          = Rp {fmt(detailModalItem.gaji_pokok)} + Rp {fmt(detailModalItem.gaji_lembur)} + Rp {fmt(detailModalItem.tunjangan)} - Rp {fmt(detailModalItem.potongan || 0)}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </>
+              )
+            })()}
 
             {/* Tabel Break-down Presensi Harian */}
             <div className="space-y-2 pt-2">
@@ -737,7 +755,7 @@ export default function RekapBulanan() {
                 <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                   <Calendar size={14} className="text-blue-400" /> Log Presensi Harian ({namaBulan[bulan]} {tahun})
                 </h4>
-                <span className="text-[11px] text-slate-400">Total {detailHarian.length} Catatan Absen</span>
+                <span className="text-[11px] text-slate-400 font-semibold">Total {detailHarian.length} Catatan Absen</span>
               </div>
 
               {loadingDetail ? (
@@ -753,33 +771,38 @@ export default function RekapBulanan() {
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider font-semibold sticky top-0">
                       <tr>
-                        <th className="px-3 py-2.5">Tanggal</th>
-                        <th className="px-3 py-2.5">Slot Presensi</th>
-                        <th className="px-3 py-2.5">Jam Masuk</th>
-                        <th className="px-3 py-2.5">Jam Pulang</th>
-                        <th className="px-3 py-2.5 text-center">Jam Lembur</th>
-                        <th className="px-3 py-2.5 text-center">Status</th>
+                        <th className="px-3.5 py-2.5">Tanggal</th>
+                        <th className="px-3.5 py-2.5">Jam Masuk</th>
+                        <th className="px-3.5 py-2.5">Jam Pulang</th>
+                        <th className="px-3.5 py-2.5 text-center">Jam Lembur</th>
+                        <th className="px-3.5 py-2.5 text-center">Status Presensi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 bg-slate-900/40 text-slate-300 text-[11px]">
-                      {detailHarian.map(h => (
-                        <tr key={h.id} className="hover:bg-slate-800/40 transition-colors">
-                          <td className="px-3 py-2 font-mono font-medium">{h.tanggal}</td>
-                          <td className="px-3 py-2 text-slate-400">{h.absen_jadwal_slot?.label || '-'}</td>
-                          <td className="px-3 py-2 font-mono text-cyan-400">{h.jam_masuk ? h.jam_masuk.slice(0,5) : '-'}</td>
-                          <td className="px-3 py-2 font-mono text-indigo-400">{h.jam_pulang ? h.jam_pulang.slice(0,5) : '-'}</td>
-                          <td className="px-3 py-2 text-center font-mono text-amber-400">{h.jam_lembur ? `${h.jam_lembur}j` : '-'}</td>
-                          <td className="px-3 py-2 text-center">
-                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                              h.status === 'LENGKAP' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                              h.status === 'IZIN' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                              'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                            }`}>
-                              {h.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {detailHarian.map(h => {
+                        const dObj = new Date(h.tanggal)
+                        const tglFmt = !isNaN(dObj.getTime())
+                          ? dObj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+                          : h.tanggal
+
+                        return (
+                          <tr key={h.id || h.tanggal} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="px-3.5 py-2 font-mono font-medium text-slate-200">{tglFmt}</td>
+                            <td className="px-3.5 py-2 font-mono text-cyan-400 font-bold">{h.jam_masuk ? h.jam_masuk.slice(0,5) : '-'}</td>
+                            <td className="px-3.5 py-2 font-mono text-indigo-400 font-bold">{h.jam_pulang ? h.jam_pulang.slice(0,5) : '-'}</td>
+                            <td className="px-3.5 py-2 text-center font-mono text-amber-400 font-bold">{h.jam_lembur ? `${h.jam_lembur}j` : '-'}</td>
+                            <td className="px-3.5 py-2 text-center">
+                              <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                h.status === 'LENGKAP' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                                h.status === 'IZIN' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                                'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              }`}>
+                                {h.status || 'MASUK'}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
