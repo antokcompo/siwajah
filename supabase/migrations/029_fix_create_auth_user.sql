@@ -6,7 +6,7 @@
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
--- 1. Fix RPC absen_create_auth_user (menggunakan extensions.gen_salt & extensions.crypt)
+-- 1. Fix RPC absen_create_auth_user (Lengkap 33 Kolom Supabase GoTrue Auth)
 CREATE OR REPLACE FUNCTION absen_create_auth_user(
   p_email text,
   p_password text,
@@ -28,45 +28,103 @@ BEGIN
 
   v_clean_email := lower(trim(p_email));
 
-  IF EXISTS (SELECT 1 FROM auth.users WHERE email = v_clean_email) THEN
+  IF EXISTS (SELECT 1 FROM auth.users WHERE lower(email) = v_clean_email) THEN
     RETURN jsonb_build_object('error', 'Email sudah terdaftar di sistem');
   END IF;
 
   v_user_id := gen_random_uuid();
 
-  -- Insert to auth.users with extensions.crypt and extensions.gen_salt
+  -- Insert to auth.users (33 kolom lengkap GoTrue Auth)
   INSERT INTO auth.users (
-    instance_id, id, aud, role, email,
-    encrypted_password, email_confirmed_at,
-    created_at, updated_at,
-    raw_app_meta_data, raw_user_meta_data,
-    is_super_admin, confirmation_token, recovery_token, email_change_token_new
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    invited_at,
+    confirmation_token,
+    confirmation_sent_at,
+    recovery_token,
+    recovery_sent_at,
+    email_change_token_new,
+    email_change,
+    email_change_sent_at,
+    last_sign_in_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    is_super_admin,
+    created_at,
+    updated_at,
+    phone,
+    phone_confirmed_at,
+    phone_change,
+    phone_change_token,
+    phone_change_sent_at,
+    email_change_token_current,
+    email_change_confirm_status,
+    banned_until,
+    reauthentication_token,
+    reauthentication_sent_at,
+    is_sso_user,
+    deleted_at
   ) VALUES (
-    '00000000-0000-0000-0000-000000000000',
+    '00000000-0000-0000-0000-000000000000'::uuid,
     v_user_id,
     'authenticated',
     'authenticated',
     v_clean_email,
     extensions.crypt(p_password, extensions.gen_salt('bf', 10)),
     now(),
-    now(), now(),
+    NULL,
+    '',
+    NULL,
+    '',
+    NULL,
+    '',
+    '',
+    NULL,
+    NULL,
     '{"provider":"email","providers":["email"]}'::jsonb,
     jsonb_build_object('nama', p_nama),
-    false, '', '', ''
+    false,
+    now(),
+    now(),
+    NULL,
+    NULL,
+    '',
+    '',
+    NULL,
+    '',
+    0,
+    NULL,
+    '',
+    NULL,
+    false,
+    NULL
   );
 
   -- Insert to auth.identities (provider_id HARUS v_user_id::text)
   INSERT INTO auth.identities (
-    id, user_id, provider_id, identity_data, provider,
-    last_sign_in_at, created_at, updated_at
+    id,
+    user_id,
+    identity_data,
+    provider,
+    provider_id,
+    last_sign_in_at,
+    created_at,
+    updated_at
   ) VALUES (
+    gen_random_uuid(),
     v_user_id,
-    v_user_id,
-    v_user_id::text,
     jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
     'email',
-    now(), now(), now()
-  ) ON CONFLICT DO NOTHING;
+    v_user_id::text,
+    now(),
+    now(),
+    now()
+  );
 
   -- Insert to absen_user_profiles
   INSERT INTO absen_user_profiles (id, nama, role)
@@ -111,7 +169,7 @@ BEGIN
     id, user_id, provider_id, identity_data, provider,
     last_sign_in_at, created_at, updated_at
   ) VALUES (
-    p_user_id,
+    gen_random_uuid(),
     p_user_id,
     p_user_id::text,
     jsonb_build_object('sub', p_user_id::text, 'email', v_email),
