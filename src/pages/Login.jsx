@@ -24,7 +24,7 @@ export default function Login() {
       if (msg === 'Invalid login credentials') {
         msg = 'Email atau password salah'
       } else if (msg?.includes('Database error querying schema') || msg?.includes('Database error')) {
-        msg = 'Password tidak sesuai atau email belum dikonfirmasi di Supabase'
+        msg = 'Gagal login. Email mungkin terdaftar sebagai OAuth/Google di Supabase'
       }
       setError(msg)
     } finally {
