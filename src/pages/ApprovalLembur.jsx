@@ -418,10 +418,11 @@ function ApprovalTab() {
   const [mandorMap, setMandorMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(null)
-  const [rejectId, setRejectId] = useState(null)
   const [catatan, setCatatan] = useState('')
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState('pending')
+  const [editModalItem, setEditModalItem] = useState(null)
+  const [editSubmitting, setEditSubmitting] = useState(false)
 
   useEffect(() => { load() }, [tab, bulan, tahun])
 
@@ -484,21 +485,42 @@ function ApprovalTab() {
     setLoading(false)
   }
 
-  async function approve(id) {
-    setProcessing(id)
-    await supabase.rpc('absen_approve_lembur', { p_absensi_id: id, p_status: 'APPROVED' })
-    setProcessing(null)
-    load()
+  function handleOpenModal(d, isReject = false) {
+    const tglFormatted = new Date(d.tanggal + 'T00:00').toLocaleDateString('id-ID', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    })
+    setEditModalItem({
+      id: d.id,
+      nama: d.absen_karyawan?.nama || 'Pekerja',
+      tglFormatted,
+      jam_pulang: d.jam_pulang?.slice(0, 5) || '-',
+      originalJamLembur: d.jam_lembur || 0,
+      jamLembur: d.jam_lembur || 0,
+      catatan: d.catatan || '',
+      isReject
+    })
   }
 
-  async function reject(id) {
-    if (!catatan.trim()) return
-    setProcessing(id)
-    await supabase.rpc('absen_approve_lembur', { p_absensi_id: id, p_status: 'REJECTED', p_catatan: catatan })
-    setProcessing(null)
-    setRejectId(null)
-    setCatatan('')
-    load()
+  async function handleSaveModalApproval() {
+    if (!editModalItem) return
+    setEditSubmitting(true)
+    try {
+      const status = editModalItem.isReject ? 'REJECTED' : 'APPROVED'
+      const correctedHours = editModalItem.isReject ? null : Number(editModalItem.jamLembur)
+      const { error } = await supabase.rpc('absen_approve_lembur', {
+        p_absensi_id: editModalItem.id,
+        p_status: status,
+        p_catatan: editModalItem.catatan || null,
+        p_jam_lembur: correctedHours
+      })
+      if (error) throw error
+      setEditModalItem(null)
+      load()
+    } catch (err) {
+      alert('Gagal memproses approval: ' + err.message)
+    } finally {
+      setEditSubmitting(false)
+    }
   }
 
   const filtered = useMemo(() => {
@@ -567,9 +589,9 @@ function ApprovalTab() {
                   <th className="text-center px-4 py-3">Pulang</th>
                   <th className="text-center px-4 py-3">Jam Lembur</th>
                   {tab === 'pending' ? (
-                    <th className="text-center px-4 py-3">Aksi</th>
+                    <th className="text-center px-4 py-3">Aksi Approval</th>
                   ) : (
-                    <th className="text-center px-4 py-3">Status</th>
+                    <th className="text-center px-4 py-3">Status & Catatan</th>
                   )}
                 </tr>
               </thead>
@@ -597,7 +619,7 @@ function ApprovalTab() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-center text-gray-600 whitespace-nowrap">{new Date(d.tanggal + 'T00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                        <td className="px-4 py-3 text-center text-gray-600">{d.jam_pulang?.slice(0, 5)}</td>
+                        <td className="px-4 py-3 text-center text-gray-600 font-mono">{d.jam_pulang?.slice(0, 5) || '-'}</td>
                         <td className="px-4 py-3 text-center">
                           <span className="inline-flex items-center gap-1.5 text-orange-600 font-medium">
                             <Clock size={14} /> {d.jam_lembur} jam
@@ -605,18 +627,22 @@ function ApprovalTab() {
                         </td>
                         {tab === 'pending' ? (
                           <td className="px-4 py-3 text-center">
-                            {rejectId === d.id ? (
-                              <div className="flex items-center gap-2">
-                                <input value={catatan} onChange={e => setCatatan(e.target.value)} placeholder="Alasan reject..." className="input-field text-xs py-1.5 flex-1" />
-                                <button onClick={() => reject(d.id)} disabled={!catatan.trim()} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-30 transition-colors"><Check size={16} /></button>
-                                <button onClick={() => { setRejectId(null); setCatatan('') }} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors"><X size={16} /></button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center gap-2">
-                                <button onClick={() => approve(d.id)} disabled={processing === d.id} className="btn-success py-1.5 px-3 text-xs">Approve</button>
-                                <button onClick={() => setRejectId(d.id)} className="btn-danger py-1.5 px-3 text-xs">Reject</button>
-                              </div>
-                            )}
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleOpenModal(d, false)}
+                                className="btn-success py-1 px-2.5 text-xs flex items-center gap-1"
+                                title="Approve atau koreksi jam lembur"
+                              >
+                                <Check size={13} /> Approve / Koreksi
+                              </button>
+                              <button
+                                onClick={() => handleOpenModal(d, true)}
+                                className="btn-danger py-1 px-2.5 text-xs flex items-center gap-1"
+                                title="Tolak lembur"
+                              >
+                                <X size={13} /> Reject
+                              </button>
+                            </div>
                           </td>
                         ) : (
                           <td className="px-4 py-3 text-center">
@@ -641,6 +667,98 @@ function ApprovalTab() {
           </div>
         )}
       </div>
+
+      {/* Modal Koreksi & Approval Jam Lembur */}
+      {editModalItem && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="text-cyan-400" size={20} />
+                <h3 className="font-bold text-white text-base">
+                  {editModalItem.isReject ? 'Tolak Lembur' : 'Approval & Koreksi Jam Lembur'}
+                </h3>
+              </div>
+              <button onClick={() => setEditModalItem(null)} className="p-1 text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs text-slate-300">
+              <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-1 font-sans">
+                <div><span className="text-slate-500">Nama Pekerja:</span> <strong className="text-white font-semibold">{editModalItem.nama}</strong></div>
+                <div><span className="text-slate-500">Tanggal Lembur:</span> <strong className="text-white font-mono">{editModalItem.tglFormatted}</strong></div>
+                <div><span className="text-slate-500">Jam Scan Pulang:</span> <strong className="text-cyan-300 font-mono">{editModalItem.jam_pulang}</strong></div>
+                <div><span className="text-slate-500">Jam Lembur Sistem:</span> <strong className="text-amber-300 font-mono">{editModalItem.originalJamLembur} jam</strong></div>
+              </div>
+
+              {!editModalItem.isReject && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-200 mb-1">
+                    Koreksi Jam Lembur (Jam)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max="12"
+                      value={editModalItem.jamLembur}
+                      onChange={e => setEditModalItem({ ...editModalItem, jamLembur: e.target.value })}
+                      className="input-field text-sm font-bold font-mono py-2 text-cyan-300 bg-slate-950 border-slate-800"
+                    />
+                    <span className="text-slate-400 font-semibold">Jam</span>
+                  </div>
+                  {Number(editModalItem.jamLembur) !== Number(editModalItem.originalJamLembur) && (
+                    <p className="text-[11px] text-amber-400 mt-1 flex items-center gap-1 font-medium">
+                      <AlertTriangle size={12} /> Dihitung {editModalItem.jamLembur} jam (semula {editModalItem.originalJamLembur}h).
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-200 mb-1">
+                  {editModalItem.isReject ? 'Alasan Penolakan (Wajib)' : 'Alasan Koreksi / Catatan Approval'}
+                </label>
+                <textarea
+                  value={editModalItem.catatan}
+                  onChange={e => setEditModalItem({ ...editModalItem, catatan: e.target.value })}
+                  placeholder={editModalItem.isReject ? "Masukan alasan menolak lembur ini..." : "Contoh: Pulang lebih awal jam 21:30, dihitung 2.5 jam..."}
+                  className="w-full h-20 p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500 font-sans"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditModalItem(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveModalApproval}
+                disabled={editSubmitting || (editModalItem.isReject && !editModalItem.catatan.trim())}
+                className={`px-5 py-2 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-lg ${
+                  editModalItem.isReject
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
+              >
+                {editSubmitting ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Check size={15} />
+                )}
+                <span>{editModalItem.isReject ? 'Tolak Lembur' : 'Setujui & Simpan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
