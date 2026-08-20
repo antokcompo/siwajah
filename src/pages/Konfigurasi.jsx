@@ -112,7 +112,9 @@ export default function Konfigurasi() {
       }
 
       // 2. Eksekusi panggilan langsung dari browser ke Render API untuk mendapatkan respons HTTP & Brevo secara real-time
-      const webhookUrl = values.email_webhook_url || 'https://siwajah-api.onrender.com/api/notify-lembur'
+      const rawUrl = (values.email_webhook_url || 'https://siwajah-api.onrender.com/api/notify-lembur').trim()
+      const cleanBase = rawUrl.endsWith('/') ? rawUrl.slice(0, -1) : rawUrl
+      const webhookUrl = cleanBase.includes('/api/') ? cleanBase : `${cleanBase}/api/notify-lembur`
       
       const testPayload = {
         type: 'pending_digest',

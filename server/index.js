@@ -111,14 +111,14 @@ app.post('/api/admin/delete-user', async (req, res) => {
   return res.json({ success: true })
 })
 
-// Send email notification (Supports both Lembur and Daily Digest HTML payloads via Brevo API Key)
-app.post('/api/notify-lembur', async (req, res) => {
+// Handler for sending email via Brevo API Key
+async function handleNotifyEmail(req, res) {
   if (!BREVO_API_KEY) {
     console.error('BREVO_API_KEY not configured in environment variables')
     return res.status(500).json({ error: 'BREVO_API_KEY not configured' })
   }
 
-  const { to, subject, tanggal, karyawan, created_by, sender_name, sender_email, app_url, htmlContent, html } = req.body
+  const { to, subject, tanggal, karyawan, created_by, sender_name, app_url, htmlContent, html } = req.body
 
   // Always use official Brevo domain sender address (like SIMONIKA) to pass DMARC/SPF checks
   const finalSenderEmail = 'kuswibowo.heri@11843045.brevosend.com'
@@ -132,7 +132,7 @@ app.post('/api/notify-lembur', async (req, res) => {
       .filter(item => item && typeof item.email === 'string' && item.email.includes('@'))
   }
 
-  // Fallback to recipient email if list empty
+  // Fallback recipient
   if (validRecipients.length === 0) {
     validRecipients.push({ email: 'kuswibowo.heri@gmail.com', name: 'Admin SI WAJAH' })
   }
@@ -219,7 +219,12 @@ app.post('/api/notify-lembur', async (req, res) => {
     console.error('Email send failed:', err)
     res.status(500).json({ error: err.message })
   }
-})
+}
+
+// Register route handlers for root, /api/notify-lembur, and /api/notify-digest
+app.post('/', handleNotifyEmail)
+app.post('/api/notify-lembur', handleNotifyEmail)
+app.post('/api/notify-digest', handleNotifyEmail)
 
 app.listen(PORT, () => {
   console.log(`SI WAJAH API running on port ${PORT}`)
