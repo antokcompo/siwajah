@@ -81,7 +81,7 @@ BEGIN
     v_to := v_to || jsonb_build_object('email', v_sender_email, 'name', v_sender_name);
   END IF;
 
-  -- 5. Buat Subject & HTML Email Template Resmi (Tanpa Tombol Link)
+  -- 5. Buat Subject & HTML Email Template Resmi (Tanpa Tombol Link & Tanpa Emojis)
   v_subject := '[SI WAJAH] Informasi Daftar Lembur Hari Ini (' || v_count_lembur || ' Pekerja) — PT PP (Persero) Tbk';
 
   v_html := '<!DOCTYPE html><html><head><meta charset="utf-8">'
@@ -108,12 +108,12 @@ BEGIN
     || '<div class="header"><h1>SI WAJAH</h1><p>Sistem Informasi Web Absensi & Aktifitas Harian — PT PP (Persero) Tbk</p></div>'
     || '<div class="content">'
     || '<div class="section-box">'
-    || '<div class="section-title">🌙 Informasi Daftar Pekerja Lembur</div>'
+    || '<div class="section-title">Informasi Daftar Pekerja Lembur</div>'
     || '<div class="section-subtitle">PENGINGAT LEMBUR HARIAN (PUKUL 19.10 WIT)</div>'
     || '</div>'
     || '<p class="intro-text">Yth. Bapak/Ibu Pimpinan Proyek & Tim Manajemen,<br><br>Berikut adalah daftar pekerja yang <strong>terdaftar untuk melaksanakan lembur</strong> pada hari ini (<strong>' || v_today_str || '</strong>):</p>'
     || '<div class="alert-box">'
-    || '<div class="alert-title">🌙 Total ' || v_count_lembur || ' Pekerja Terdaftar Lembur</div>'
+    || '<div class="alert-title">Total ' || v_count_lembur || ' Pekerja Terdaftar Lembur</div>'
     || '<div class="alert-desc">Pekerja di bawah ini telah didaftarkan oleh Admin dan berhak melakukan presensi scan lembur.</div>'
     || '</div>'
     || '<table><thead><tr><th>Karyawan</th><th>Atasan / Mandor</th><th>Catatan Lembur</th></tr></thead><tbody>';

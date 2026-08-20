@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
-import { Plus, Pencil, Search, Upload, FileSpreadsheet, CheckCircle, AlertTriangle, X, Users, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, Search, Upload, FileSpreadsheet, CheckCircle, AlertTriangle, X, Users, Eye, EyeOff, Building2, HardHat } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 function fmtRupiah(val) {
@@ -265,8 +265,18 @@ export default function MasterKaryawan() {
                   <Fragment key={group.mandorName}>
                     <tr className="bg-slate-100/90 font-bold border-y border-slate-200">
                       <td colSpan={8} className="px-5 py-2.5 text-xs text-slate-800 uppercase tracking-wider bg-slate-100/90">
-                        <span className="inline-flex items-center gap-1.5 font-bold text-slate-800">
-                          {group.mandorName === 'Harian Kantor' ? '🏢 HARIAN KANTOR' : `👷 MANDOR / ATASAN: ${group.mandorName.toUpperCase()}`}
+                        <span className="inline-flex items-center gap-2 font-bold text-slate-800">
+                          {group.mandorName === 'Harian Kantor' ? (
+                            <>
+                              <Building2 size={16} className="text-blue-600 shrink-0" />
+                              <span>HARIAN KANTOR</span>
+                            </>
+                          ) : (
+                            <>
+                              <HardHat size={16} className="text-amber-600 shrink-0" />
+                              <span>MANDOR / ATASAN: {group.mandorName.toUpperCase()}</span>
+                            </>
+                          )}
                         </span>
                         <span className="ml-2.5 font-semibold text-slate-500 normal-case">
                           ({group.items.length} Pekerja)

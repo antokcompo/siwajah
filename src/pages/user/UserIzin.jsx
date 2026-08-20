@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { AlertTriangle, CheckCircle, ChevronLeft, Calendar, Info, FileWarning, Image, X, MapPin, MessageSquare } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Calendar, Info, FileWarning, Image, X, MapPin, MessageSquare } from 'lucide-react'
 import PhotoInput from '../../components/PhotoInput'
 
 const jenisOptions = [
@@ -287,7 +287,7 @@ export default function UserIzin() {
             <span className="text-[10px] text-slate-400 block">Cek status laporan absen terlewat & catatan admin</span>
           </div>
         </div>
-        <span className="text-xs font-bold text-amber-400">Lihat ➔</span>
+        <span className="text-xs font-bold text-amber-400 inline-flex items-center gap-1">Lihat <ChevronRight size={14} /></span>
       </button>
 
       {loading ? (

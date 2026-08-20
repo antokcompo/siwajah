@@ -4,7 +4,7 @@
 -- 1. Mengirim notifikasi email otomatis ke Admin & Manajemen pukul 19:00
 --    apabila terdapat Laporan Terlewat (PENDING) atau Izin Pekerja (PENDING / CANCEL_REQUESTED).
 -- 2. Email TIDAK AKAN TERKIRIM jika tidak ada item yang berstatus pending.
--- 3. Menggunakan API Key Brevo Langsung (Arsitektur SIMONIKA - Tanpa Link Tombol)
+-- 3. Menggunakan API Key Brevo Langsung (Arsitektur SIMONIKA - Tanpa Link Tombol & Emojis)
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
@@ -103,7 +103,7 @@ BEGIN
     v_to := v_to || jsonb_build_object('email', v_sender_email, 'name', v_sender_name);
   END IF;
 
-  -- 6. Buat Subject & HTML Email Template Resmi (Tanpa Tombol Link)
+  -- 6. Buat Subject & HTML Email Template Resmi (Tanpa Tombol Link & Tanpa Emojis)
   v_subject := '[SI WAJAH] Ringkasan Pengajuan Pending Approval — PT PP (Persero) Tbk';
 
   v_html := '<!DOCTYPE html><html><head><meta charset="utf-8">'
@@ -130,17 +130,17 @@ BEGIN
     || '<div class="header"><h1>SI WAJAH</h1><p>Sistem Informasi Web Absensi & Aktifitas Harian — PT PP (Persero) Tbk</p></div>'
     || '<div class="content">'
     || '<div class="section-box">'
-    || '<div class="section-title">📋 Ringkasan Pengajuan Menunggu Approval</div>'
+    || '<div class="section-title">Ringkasan Pengajuan Menunggu Approval</div>'
     || '<div class="section-subtitle">PENGINGAT OTOMATIS HARIAN (PUKUL 19.00 WIT)</div>'
     || '</div>'
     || '<p class="intro-text">Yth. Bapak/Ibu Pimpinan Proyek & Tim Manajemen,<br><br>Berikut adalah daftar pengajuan presensi karyawan yang <strong>masih belum diproses (status pending)</strong> dan membutuhkan persetujuan Anda:</p>'
     || '<div class="alert-box">'
-    || '<div class="alert-title">⚠️ Total ' || v_total_pending || ' Item Menunggu Approval</div>'
+    || '<div class="alert-title">Total ' || v_total_pending || ' Item Menunggu Approval</div>'
     || '<div class="alert-desc">Terdiri dari ' || v_count_laporan || ' Laporan Terlewat dan ' || v_count_izin || ' Pengajuan Izin Pekerja.</div>'
     || '</div>';
 
   IF v_count_laporan > 0 THEN
-    v_html := v_html || '<h4 style="color:#0284c7;margin:20px 0 8px 0;">📋 LAPORAN TERLEWAT (' || v_count_laporan || ' Item)</h4>'
+    v_html := v_html || '<h4 style="color:#0284c7;margin:20px 0 8px 0;">LAPORAN TERLEWAT (' || v_count_laporan || ' Item)</h4>'
       || '<table><thead><tr><th>Karyawan</th><th>Tanggal & Slot</th><th>Alasan</th></tr></thead><tbody>';
     FOR v_rec IN
       SELECT l.tanggal, l.alasan, k.nama, k.jabatan, s.label AS slot_label
@@ -158,7 +158,7 @@ BEGIN
   END IF;
 
   IF v_count_izin > 0 THEN
-    v_html := v_html || '<h4 style="color:#0284c7;margin:20px 0 8px 0;">📅 PENGAJUAN IZIN & PEMBATALAN (' || v_count_izin || ' Item)</h4>'
+    v_html := v_html || '<h4 style="color:#0284c7;margin:20px 0 8px 0;">PENGAJUAN IZIN & PEMBATALAN (' || v_count_izin || ' Item)</h4>'
       || '<table><thead><tr><th>Karyawan</th><th>Tipe & Tanggal</th><th>Alasan</th></tr></thead><tbody>';
     FOR v_rec IN
       SELECT i.tanggal_mulai, i.tanggal_selesai, i.jenis, i.alasan, i.status, i.alasan_batal, k.nama, k.jabatan

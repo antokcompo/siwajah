@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe, Mail, X } from 'lucide-react'
+import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, CheckCircle2, AlertCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe, Mail, X } from 'lucide-react'
 
 const timezoneOptions = [
   { value: 'Asia/Jakarta', label: 'WIB — Waktu Indonesia Barat (UTC+7)' },
@@ -123,12 +123,12 @@ export default function Konfigurasi() {
                 <p style="color:#94a3b8;margin:4px 0 0;font-size:12px;">Sistem Informasi Web Absensi & Aktifitas Harian — PT PP (Persero) Tbk</p>
               </div>
               <div style="padding:20px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;">
-                <h3 style="color:#0284c7;margin:0 0 8px;">📋 Tes Email Digest Pending Approval</h3>
+                <h3 style="color:#0284c7;margin:0 0 8px;">Tes Email Digest Pending Approval</h3>
                 <p style="color:#475569;font-size:14px;line-height:1.5;">
                   Email tes ini dikirim dari server Render <strong>siwajah-api</strong> menggunakan <strong>BREVO_API_KEY</strong> di Environment Render.
                 </p>
                 <div style="background:#fffbeb;border:1px solid #fef3c7;padding:12px;border-radius:8px;margin:16px 0;">
-                  <strong style="color:#b45309;font-size:13px;">⚠️ Total ${data?.total_pending || 0} Item Pending</strong>
+                  <strong style="color:#b45309;font-size:13px;">Total ${data?.total_pending || 0} Item Pending</strong>
                   <p style="color:#d97706;font-size:12px;margin:4px 0 0;">(${data?.count_laporan || 0} Laporan Terlewat, ${data?.count_izin || 0} Pengajuan Izin)</p>
                 </div>
               </div>
@@ -493,8 +493,12 @@ export default function Konfigurasi() {
             </div>
 
             <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${testResultModal.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' : 'bg-rose-500/10 border-rose-500/20 text-rose-300'}`}>
-              <p className="font-semibold text-sm mb-1">
-                {testResultModal.success ? '⚡ Sinyal Webhook Berhasil Dipicu' : '❌ Pengiriman Dibatalkan'}
+              <p className="font-semibold text-sm mb-1 flex items-center gap-1.5">
+                {testResultModal.success ? (
+                  <><CheckCircle2 size={16} className="text-emerald-400 shrink-0" /> Sinyal Webhook Berhasil Dipicu</>
+                ) : (
+                  <><AlertCircle size={16} className="text-rose-400 shrink-0" /> Pengiriman Dibatalkan</>
+                )}
               </p>
               <p>{testResultModal.message}</p>
             </div>
