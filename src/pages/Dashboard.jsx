@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { Users, CheckCircle, AlertTriangle, Clock, TrendingUp, BarChart3, Timer, UserCheck, Hammer } from 'lucide-react'
+import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
+import { 
+  Users, CheckCircle, AlertTriangle, Clock, TrendingUp, 
+  BarChart3, Timer, UserCheck, Hammer, MapPinOff, ExternalLink, MapPin, X
+} from 'lucide-react'
 
 const namaBulan = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
 const namaBulanFull = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
@@ -99,34 +103,28 @@ function TrendChart({ data, chartId, formatValue, renderTooltip, colors, emptyMe
             left: `${(points[hover].x / W) * 100}%`,
             top: `${(points[hover].y / H) * 100 - 14}%`,
             transform: 'translate(-50%, -100%)',
-            background: 'rgba(15, 23, 42, 0.9)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            background: 'rgba(6, 11, 24, 0.95)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(8px)',
           }}
         >
-          <div className="font-semibold text-white">{namaBulanFull[points[hover].bulan]}</div>
-          {renderTooltip(points[hover])}
+          <div className="font-semibold text-white mb-1">{namaBulanFull[points[hover].bulan]} {points[hover].tahun || ''}</div>
+          {renderTooltip ? renderTooltip(points[hover]) : (
+            <div className="font-bold tabular-nums" style={{ color: colors.start }}>{fmt(points[hover].value)}</div>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-const chartColors = {
-  salary: { start: '#06b6d4', mid: '#3b82f6', end: '#8b5cf6' },
-  workers: { start: '#10b981', mid: '#14b8a6', end: '#06b6d4' },
-  attendance: { start: '#3b82f6', mid: '#6366f1', end: '#8b5cf6' },
-  overtime: { start: '#f97316', mid: '#f59e0b', end: '#eab308' },
-  workHours: { start: '#a855f7', mid: '#7c3aed', end: '#6d28d9' },
-}
-
 function ChartCard({ icon: Icon, iconColor, iconBg, title, subtitle, summaryLabel, summaryValue, summaryColor, children }) {
   return (
-    <div className="card">
-      <div className="px-5 py-3.5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-glass)' }}>
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: iconBg }}>
+    <div className="rounded-2xl transition-all duration-200 hover:border-blue-500/20" style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
+      <div className="p-4 sm:p-5 border-b flex items-center justify-between" style={{ borderColor: 'var(--card-border)' }}>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: iconBg }}>
             <Icon size={16} style={{ color: iconColor }} />
           </div>
           <div>
@@ -156,6 +154,9 @@ export default function Dashboard() {
   const [attendanceTrend, setAttendanceTrend] = useState([])
   const [overtimeTrend, setOvertimeTrend] = useState([])
   const [workHoursTrend, setWorkHoursTrend] = useState([])
+  const [offsiteScans, setOffsiteScans] = useState([])
+  const [siteConfig, setSiteConfig] = useState({ lat: -6.2, lng: 106.816666, radius: 500, nama: 'Site Proyek Utama' })
+  const [previewPhoto, setPreviewPhoto] = useState(null)
   const [loading, setLoading] = useState(true)
   const { profile } = useAuth()
 
@@ -164,8 +165,48 @@ export default function Dashboard() {
 
   async function loadStats() {
     setLoading(true)
-    const { data, error } = await supabase.rpc('absen_dashboard_stats', { p_bulan: bulan, p_tahun: tahun })
-    if (!error && data) setStats(data)
+    const padBulan = String(bulan).padStart(2, '0')
+    const startDate = `${tahun}-${padBulan}-01`
+    const lastDay = new Date(tahun, bulan, 0).getDate()
+    const endDate = `${tahun}-${padBulan}-${String(lastDay).padStart(2, '0')}`
+
+    const [statsRes, configRes, scansGpsRes] = await Promise.all([
+      supabase.rpc('absen_dashboard_stats', { p_bulan: bulan, p_tahun: tahun }),
+      supabase.from('absen_konfigurasi').select('key, value'),
+      supabase
+        .from('absen_scan_wajah')
+        .select('id, karyawan_id, tanggal, slot_id, waktu_scan, gps_lat, gps_lng, lokasi_kerja, foto_url, absen_karyawan(nama, jabatan), absen_jadwal_slot(label, jam)')
+        .gte('tanggal', startDate)
+        .lte('tanggal', endDate)
+        .not('gps_lat', 'is', null)
+        .not('gps_lng', 'is', null)
+        .order('waktu_scan', { ascending: false })
+    ])
+
+    if (!statsRes.error && statsRes.data) setStats(statsRes.data)
+
+    const cfgMap = {}
+    configRes.data?.forEach(r => { cfgMap[r.key] = r.value })
+
+    const sLat = Number(cfgMap.site_lat || -6.200000)
+    const sLng = Number(cfgMap.site_lng || 106.816666)
+    const sRadius = Number(cfgMap.site_radius_meter || 500)
+    const sNama = cfgMap.site_nama || 'Site Proyek Utama'
+
+    setSiteConfig({ lat: sLat, lng: sLng, radius: sRadius, nama: sNama })
+
+    const offsiteList = []
+    scansGpsRes.data?.forEach(s => {
+      const dist = getDistanceMeters(s.gps_lat, s.gps_lng, sLat, sLng)
+      if (dist > sRadius) {
+        offsiteList.push({
+          ...s,
+          distanceMeters: dist
+        })
+      }
+    })
+
+    setOffsiteScans(offsiteList)
     setLoading(false)
   }
 
@@ -233,7 +274,13 @@ export default function Dashboard() {
   const workerAvg = workerTrend.length > 0 ? Math.round(workerTrend.reduce((s, d) => s + d.value, 0) / workerTrend.length) : 0
   const attendanceTotal = attendanceTrend.reduce((s, d) => s + d.value, 0)
   const overtimeTotal = overtimeTrend.reduce((s, d) => s + d.value, 0)
-  const workHoursTotal = workHoursTrend.reduce((s, d) => s + d.value, 0)
+
+  const chartColors = {
+    salary: { start: '#06b6d4', mid: '#0891b2', end: '#164e63' },
+    workers: { start: '#10b981', mid: '#059669', end: '#064e3b' },
+    attendance: { start: '#3b82f6', mid: '#2563eb', end: '#1e3a8a' },
+    overtime: { start: '#f97316', mid: '#ea580c', end: '#7c2d12' },
+  }
 
   return (
     <div>
@@ -279,7 +326,7 @@ export default function Dashboard() {
             })}
           </div>
 
-          {/* Alert */}
+          {/* Alert Anomali Massal */}
           {stats?.total_insiden > 0 && (
             <div className="rounded-xl p-4 mb-6 lg:mb-8" style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
               <div className="flex items-start gap-3">
@@ -295,6 +342,102 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          {/* Card List Karyawan Absen dari Luar Lokasi Site */}
+          <div className="rounded-2xl mb-6 lg:mb-8 overflow-hidden" style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
+            <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--card-border)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-rose-400" style={{ background: 'rgba(239, 68, 68, 0.12)' }}>
+                  <MapPinOff size={18} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-white text-sm flex items-center gap-2">
+                    Presensi Di Luar Lokasi Site Proyek
+                    {offsiteScans.length > 0 && (
+                      <span className="px-2.5 py-0.5 rounded-full font-bold text-xs bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                        {offsiteScans.length} Scan Terdeteksi
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    Batas Radius Site: <strong className="text-cyan-400">{siteConfig.radius} Meter</strong> ({siteConfig.lat}, {siteConfig.lng})
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {offsiteScans.length === 0 ? (
+              <div className="p-6 text-center text-xs flex items-center justify-center gap-2" style={{ color: 'var(--text-muted)' }}>
+                <CheckCircle size={16} className="text-emerald-400" />
+                <span>Seluruh presensi scan bulan ini dilakukan di dalam radius lokasi site proyek ({siteConfig.radius}m).</span>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="uppercase tracking-wider font-semibold" style={{ background: 'rgba(15, 23, 42, 0.6)', color: 'var(--text-muted)' }}>
+                    <tr>
+                      <th className="px-5 py-3">Nama Pekerja</th>
+                      <th className="px-4 py-3">Waktu Scan & Slot</th>
+                      <th className="px-4 py-3">Jarak dari Site</th>
+                      <th className="px-4 py-3">Koordinat GPS</th>
+                      <th className="px-4 py-3 text-center">Foto Scan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y text-slate-200" style={{ borderColor: 'var(--card-border)' }}>
+                    {offsiteScans.map(item => {
+                      const scanTime = new Date(item.waktu_scan)
+                      const tglStr = scanTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                      const jamStr = scanTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-900/60 transition-colors">
+                          <td className="px-5 py-3">
+                            <div className="font-bold text-white">{item.absen_karyawan?.nama}</div>
+                            <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{item.absen_karyawan?.jabatan || 'Pekerja'}</div>
+                          </td>
+                          <td className="px-4 py-3 font-mono">
+                            <div className="text-cyan-300 font-bold">{tglStr} • {jamStr}</div>
+                            <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                              {item.absen_jadwal_slot?.label || 'Presensi'} ({item.absen_jadwal_slot?.jam?.slice(0,5)})
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold text-[11px]">
+                              <AlertTriangle size={12} /> {formatDistance(item.distanceMeters)} dari site
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-[11px]">
+                            <a
+                              href={`https://maps.google.com/?q=${item.gps_lat},${item.gps_lng}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-400 hover:underline inline-flex items-center gap-1"
+                            >
+                              <span>{item.gps_lat?.toFixed(5)}, {item.gps_lng?.toFixed(5)}</span>
+                              <ExternalLink size={12} />
+                            </a>
+                            {item.lokasi_kerja && <div className="text-[10px] font-sans" style={{ color: 'var(--text-muted)' }}>{item.lokasi_kerja}</div>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {item.foto_url ? (
+                              <button
+                                onClick={() => setPreviewPhoto(item.foto_url)}
+                                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-colors"
+                              >
+                                Lihat Foto
+                              </button>
+                            ) : (
+                              <span className="text-slate-500 italic">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           {/* Trend Charts 2x2 Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
@@ -386,31 +529,7 @@ export default function Dashboard() {
                 renderTooltip={p => (
                   <>
                     <div className="tabular-nums" style={{ color: '#fdba74' }}>{fmt(p.value)} jam lembur</div>
-                    <div style={{ color: '#475569' }}>{p.count} kejadian</div>
-                  </>
-                )}
-              />
-            </ChartCard>
-
-            <ChartCard
-              icon={Hammer}
-              iconColor="#a855f7"
-              iconBg="rgba(168, 85, 247, 0.1)"
-              title="Trend Jam Kerja Lapangan"
-              subtitle={`Total jam kerja di lapangan — ${tahun}`}
-              summaryLabel={`Total ${tahun}`}
-              summaryValue={workHoursTrend.length > 0 ? `${fmt(workHoursTotal)} jam` : null}
-              summaryColor="#c4b5fd"
-            >
-              <TrendChart
-                data={workHoursTrend}
-                chartId="workHours"
-                colors={chartColors.workHours}
-                emptyMessage="Belum ada data jam kerja"
-                renderTooltip={p => (
-                  <>
-                    <div className="tabular-nums" style={{ color: '#c4b5fd' }}>{fmt(p.value)} jam kerja</div>
-                    <div style={{ color: '#475569' }}>{p.days} hari tercatat</div>
+                    <div style={{ color: '#475569' }}>{p.count} kali lembur</div>
                   </>
                 )}
               />
@@ -419,6 +538,24 @@ export default function Dashboard() {
         </>
       )}
       </div>
+
+      {/* Modal Preview Foto */}
+      {previewPhoto && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 max-w-md w-full space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white">Foto Evidence Scan Presensi</span>
+              <button onClick={() => setPreviewPhoto(null)} className="p-1 text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+            <img src={previewPhoto} alt="Evidence" className="w-full h-80 object-cover rounded-2xl border border-slate-800" />
+            <button onClick={() => setPreviewPhoto(null)} className="w-full py-2 bg-slate-800 text-xs font-bold text-slate-200 rounded-xl">
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

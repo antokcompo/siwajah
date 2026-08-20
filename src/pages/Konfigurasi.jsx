@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, CheckCircle2, AlertCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe, Mail, X } from 'lucide-react'
+import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, CheckCircle2, AlertCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe, Mail, X, MapPin } from 'lucide-react'
 
 const timezoneOptions = [
   { value: 'Asia/Jakarta', label: 'WIB — Waktu Indonesia Barat (UTC+7)' },
@@ -9,6 +9,19 @@ const timezoneOptions = [
 ]
 
 const sections = [
+  {
+    id: 'geofence',
+    title: 'Koordinat & Radius Site Proyek (Geofencing)',
+    icon: MapPin,
+    color: 'emerald',
+    description: 'Tentukan lokasi koordinat GPS pusat site/proyek dan radius batas toleransi presensi.',
+    fields: [
+      { key: 'site_nama', label: 'Nama Site / Lokasi Proyek', type: 'text', default: 'Site Proyek Utama', help: 'Nama lokasi site proyek' },
+      { key: 'site_lat', label: 'Latitude Site Proyek', type: 'text', default: '-6.200000', help: 'Koordinat latitude titik pusat lokasi proyek' },
+      { key: 'site_lng', label: 'Longitude Site Proyek', type: 'text', default: '106.816666', help: 'Koordinat longitude titik pusat lokasi proyek' },
+      { key: 'site_radius_meter', label: 'Radius Toleransi Site', type: 'number', default: '500', unit: 'meter', help: 'Presensi di luar radius ini dianggap Dari Luar Lokasi Proyek' },
+    ],
+  },
   {
     id: 'timezone',
     title: 'Zona Waktu',
@@ -76,6 +89,7 @@ const colorMap = {
   blue: { bg: 'bg-blue-50', icon: 'text-blue-600', border: 'border-blue-200', ring: 'ring-blue-100', dot: 'bg-blue-500' },
   amber: { bg: 'bg-amber-50', icon: 'text-amber-600', border: 'border-amber-200', ring: 'ring-amber-100', dot: 'bg-amber-500' },
   rose: { bg: 'bg-rose-50', icon: 'text-rose-600', border: 'border-rose-200', ring: 'ring-rose-100', dot: 'bg-rose-500' },
+  emerald: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200', ring: 'ring-emerald-100', dot: 'bg-emerald-500' },
 }
 
 export default function Konfigurasi() {
