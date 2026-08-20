@@ -58,7 +58,7 @@ export default function TutupAbsen() {
       const { data, error } = await supabase.rpc('absen_lock_bulan', {
         p_tahun: confirmLockModal.tahun,
         p_bulan: confirmLockModal.bulan,
-        p_user_id: profile?.id || null
+        p_user_id: profile?.karyawan_id || null
       })
       if (error) throw error
       toastSuccess('Berhasil Tutup Absen', `Absensi bulan ${confirmLockModal.namaBulan} ${confirmLockModal.tahun} berhasil ditutup.`)
@@ -84,7 +84,7 @@ export default function TutupAbsen() {
         p_tahun: requestModal.tahun,
         p_bulan: requestModal.bulan,
         p_alasan: requestAlasan,
-        p_user_id: profile?.id || null
+        p_user_id: profile?.karyawan_id || null
       })
       if (error) throw error
       toastSuccess('Permintaan Terkirim', 'Pengajuan buka lock berhasil dikirim ke Manajemen.')
@@ -108,7 +108,7 @@ export default function TutupAbsen() {
         p_bulan: approvalModal.bulan,
         p_action: approvalModal.action,
         p_catatan: approvalCatatan || null,
-        p_user_id: profile?.id || null
+        p_user_id: profile?.karyawan_id || null
       })
       if (error) throw error
       const actionText = approvalModal.action === 'APPROVE' ? 'disetujui. Akses edit terbuka 2 hari.' : 'ditolak.'

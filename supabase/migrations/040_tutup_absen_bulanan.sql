@@ -11,12 +11,10 @@
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
 
--- Drop old foreign key constraints if existing to prevent admin UID mismatches
-ALTER TABLE IF EXISTS absen_tutup_bulan DROP CONSTRAINT IF EXISTS absen_tutup_bulan_closed_by_fkey;
-ALTER TABLE IF EXISTS absen_tutup_bulan DROP CONSTRAINT IF EXISTS absen_tutup_bulan_request_by_fkey;
-ALTER TABLE IF EXISTS absen_tutup_bulan DROP CONSTRAINT IF EXISTS absen_tutup_bulan_approved_by_fkey;
+-- Drop old table & foreign key constraints to ensure clean migration
+DROP TABLE IF EXISTS absen_tutup_bulan CASCADE;
 
-CREATE TABLE IF NOT EXISTS absen_tutup_bulan (
+CREATE TABLE absen_tutup_bulan (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tahun integer NOT NULL,
   bulan integer NOT NULL CHECK (bulan BETWEEN 1 AND 12),
@@ -35,7 +33,7 @@ CREATE TABLE IF NOT EXISTS absen_tutup_bulan (
   CONSTRAINT uq_tutup_bulan UNIQUE (tahun, bulan)
 );
 
-CREATE INDEX IF NOT EXISTS idx_tutup_bulan_lookup ON absen_tutup_bulan (tahun, bulan);
+CREATE INDEX idx_tutup_bulan_lookup ON absen_tutup_bulan (tahun, bulan);
 
 -- Fungsi Helper: Memeriksa apakah suatu tanggal berada pada bulan yang DITUTUP
 CREATE OR REPLACE FUNCTION absen_is_bulan_closed(p_tanggal date)
