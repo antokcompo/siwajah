@@ -88,9 +88,9 @@ export default function UserRiwayat() {
     setSlotsList(allSlots)
     setRegularSlotsList(regularSlots)
 
-    // Set of dates where employee has registered/approved overtime
-    const datesWithRegisteredLembur = new Set(
-      daftarLembur.filter(d => d.status !== 'REJECTED').map(d => d.tanggal)
+    // Approved daftar lembur set
+    const datesWithApprovedDaftarLembur = new Set(
+      daftarLembur.filter(d => d.status === 'APPROVED').map(d => d.tanggal)
     )
 
     // Map scans & laporans by date
@@ -129,17 +129,29 @@ export default function UserRiwayat() {
       const verifiedLemburCount = st.verifiedLembur.size
       const pendingCount = st.pendingCount
 
-      // Determine if overtime slots apply to this date (strictly requires registered lembur or approved overtime scan)
-      const hasRegisteredLembur = datesWithRegisteredLembur.has(h.tanggal)
-      const hasApprovedLemburScan = verifiedLemburCount > 0
-      const showLemburOnDate = hasRegisteredLembur || hasApprovedLemburScan
+      // Overtime approval states
+      const isDaftarLemburApproved = datesWithApprovedDaftarLembur.has(h.tanggal)
+      const isJamLemburApproved = h.status_lembur === 'APPROVED' || Number(h.jam_lembur) > 0
 
-      // Active master slots for this date (excludes lembur slots if employee has no overtime on this day!)
-      const activeMasterSlots = showLemburOnDate ? allSlots : regularSlots
+      // Active master slots for this date:
+      // - Slot Masuk Lembur ONLY shown if daftar lembur is APPROVED
+      // - Slot Pulang Lembur ONLY shown if jam lembur is APPROVED
+      const activeMasterSlots = allSlots.filter(s => {
+        const isLembur = s.jenis === 'LEMBUR' || s.label?.toLowerCase().includes('lembur')
+        if (!isLembur) return true
+
+        const isPulangLembur = s.label?.toLowerCase().includes('pulang')
+        if (isPulangLembur) {
+          return isJamLemburApproved
+        } else {
+          return isDaftarLemburApproved
+        }
+      })
+
       const totalSlots = activeMasterSlots.length
-      const totalVerifiedCount = verifiedRegCount + (showLemburOnDate ? verifiedLemburCount : 0)
+      const totalVerifiedCount = verifiedRegCount + verifiedLemburCount
 
-      // Completeness is based on regular 6 slots
+      // Completeness is based on 6 regular slots
       const isComplete = verifiedRegCount >= (regularSlots.length || 6)
 
       return {
@@ -150,7 +162,8 @@ export default function UserRiwayat() {
         pendingCount,
         isComplete,
         totalSlots,
-        showLemburOnDate,
+        isDaftarLemburApproved,
+        isJamLemburApproved,
         activeMasterSlots,
         scansMap: st.scansMap,
         laporansMap: st.laporansMap
@@ -398,7 +411,7 @@ export default function UserRiwayat() {
             {/* List Slot Breakdown (Overtime slots hidden unless registered) */}
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Detail Slot Presensi {selectedDateDetail.showLemburOnDate ? '(Termasuk Lembur)' : 'Reguler (6 Slot)'}
+                Detail Slot Presensi {selectedDateDetail.isDaftarLemburApproved ? '(Termasuk Lembur Approved)' : 'Reguler (6 Slot)'}
               </h4>
               {detailSlotsData.map((item, idx) => {
                 return (
