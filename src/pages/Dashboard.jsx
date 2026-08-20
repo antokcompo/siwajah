@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 import { 
   Users, CheckCircle, AlertTriangle, Clock, TrendingUp, 
   BarChart3, Timer, UserCheck, Hammer, MapPinOff, ExternalLink, MapPin, X,
-  ShieldAlert, Radio, Navigation, Building2, ZoomIn, Eye, ScanFace, Globe, Maximize2
+  ShieldAlert, Radio, Navigation, Building2, ZoomIn, Eye, ScanFace, Globe, Maximize2, Search
 } from 'lucide-react'
 
 const namaBulan = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
@@ -187,8 +187,22 @@ export default function Dashboard() {
   const [siteConfig, setSiteConfig] = useState({ lat: -6.2, lng: 106.816666, radius: 500, nama: 'Site Proyek Utama' })
   const [previewPhoto, setPreviewPhoto] = useState(null)
   const [zoomChartModal, setZoomChartModal] = useState(null)
+  const [offsiteSearch, setOffsiteSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const { profile } = useAuth()
+
+  const filteredOffsiteScans = useMemo(() => {
+    if (!offsiteSearch.trim()) return offsiteScans
+    const q = offsiteSearch.toLowerCase()
+    return offsiteScans.filter(item => {
+      const nama = (item.absen_karyawan?.nama || '').toLowerCase()
+      const jabatan = (item.absen_karyawan?.jabatan || '').toLowerCase()
+      const lokasi = (item.lokasi_kerja || '').toLowerCase()
+      const slot = (item.absen_jadwal_slot?.label || '').toLowerCase()
+      const coords = `${item.gps_lat},${item.gps_lng}`
+      return nama.includes(q) || jabatan.includes(q) || lokasi.includes(q) || slot.includes(q) || coords.includes(q)
+    })
+  }, [offsiteScans, offsiteSearch])
 
   useEffect(() => { loadStats() }, [bulan, tahun])
   useEffect(() => { loadTrends() }, [tahun])
@@ -513,7 +527,7 @@ export default function Dashboard() {
             {/* Ambient Top Glow Bar */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500" />
 
-            <div className="px-6 py-4.5 border-b border-rose-500/20 flex items-center justify-between flex-wrap gap-4 bg-slate-900/40">
+            <div className="px-6 py-4 border-b border-rose-500/20 flex items-center justify-between flex-wrap gap-4 bg-slate-900/40">
               <div className="flex items-center gap-3.5">
                 <div className="relative w-11 h-11 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0 shadow-lg shadow-rose-950/40">
                   <MapPinOff size={22} />
@@ -528,7 +542,7 @@ export default function Dashboard() {
                     {offsiteScans.length > 0 && (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm shadow-rose-500/10 flex items-center gap-1.5">
                         <ShieldAlert size={13} className="text-rose-400" />
-                        <span>{offsiteScans.length} Scan Terdeteksi</span>
+                        <span>{offsiteSearch ? `${filteredOffsiteScans.length} dari ${offsiteScans.length}` : `${offsiteScans.length}`} Scan Terdeteksi</span>
                       </span>
                     )}
                   </h2>
@@ -540,12 +554,49 @@ export default function Dashboard() {
                   </p>
                 </div>
               </div>
+
+              {/* Dynamic Live Search Bar */}
+              {offsiteScans.length > 0 && (
+                <div className="relative w-full sm:w-72">
+                  <div className="relative flex items-center">
+                    <Search size={15} className="absolute left-3.5 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={offsiteSearch}
+                      onChange={e => setOffsiteSearch(e.target.value)}
+                      placeholder="Cari nama, jabatan, lokasi..."
+                      className="w-full pl-9 pr-8 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-sans shadow-inner"
+                    />
+                    {offsiteSearch && (
+                      <button
+                        onClick={() => setOffsiteSearch('')}
+                        className="absolute right-2.5 p-1 text-slate-400 hover:text-white transition-colors"
+                        title="Hapus pencarian"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {offsiteScans.length === 0 ? (
               <div className="p-8 text-center text-xs flex items-center justify-center gap-2.5 text-slate-400">
                 <CheckCircle size={18} className="text-emerald-400" />
                 <span className="font-medium text-slate-300">Seluruh presensi scan bulan ini dilakukan di dalam radius lokasi site proyek ({siteConfig.radius}m).</span>
+              </div>
+            ) : filteredOffsiteScans.length === 0 ? (
+              <div className="p-8 text-center text-xs flex flex-col items-center justify-center gap-2 text-slate-400">
+                <Search size={24} className="text-slate-600 mb-1 animate-pulse" />
+                <span className="font-semibold text-white">Tidak ditemukan scan presensi dengan kata kunci "{offsiteSearch}"</span>
+                <span className="text-slate-500">Coba gunakan pencarian nama pekerja, jabatan, atau keterangan lokasi GPS lain.</span>
+                <button
+                  onClick={() => setOffsiteSearch('')}
+                  className="mt-2 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs transition-colors border border-slate-700"
+                >
+                  Reset Pencarian
+                </button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -560,7 +611,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                    {offsiteScans.map(item => {
+                    {filteredOffsiteScans.map(item => {
                       const scanTz = item.client_tz || siteConfig.zona_waktu || 'Asia/Jayapura'
                       const tzShortMap = { 'Asia/Jayapura': 'WIT', 'Asia/Jakarta': 'WIB', 'Asia/Makassar': 'WITA' }
                       const tzShort = tzShortMap[scanTz] || (scanTz.split('/').pop().replace(/_/g, ' '))
