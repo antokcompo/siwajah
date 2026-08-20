@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { Plus, Pencil, Search, Upload, FileSpreadsheet, CheckCircle, AlertTriangle, X, Users, Eye, EyeOff } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -191,6 +191,26 @@ export default function MasterKaryawan() {
     (d.jabatan || '').toLowerCase().includes(search.toLowerCase())
   )
 
+  const groupedData = useMemo(() => {
+    const groups = {}
+    filtered.forEach(row => {
+      const mandorName = mandorMap[row.atasan_id] || (row.mandor_nama && row.mandor_nama !== '-' ? row.mandor_nama : 'Harian Kantor')
+      if (!groups[mandorName]) {
+        groups[mandorName] = []
+      }
+      groups[mandorName].push(row)
+    })
+    const keys = Object.keys(groups).sort((a, b) => {
+      if (a === 'Harian Kantor') return 1
+      if (b === 'Harian Kantor') return -1
+      return a.localeCompare(b)
+    })
+    return keys.map(key => ({
+      mandorName: key,
+      items: groups[key]
+    }))
+  }, [filtered, mandorMap])
+
   const fmt = n => new Intl.NumberFormat('id-ID').format(n || 0)
 
   return (
@@ -218,7 +238,7 @@ export default function MasterKaryawan() {
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama, UID, atau jabatan..." className="input-field pl-10" />
           </div>
-          <span className="text-sm text-gray-500 whitespace-nowrap font-medium">{filtered.length} karyawan</span>
+          <span className="text-sm text-gray-500 whitespace-nowrap font-medium">{filtered.length} karyawan ({groupedData.length} kelompok)</span>
         </div>
 
         {loading ? (
@@ -234,32 +254,46 @@ export default function MasterKaryawan() {
                   <th className="text-left px-4 py-3">Nama</th>
                   <th className="text-left px-4 py-3">UID Mesin</th>
                   <th className="text-left px-4 py-3">Jabatan</th>
-                  <th className="text-left px-4 py-3">Mandor</th>
+                  <th className="text-left px-4 py-3">Mandor / Atasan</th>
                   <th className="text-right px-4 py-3">Gaji Bulanan</th>
                   <th className="text-center px-4 py-3">Status</th>
                   <th className="text-center px-4 py-3">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((row, idx) => (
-                  <tr key={row.id} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="px-5 py-3 text-gray-400">{idx + 1}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{row.nama}</td>
-                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{(row.uid_mesin || []).join(', ')}</td>
-                    <td className="px-4 py-3 text-gray-500">{row.jabatan || '-'}</td>
-                    <td className="px-4 py-3 text-gray-500">{mandorMap[row.atasan_id] || '-'}</td>
-                    <td className="px-4 py-3 text-right text-gray-900">{row.gaji_bulanan > 0 ? `Rp ${fmt(row.gaji_bulanan)}` : '-'}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`badge ${row.status_aktif ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {row.status_aktif ? 'Aktif' : 'Nonaktif'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <button onClick={() => openEdit(row)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                        <Pencil size={13} /> Edit
-                      </button>
-                    </td>
-                  </tr>
+                {groupedData.map((group) => (
+                  <Fragment key={group.mandorName}>
+                    <tr className="bg-slate-100/90 font-bold border-y border-slate-200">
+                      <td colSpan={8} className="px-5 py-2.5 text-xs text-slate-800 uppercase tracking-wider bg-slate-100/90">
+                        <span className="inline-flex items-center gap-1.5 font-bold text-slate-800">
+                          {group.mandorName === 'Harian Kantor' ? '🏢 HARIAN KANTOR' : `👷 MANDOR / ATASAN: ${group.mandorName.toUpperCase()}`}
+                        </span>
+                        <span className="ml-2.5 font-semibold text-slate-500 normal-case">
+                          ({group.items.length} Pekerja)
+                        </span>
+                      </td>
+                    </tr>
+                    {group.items.map((row, idx) => (
+                      <tr key={row.id} className="hover:bg-gray-50/50 transition-colors group">
+                        <td className="px-5 py-3 text-gray-400">{idx + 1}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900">{row.nama}</td>
+                        <td className="px-4 py-3 text-gray-500 font-mono text-xs">{(row.uid_mesin || []).join(', ')}</td>
+                        <td className="px-4 py-3 text-gray-500">{row.jabatan || '-'}</td>
+                        <td className="px-4 py-3 text-gray-500">{mandorMap[row.atasan_id] || (row.mandor_nama && row.mandor_nama !== '-' ? row.mandor_nama : 'Harian Kantor')}</td>
+                        <td className="px-4 py-3 text-right text-gray-900">{row.gaji_bulanan > 0 ? `Rp ${fmt(row.gaji_bulanan)}` : '-'}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`badge ${row.status_aktif ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {row.status_aktif ? 'Aktif' : 'Nonaktif'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={() => openEdit(row)} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                            <Pencil size={13} /> Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
                 {filtered.length === 0 && (
                   <tr><td colSpan={8} className="px-5 py-12 text-center text-gray-400">

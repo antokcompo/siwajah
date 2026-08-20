@@ -4,7 +4,7 @@
 -- 1. Mengirim notifikasi email otomatis ke Admin & Manajemen pukul 19:10 WIT
 --    apabila terdapat daftar pekerja yang terdaftar lembur pada hari tersebut.
 -- 2. Email TIDAK AKAN TERKIRIM jika tidak ada daftar lembur pada hari itu.
--- 3. Menggunakan API Key Brevo Langsung (Arsitektur SIMONIKA - Tanpa Link Tombol)
+-- 3. Pekerja tanpa Atasan/Mandor secara default berlabel 'Harian Kantor'.
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
@@ -40,12 +40,12 @@ BEGIN
   FOR v_rec IN
     SELECT dl.id, dl.tanggal, dl.catatan, dl.created_at,
            k.nama AS karyawan_nama, COALESCE(k.jabatan, '-') AS jabatan,
-           COALESCE(up.nama, '-') AS atasan_nama
+           COALESCE(up.nama, 'Harian Kantor') AS atasan_nama
     FROM absen_daftar_lembur dl
     JOIN absen_karyawan k ON k.id = dl.karyawan_id
     LEFT JOIN absen_user_profiles up ON up.id = k.atasan_id
     WHERE dl.tanggal = v_today
-    ORDER BY k.nama ASC
+    ORDER BY COALESCE(up.nama, 'Harian Kantor') ASC, k.nama ASC
   LOOP
     v_count_lembur := v_count_lembur + 1;
     v_list_lembur := v_list_lembur || jsonb_build_object(
@@ -119,12 +119,12 @@ BEGIN
     || '<table><thead><tr><th>Karyawan</th><th>Atasan / Mandor</th><th>Catatan Lembur</th></tr></thead><tbody>';
 
   FOR v_rec IN
-    SELECT dl.catatan, k.nama, k.jabatan, COALESCE(up.nama, '-') AS atasan_nama
+    SELECT dl.catatan, k.nama, k.jabatan, COALESCE(up.nama, 'Harian Kantor') AS atasan_nama
     FROM absen_daftar_lembur dl
     JOIN absen_karyawan k ON k.id = dl.karyawan_id
     LEFT JOIN absen_user_profiles up ON up.id = k.atasan_id
     WHERE dl.tanggal = v_today
-    ORDER BY k.nama ASC
+    ORDER BY COALESCE(up.nama, 'Harian Kantor') ASC, k.nama ASC
   LOOP
     v_html := v_html || '<tr><td><strong>' || v_rec.nama || '</strong><br><span style="color:#64748b;font-size:11px;">' || COALESCE(v_rec.jabatan,'-') || '</span></td>'
       || '<td>' || v_rec.atasan_nama || '</td>'
