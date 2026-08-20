@@ -209,23 +209,39 @@ export default function ManajemenUser() {
     }
 
     setCreating(true)
-    const { data, error: err } = await supabase.rpc('absen_create_auth_user', {
-      p_email: createForm.email,
-      p_password: createForm.password,
-      p_nama: createForm.nama,
-      p_role: createForm.role,
+    const cleanEmail = createForm.email.trim().toLowerCase()
+
+    // 1. Try native GoTrue client signUp
+    let userId = null
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password: createForm.password,
+      options: {
+        data: { nama: createForm.nama }
+      }
     })
 
-    if (err) {
-      setError(err.message)
-      setCreating(false)
-      return
-    }
+    if (!signUpErr && signUpData?.user) {
+      userId = signUpData.user.id
+      await supabase.rpc('absen_upsert_user_profile', {
+        p_user_id: userId,
+        p_nama: createForm.nama,
+        p_role: createForm.role,
+      })
+    } else {
+      // 2. Fallback to RPC if signUp requires email confirmation or fails
+      const { data, error: err } = await supabase.rpc('absen_create_auth_user', {
+        p_email: cleanEmail,
+        p_password: createForm.password,
+        p_nama: createForm.nama,
+        p_role: createForm.role,
+      })
 
-    if (data?.error) {
-      setError(data.error)
-      setCreating(false)
-      return
+      if (err || data?.error) {
+        setError(err?.message || data?.error || signUpErr?.message)
+        setCreating(false)
+        return
+      }
     }
 
     setCreating(false)
