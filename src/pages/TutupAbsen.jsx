@@ -80,19 +80,42 @@ export default function TutupAbsen() {
 
   async function doConfirmLockBulan() {
     if (!confirmLockModal) return
+    const targetBulan = confirmLockModal.bulan
+    const targetNamaBulan = confirmLockModal.namaBulan
+    const targetTahun = confirmLockModal.tahun
+
     setLockSubmitting(true)
+
+    // Optimistic UI state update
+    setLockList(prev => {
+      const idx = prev.findIndex(item => item.bulan === targetBulan)
+      const newItem = {
+        tahun: targetTahun,
+        bulan: targetBulan,
+        status: 'CLOSED',
+        closed_at: new Date().toISOString()
+      }
+      if (idx >= 0) {
+        const copy = [...prev]
+        copy[idx] = { ...copy[idx], ...newItem }
+        return copy
+      }
+      return [...prev, newItem]
+    })
+
     try {
       const { data, error } = await supabase.rpc('absen_lock_bulan', {
-        p_tahun: confirmLockModal.tahun,
-        p_bulan: confirmLockModal.bulan,
+        p_tahun: targetTahun,
+        p_bulan: targetBulan,
         p_user_id: profile?.karyawan_id || null
       })
       if (error) throw error
-      toastSuccess('Berhasil Tutup Absen', `Absensi bulan ${confirmLockModal.namaBulan} ${confirmLockModal.tahun} berhasil ditutup.`)
+      toastSuccess('Berhasil Tutup Absen', `Absensi bulan ${targetNamaBulan} ${targetTahun} berhasil ditutup.`)
       setConfirmLockModal(null)
       loadData()
     } catch (err) {
       toastError('Gagal Menutup Absen', err.message || 'Terjadi kesalahan sistem saat menutup absen.')
+      loadData()
     } finally {
       setLockSubmitting(false)
     }
@@ -271,64 +294,84 @@ export default function TutupAbsen() {
               {monthStatusList.map(m => (
                 <div
                   key={m.bulan}
-                  className={`card p-4 flex flex-col justify-between border transition-all ${
+                  className={`card p-4 flex flex-col justify-between transition-all duration-300 relative overflow-hidden ${
                     m.lockState === 'CLOSED'
-                      ? 'border-rose-500/30 bg-rose-950/20'
+                      ? 'border-2 border-rose-500/80 bg-gradient-to-br from-rose-950/40 via-slate-900/90 to-slate-950 shadow-[0_0_25px_rgba(244,63,94,0.25)]'
                       : m.lockState === 'UNLOCKED_TEMPORARY'
-                      ? 'border-emerald-500/40 bg-emerald-950/20'
+                      ? 'border-2 border-emerald-500/80 bg-gradient-to-br from-emerald-950/40 via-slate-900/90 to-slate-950 shadow-[0_0_25px_rgba(16,185,129,0.25)]'
                       : m.lockState === 'REQUESTED'
-                      ? 'border-amber-500/40 bg-amber-950/20'
-                      : 'border-slate-800 bg-slate-900/60'
+                      ? 'border-2 border-amber-500/80 bg-gradient-to-br from-amber-950/40 via-slate-900/90 to-slate-950 shadow-[0_0_25px_rgba(245,158,11,0.25)]'
+                      : 'border border-slate-800 bg-slate-900/60 hover:border-slate-700'
                   }`}
                 >
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="font-bold text-white text-base">{m.nama} {tahun}</span>
+                      <span className="font-bold text-white text-base tracking-wide flex items-center gap-1.5">
+                        {m.nama} {tahun}
+                      </span>
 
                       {/* Status Badges */}
                       {m.lockState === 'CLOSED' && (
-                        <span className="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[10px] font-extrabold flex items-center gap-1">
-                          <Lock size={12} /> DITUTUP
+                        <span className="px-3 py-1 rounded-xl bg-rose-600 text-white font-extrabold border border-rose-400/40 text-[11px] flex items-center gap-1.5 shadow-lg shadow-rose-950/80">
+                          <Lock size={13} /> TERKUNCI
                         </span>
                       )}
                       {m.lockState === 'UNLOCKED_TEMPORARY' && (
-                        <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-extrabold flex items-center gap-1 animate-pulse">
-                          <Unlock size={12} /> Buka 2 Hari
+                        <span className="px-3 py-1 rounded-xl bg-emerald-500 text-slate-950 font-extrabold border border-emerald-400/40 text-[11px] flex items-center gap-1.5 animate-pulse shadow-lg shadow-emerald-950/80">
+                          <Unlock size={13} /> Akses Edit 2 Hari
                         </span>
                       )}
                       {m.lockState === 'REQUESTED' && (
-                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-extrabold flex items-center gap-1">
-                          <Clock size={12} /> Pending Approval
+                        <span className="px-3 py-1 rounded-xl bg-amber-500 text-slate-950 font-extrabold border border-amber-400/40 text-[11px] flex items-center gap-1.5 shadow-lg shadow-amber-950/80">
+                          <Clock size={13} /> Pending Request
                         </span>
                       )}
                       {m.lockState === 'OPEN' && (
-                        <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-bold">
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 text-slate-400 border border-slate-700 text-[11px] font-semibold">
                           Belum Ditutup
                         </span>
                       )}
                     </div>
 
                     {/* Status Info Details */}
-                    <div className="text-xs text-slate-400 space-y-1 mb-4 font-sans">
+                    <div className="text-xs space-y-2 mb-4 font-sans">
+                      {m.lockState === 'CLOSED' && (
+                        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/30 text-rose-200 text-xs space-y-1">
+                          <div className="font-bold flex items-center gap-1 text-rose-300">
+                            <Lock size={14} /> Pengabsenan Terkunci Rapat
+                          </div>
+                          <p className="text-[11px] text-slate-300/90 leading-relaxed">
+                            Data absensi bulan ini tidak dapat ditambah atau diubah tanpa persetujuan Manajemen.
+                          </p>
+                        </div>
+                      )}
+
+                      {m.lockState === 'OPEN' && (
+                        <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs text-slate-400">
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Bulan ini masih <strong className="text-slate-200">terbuka untuk absen & pengeditan data</strong>. Klik tombol di bawah untuk menutup.
+                          </p>
+                        </div>
+                      )}
+
                       {m.lockState === 'UNLOCKED_TEMPORARY' && (
-                        <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/30 text-emerald-200 text-[11px]">
-                          <div className="font-bold">Akses Edit Terbuka Sementara</div>
-                          <div className="text-[10px] text-emerald-300 mt-0.5">
-                            Sisa waktu: <strong className="font-mono">{m.sisaTimeStr}</strong>
+                        <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs space-y-1">
+                          <div className="font-bold text-emerald-300 flex items-center gap-1">
+                            <Unlock size={14} /> Akses Edit Terbuka Sementara
+                          </div>
+                          <div className="text-[11px] text-emerald-200">
+                            Sisa waktu akses: <strong className="font-mono text-white text-xs">{m.sisaTimeStr}</strong>
                           </div>
                         </div>
                       )}
 
-                      {m.lockState === 'CLOSED' && (
-                        <p className="text-slate-400">
-                          Data absensi bulan ini <strong className="text-rose-300">terkunci rapat</strong>. Tidak dapat menambah atau mengedit absen.
-                        </p>
-                      )}
-
                       {m.lockState === 'REQUESTED' && m.record && (
-                        <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/20 text-[11px] text-amber-200">
-                          <div><span className="text-slate-400">Pemohon:</span> {m.record.request_user?.nama || 'Admin'}</div>
-                          <div className="truncate"><span className="text-slate-400">Alasan:</span> {m.record.alasan_request}</div>
+                        <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/30 text-xs text-amber-200 space-y-1">
+                          <div className="font-bold text-amber-300 flex items-center gap-1">
+                            <Clock size={14} /> Menunggu Approval Manajemen
+                          </div>
+                          <div className="text-[11px] text-slate-300"><span className="text-slate-400">Pemohon:</span> {m.record.request_user?.nama || 'Admin'}</div>
+                          <div className="text-[11px] text-slate-300 truncate"><span className="text-slate-400">Alasan:</span> {m.record.alasan_request}</div>
                         </div>
                       )}
                     </div>
@@ -339,33 +382,33 @@ export default function TutupAbsen() {
                     {m.lockState === 'OPEN' && (
                       <button
                         onClick={() => openConfirmLockModal(m.bulan, m.nama)}
-                        className="w-full py-1.5 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                        className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white border border-slate-700 hover:border-rose-500 text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm"
                       >
-                        <Lock size={13} /> Tutup Absen
+                        <Lock size={14} /> Tutup Absen Bulan Ini
                       </button>
                     )}
 
                     {m.lockState === 'CLOSED' && (
                       <button
                         onClick={() => setRequestModal({ tahun, bulan: m.bulan, namaBulan: m.nama })}
-                        className="w-full py-1.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                        className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-950/60 transition-all"
                       >
-                        <Unlock size={13} /> Ajukan Buka Lock
+                        <Unlock size={14} /> Ajukan Buka Lock
                       </button>
                     )}
 
                     {m.lockState === 'UNLOCKED_TEMPORARY' && (
                       <button
                         onClick={() => openConfirmLockModal(m.bulan, m.nama)}
-                        className="w-full py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                        className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
                       >
-                        <Lock size={13} /> Kunci Kembali Sekarang
+                        <Lock size={14} /> Kunci Kembali Sekarang
                       </button>
                     )}
 
                     {m.lockState === 'REQUESTED' && (
-                      <span className="text-[11px] text-amber-400 italic font-medium">
-                        Menunggu persetujuan Manajemen...
+                      <span className="w-full py-2 text-center text-[11px] text-amber-400 italic font-medium">
+                        Pengajuan sedang diproses Manajemen...
                       </span>
                     )}
                   </div>

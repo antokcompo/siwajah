@@ -35,6 +35,18 @@ CREATE TABLE absen_tutup_bulan (
 
 CREATE INDEX idx_tutup_bulan_lookup ON absen_tutup_bulan (tahun, bulan);
 
+-- Enable RLS and grant public access
+ALTER TABLE absen_tutup_bulan ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public all access for absen_tutup_bulan" ON absen_tutup_bulan;
+CREATE POLICY "Public all access for absen_tutup_bulan"
+ON absen_tutup_bulan FOR ALL
+TO public
+USING (true)
+WITH CHECK (true);
+
+GRANT ALL ON TABLE absen_tutup_bulan TO anon, authenticated, service_role;
+
 -- Fungsi Helper: Memeriksa apakah suatu tanggal berada pada bulan yang DITUTUP
 CREATE OR REPLACE FUNCTION absen_is_bulan_closed(p_tanggal date)
 RETURNS boolean AS $$
@@ -176,3 +188,5 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
