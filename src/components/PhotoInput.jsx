@@ -134,11 +134,11 @@ function CameraModal({ onClose, onCapture }) {
     <div className="fixed inset-0 z-[70] bg-black flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-black/80">
-        <button onClick={handleClose} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+        <button type="button" onClick={handleClose} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
           <X size={22} className="text-white" />
         </button>
         <span className="text-sm font-medium text-white">Ambil Foto</span>
-        <button onClick={switchCamera} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+        <button type="button" onClick={switchCamera} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
           <SwitchCamera size={20} className="text-white" />
         </button>
       </div>
@@ -172,6 +172,7 @@ function CameraModal({ onClose, onCapture }) {
       {/* Capture button */}
       <div className="flex items-center justify-center py-6 bg-black/80">
         <button
+          type="button"
           onClick={capture}
           disabled={!ready}
           className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center transition-all active:scale-90 disabled:opacity-30"

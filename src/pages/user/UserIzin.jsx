@@ -84,13 +84,24 @@ export default function UserIzin() {
     try {
       let fotoUrl = null
       if (fotoFile) {
-        const filePath = `izin/${karyawan.id}/${Date.now()}.jpg`
-        const { error: uploadErr } = await supabase.storage
-          .from('scan-photos')
-          .upload(filePath, fotoFile, { contentType: fotoFile.type, upsert: false })
-        if (uploadErr) throw new Error('Gagal upload foto: ' + uploadErr.message)
-        const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(filePath)
-        fotoUrl = urlData.publicUrl
+        try {
+          const filePath = `izin/${karyawan.id}/${Date.now()}.jpg`
+          const { error: uploadErr } = await supabase.storage
+            .from('scan-photos')
+            .upload(filePath, fotoFile, { contentType: fotoFile.type, upsert: false })
+          if (!uploadErr) {
+            const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(filePath)
+            fotoUrl = urlData.publicUrl
+          }
+        } catch { /* ignore */ }
+
+        if (!fotoUrl && fotoFile) {
+          fotoUrl = await new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result)
+            reader.readAsDataURL(fotoFile)
+          })
+        }
       }
 
       const { data, error: rpcErr } = await supabase.rpc('absen_ajukan_izin', {

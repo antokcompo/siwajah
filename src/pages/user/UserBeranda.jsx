@@ -135,13 +135,24 @@ export default function UserBeranda() {
     try {
       let fotoUrl = null
       if (laporFotoFile) {
-        const filePath = `laporan/${karyawan.id}/${Date.now()}.jpg`
-        const { error: uploadErr } = await supabase.storage
-          .from('scan-photos')
-          .upload(filePath, laporFotoFile, { contentType: laporFotoFile.type, upsert: false })
-        if (uploadErr) throw new Error('Gagal upload foto bukti: ' + uploadErr.message)
-        const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(filePath)
-        fotoUrl = urlData.publicUrl
+        try {
+          const filePath = `laporan/${karyawan.id}/${Date.now()}.jpg`
+          const { error: uploadErr } = await supabase.storage
+            .from('scan-photos')
+            .upload(filePath, laporFotoFile, { contentType: laporFotoFile.type, upsert: false })
+          if (!uploadErr) {
+            const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(filePath)
+            fotoUrl = urlData.publicUrl
+          }
+        } catch { /* ignore storage error, use fallback */ }
+
+        if (!fotoUrl && laporFotoFile) {
+          fotoUrl = await new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result)
+            reader.readAsDataURL(laporFotoFile)
+          })
+        }
       }
 
       const todayStr = new Date().toISOString().split('T')[0]
