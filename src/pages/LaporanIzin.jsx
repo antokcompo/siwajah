@@ -57,11 +57,12 @@ export default function LaporanIzin() {
         .order('created_at', { ascending: false })
         .limit(50)
       if (filter === 'PENDING') {
-        q = q.in('status', ['PENDING', 'CANCEL_REQUESTED'])
+        q = q.or('status.eq.PENDING,status.eq.CANCEL_REQUESTED')
       } else if (filter !== 'ALL') {
         q = q.eq('status', filter)
       }
-      const { data } = await q
+      const { data, error } = await q
+      if (error) console.error('Error fetching izin:', error)
       setIzin(data || [])
     }
     setLoading(false)
