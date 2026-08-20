@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { Calculator, Lock, Download, Unlock, FileSpreadsheet, Users, CheckCircle } from 'lucide-react'
+import { Calculator, Lock, Download, Unlock, FileSpreadsheet, Users, CheckCircle, Eye, Info, X, Calendar, Clock, DollarSign, Building2 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -16,10 +16,35 @@ export default function RekapBulanan() {
   const [periode, setPeriode] = useState(null)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState(new Set())
+  const [detailModalItem, setDetailModalItem] = useState(null)
+  const [detailHarian, setDetailHarian] = useState([])
+  const [loadingDetail, setLoadingDetail] = useState(false)
   const { profile } = useAuth()
 
   const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
   const fmt = n => new Intl.NumberFormat('id-ID').format(Math.round(n || 0))
+
+  async function openDetailModal(item) {
+    setDetailModalItem(item)
+    setLoadingDetail(true)
+    setDetailHarian([])
+
+    const padBulan = String(bulan).padStart(2, '0')
+    const startDate = `${tahun}-${padBulan}-01`
+    const daysCount = new Date(tahun, bulan, 0).getDate()
+    const endDate = `${tahun}-${padBulan}-${String(daysCount).padStart(2, '0')}`
+
+    const { data: harian } = await supabase
+      .from('absen_harian')
+      .select('*, absen_jadwal_slot(label)')
+      .eq('karyawan_id', item.karyawan_id)
+      .gte('tanggal', startDate)
+      .lte('tanggal', endDate)
+      .order('tanggal', { ascending: true })
+
+    setDetailHarian(harian || [])
+    setLoadingDetail(false)
+  }
 
   useEffect(() => { load() }, [bulan, tahun])
 
@@ -452,6 +477,7 @@ export default function RekapBulanan() {
                   <th className="text-right px-3 py-3">Tunjangan</th>
                   <th className="text-right px-3 py-3 whitespace-nowrap">Total Gaji</th>
                   <th className="text-center px-3 py-3">Status</th>
+                  <th className="text-center px-3 py-3 whitespace-nowrap">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -462,7 +488,7 @@ export default function RekapBulanan() {
                   const subGajiLembur = items.reduce((s, d) => s + Number(d.gaji_lembur), 0)
                   const subTunjangan = items.reduce((s, d) => s + Number(d.tunjangan), 0)
                   const subTotal = items.reduce((s, d) => s + Number(d.total_gaji), 0)
-                  const colCount = canApprove && draftIds.length > 0 ? 9 : 8
+                  const colCount = canApprove && draftIds.length > 0 ? 10 : 9
 
                   return (
                     <Fragment key={groupName}>
@@ -511,6 +537,16 @@ export default function RekapBulanan() {
                               {d.status}
                             </span>
                           </td>
+                          <td className="px-3 py-2.5 text-center">
+                            <button
+                              onClick={() => openDetailModal(d)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-all text-xs font-semibold"
+                              title="Lihat Detail Rincian Gaji Transparan"
+                            >
+                              <Eye size={13} />
+                              <span>Detail</span>
+                            </button>
+                          </td>
                         </tr>
                       ))}
                       <tr className="table-group-subtotal">
@@ -523,11 +559,12 @@ export default function RekapBulanan() {
                         <td className="px-3 py-2 text-right tabular-nums text-[12px] font-semibold text-slate-500 whitespace-nowrap">Rp {fmt(subTunjangan)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-[12px] font-bold text-slate-700 whitespace-nowrap">Rp {fmt(subTotal)}</td>
                         <td />
+                        <td />
                       </tr>
                     </Fragment>
                   )
                 }) : (
-                  <tr><td colSpan={canApprove && draftIds.length > 0 ? 9 : 8} className="px-5 py-12 text-center text-gray-400">
+                  <tr><td colSpan={canApprove && draftIds.length > 0 ? 10 : 9} className="px-5 py-12 text-center text-gray-400">
                     <FileSpreadsheet size={32} className="mx-auto text-gray-300 mb-2" />
                     Belum ada data gaji. Klik "Hitung Gaji" untuk memulai.
                   </td></tr>
@@ -545,6 +582,7 @@ export default function RekapBulanan() {
                     <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.tunjangan), 0))}</td>
                     <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.total_gaji), 0))}</td>
                     <td />
+                    <td />
                   </tr>
                 </tfoot>
               )}
@@ -553,6 +591,214 @@ export default function RekapBulanan() {
         )}
       </div>
       </div>
+
+      {/* Modal Detail Perhitungan Gaji Transparan */}
+      {detailModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700/60 rounded-3xl p-6 max-w-3xl w-full shadow-2xl space-y-5 text-slate-100 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+                  <Calculator size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Rincian Transparan Perhitungan Gaji</h3>
+                  <p className="text-xs text-slate-400">
+                    {detailModalItem.absen_karyawan?.nama} — Periode {namaBulan[bulan]} {tahun}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailModalItem(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Banner Karyawan */}
+            <div className="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/50 flex flex-wrap items-center justify-between gap-4 text-xs">
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Identitas Pekerja</span>
+                <div className="text-sm font-bold text-slate-100">{detailModalItem.absen_karyawan?.nama}</div>
+                <div className="text-slate-400">{detailModalItem.absen_karyawan?.jabatan || 'Pekerja'}</div>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Gaji Master & Tunjangan</span>
+                <div className="text-sm font-bold text-cyan-400">Rp {fmt(detailModalItem.absen_karyawan?.gaji_bulanan || 0)} / Bulan</div>
+                <div className="text-slate-400">Tunjangan: Rp {fmt(detailModalItem.absen_karyawan?.tunjangan || 0)}</div>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Status Kehadiran</span>
+                <div>
+                  {detailModalItem.is_gaji_full ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold text-xs">
+                      <CheckCircle size={13} /> Full Attendance (100% Gaji Penuh)
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold text-xs">
+                      <Info size={13} /> Pro-Rata Kehadiran ({detailModalItem.hari_kerja} / {new Date(tahun, bulan, 0).getDate()} Hari)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Grid 4 Kartu Komponen Gaji Transparan */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+              
+              {/* Kartu 1: Gaji Pokok */}
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
+                    <DollarSign size={14} className="text-cyan-400" /> 1. Gaji Pokok
+                  </span>
+                  <span className="font-bold text-cyan-400 text-sm">Rp {fmt(detailModalItem.gaji_pokok)}</span>
+                </div>
+                <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
+                  {detailModalItem.is_gaji_full ? (
+                    <div className="text-emerald-300">✓ Masuk di seluruh hari kerja bulan ini → Mendapatkan 100% Gaji Bulanan Penuh (Rp {fmt(detailModalItem.absen_karyawan?.gaji_bulanan)})</div>
+                  ) : (
+                    <>
+                      <div className="text-slate-400">Rumus Pro-Rata Harian:</div>
+                      <div className="text-amber-300">(Gaji Master ÷ Total Hari Kalender) × Hari Masuk</div>
+                      <div className="text-slate-300">
+                        (Rp {fmt(detailModalItem.absen_karyawan?.gaji_bulanan || 0)} ÷ {new Date(tahun, bulan, 0).getDate()} Hari) × {detailModalItem.hari_kerja} Hari = Rp {fmt(detailModalItem.gaji_pokok)}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Kartu 2: Gaji Lembur */}
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
+                    <Clock size={14} className="text-amber-400" /> 2. Gaji Lembur
+                  </span>
+                  <span className="font-bold text-amber-400 text-sm">Rp {fmt(detailModalItem.gaji_lembur)}</span>
+                </div>
+                <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
+                  <div>Total Jam Lembur Approved: <strong className="text-slate-200">{detailModalItem.jam_lembur_total || 0} Jam</strong></div>
+                  {Number(detailModalItem.jam_lembur_total) > 0 ? (
+                    <>
+                      <div className="text-slate-300">Tarif Per Jam = Gaji Master ÷ 26 ÷ 8 Jam = Rp {fmt((detailModalItem.absen_karyawan?.gaji_bulanan || 0) / 208)}</div>
+                      <div className="text-amber-300">Aturan Standard: Jam 1 (1.5x) + Jam Berikutnya (2.0x)</div>
+                    </>
+                  ) : (
+                    <div className="text-slate-500">Tidak ada akumulasi jam lembur pada bulan ini</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Kartu 3: Tunjangan & Potongan */}
+              <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
+                    <Building2 size={14} className="text-purple-400" /> 3. Tunjangan & Potongan
+                  </span>
+                  <span className="font-bold text-purple-400 text-sm">Rp {fmt(detailModalItem.tunjangan - (detailModalItem.potongan || 0))}</span>
+                </div>
+                <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
+                  <div className="flex justify-between">
+                    <span>+ Tunjangan Jabatan:</span>
+                    <span className="text-slate-200">Rp {fmt(detailModalItem.tunjangan)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-400">
+                    <span>- Potongan / Denda:</span>
+                    <span>Rp {fmt(detailModalItem.potongan || 0)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Kartu 4: Take Home Pay */}
+              <div className="bg-slate-950/90 p-4 rounded-2xl border border-emerald-500/40 space-y-2 bg-gradient-to-br from-emerald-950/30 to-slate-950">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-400 text-xs uppercase tracking-wider">4. Total Gaji (Take Home Pay)</span>
+                  <span className="font-extrabold text-emerald-400 text-base">Rp {fmt(detailModalItem.total_gaji)}</span>
+                </div>
+                <div className="text-[11px] text-slate-300 leading-relaxed bg-slate-900/90 p-2.5 rounded-xl border border-emerald-500/20 space-y-1 font-mono">
+                  <div>= Gaji Pokok + Gaji Lembur + Tunjangan - Potongan</div>
+                  <div className="text-emerald-400 font-bold">
+                    = Rp {fmt(detailModalItem.gaji_pokok)} + Rp {fmt(detailModalItem.gaji_lembur)} + Rp {fmt(detailModalItem.tunjangan)} - Rp {fmt(detailModalItem.potongan || 0)}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Tabel Break-down Presensi Harian */}
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar size={14} className="text-blue-400" /> Log Presensi Harian ({namaBulan[bulan]} {tahun})
+                </h4>
+                <span className="text-[11px] text-slate-400">Total {detailHarian.length} Catatan Absen</span>
+              </div>
+
+              {loadingDetail ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-6 h-6 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+                </div>
+              ) : detailHarian.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-slate-950/50 border border-slate-800 text-center text-xs text-slate-500">
+                  Tidak ada rincian presensi harian yang tercatat pada bulan ini.
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-800 overflow-hidden text-xs max-h-60 overflow-y-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider font-semibold sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2.5">Tanggal</th>
+                        <th className="px-3 py-2.5">Slot Presensi</th>
+                        <th className="px-3 py-2.5">Jam Masuk</th>
+                        <th className="px-3 py-2.5">Jam Pulang</th>
+                        <th className="px-3 py-2.5 text-center">Jam Lembur</th>
+                        <th className="px-3 py-2.5 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 bg-slate-900/40 text-slate-300 text-[11px]">
+                      {detailHarian.map(h => (
+                        <tr key={h.id} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="px-3 py-2 font-mono font-medium">{h.tanggal}</td>
+                          <td className="px-3 py-2 text-slate-400">{h.absen_jadwal_slot?.label || '-'}</td>
+                          <td className="px-3 py-2 font-mono text-cyan-400">{h.jam_masuk ? h.jam_masuk.slice(0,5) : '-'}</td>
+                          <td className="px-3 py-2 font-mono text-indigo-400">{h.jam_pulang ? h.jam_pulang.slice(0,5) : '-'}</td>
+                          <td className="px-3 py-2 text-center font-mono text-amber-400">{h.jam_lembur ? `${h.jam_lembur}j` : '-'}</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                              h.status === 'LENGKAP' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                              h.status === 'IZIN' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                              'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            }`}>
+                              {h.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Modal */}
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button
+                onClick={() => setDetailModalItem(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }
