@@ -183,12 +183,12 @@ export default function Konfigurasi() {
       const todayStr = `${yyyy}-${mm}-${dd}`
       const todayFmt = `${dd}/${mm}/${yyyy}`
 
-      // 2. Query data lembur hari ini dari Supabase
+      // 2. Query data lembur hari ini dari Supabase secara terpisah (menghindari error PostgREST relationship cache)
       const { data: listLembur, error: errLembur } = await supabase
         .from('absen_daftar_lembur')
         .select(`
           id, tanggal, catatan,
-          karyawan:absen_karyawan!inner(id, nama, jabatan, atasan:absen_user_profiles(nama))
+          karyawan:absen_karyawan!inner(id, nama, jabatan, atasan_id)
         `)
         .eq('tanggal', todayStr)
 
@@ -196,6 +196,8 @@ export default function Konfigurasi() {
 
       if (!listLembur || listLembur.length === 0) {
         setTestResultModal({
+          title: 'Uji Coba Email Digest Lembur',
+          subtitle: 'Pengingat Lembur Pukul 19.10 WIT',
           success: false,
           reason: `Tidak ada pekerja terdaftar lembur untuk tanggal hari ini (${todayFmt}).`,
           message: `Dibatalkan: Tidak ada pekerja terdaftar lembur untuk tanggal hari ini (${todayFmt}). Daftarkan lembur terlebih dahulu pada menu Daftar Lembur.`
@@ -203,8 +205,13 @@ export default function Konfigurasi() {
         return
       }
 
+      // Query nama atasan/mandor dari absen_user_profiles
+      const { data: profiles } = await supabase.from('absen_user_profiles').select('id, nama')
+      const profileMap = {}
+      if (profiles) profiles.forEach(p => { profileMap[p.id] = p.nama })
+
       const rowsHtml = listLembur.map(item => {
-        const atasanNama = item.karyawan?.atasan?.nama || 'Harian Kantor'
+        const atasanNama = profileMap[item.karyawan?.atasan_id] || 'Harian Kantor'
         return `<tr>
           <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;"><strong>${item.karyawan?.nama || '-'}</strong><br><span style="color:#64748b;font-size:11px;">${item.karyawan?.jabatan || '-'}</span></td>
           <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;">${atasanNama}</td>
@@ -269,6 +276,8 @@ export default function Konfigurasi() {
 
       if (res.ok && resJson.success) {
         setTestResultModal({
+          title: 'Uji Coba Email Digest Lembur',
+          subtitle: 'Pengingat Lembur Pukul 19.10 WIT',
           success: true,
           recipientsCount: resJson.recipients || 1,
           totalPending: listLembur.length,
@@ -280,6 +289,8 @@ export default function Konfigurasi() {
         })
       } else {
         setTestResultModal({
+          title: 'Uji Coba Email Digest Lembur',
+          subtitle: 'Pengingat Lembur Pukul 19.10 WIT',
           success: false,
           reason: resJson.error || resJson.detail || resText || `HTTP Status ${res.status}`,
           message: `Render Brevo API Error (${res.status}): ${resJson.detail || resJson.error || resText || 'Server Render gagal memproses pengiriman email'}`
@@ -287,6 +298,8 @@ export default function Konfigurasi() {
       }
     } catch (err) {
       setTestResultModal({
+        title: 'Uji Coba Email Digest Lembur',
+        subtitle: 'Pengingat Lembur Pukul 19.10 WIT',
         success: false,
         reason: err.message,
         message: `Gagal mengirim email digest lembur: ${err.message}`
@@ -570,8 +583,8 @@ export default function Konfigurasi() {
                   <Mail size={20} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100">Uji Coba Email Digest</h3>
-                  <p className="text-[11px] text-slate-400">Pengingat Approval Pukul 19.00</p>
+                  <h3 className="text-sm font-bold text-slate-100">{testResultModal.title || 'Uji Coba Email Digest'}</h3>
+                  <p className="text-[11px] text-slate-400">{testResultModal.subtitle || 'Pengingat Approval Pukul 19.00 WIT'}</p>
                 </div>
               </div>
               <button onClick={() => setTestResultModal(null)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200">
