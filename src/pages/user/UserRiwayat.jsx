@@ -13,6 +13,7 @@ export default function UserRiwayat() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [data, setData] = useState([])
   const [slotsList, setSlotsList] = useState([])
+  const [regularSlotsList, setRegularSlotsList] = useState([])
   const [pendingScans, setPendingScans] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -40,7 +41,7 @@ export default function UserRiwayat() {
     const lastDay = new Date(tahun, bulan, 0).getDate()
     const endDate = `${tahun}-${padBulan}-${String(lastDay).padStart(2, '0')}`
 
-    const [harianRes, scanRes, laporanRes, slotRes] = await Promise.all([
+    const [harianRes, scanRes, laporanRes, slotRes, lemburDaftarRes] = await Promise.all([
       supabase
         .from('absen_harian')
         .select('tanggal, jam_masuk, jam_pulang, status, jam_lembur, status_lembur')
@@ -63,47 +64,94 @@ export default function UserRiwayat() {
       supabase
         .from('absen_jadwal_slot')
         .select('*')
-        .or('jenis.is.null,jenis.neq.LEMBUR')
         .eq('aktif', true)
-        .order('jam', { ascending: true })
+        .order('jam', { ascending: true }),
+      supabase
+        .from('absen_daftar_lembur')
+        .select('tanggal, status')
+        .eq('karyawan_id', karyawan.id)
+        .gte('tanggal', startDate)
+        .lte('tanggal', endDate)
     ])
 
     const harian = harianRes.data || []
     const scans = scanRes.data || []
     const laporans = laporanRes.data || []
-    const masterSlots = slotRes.data || []
+    const allSlots = slotRes.data || []
+    const daftarLembur = lemburDaftarRes.data || []
 
-    setSlotsList(masterSlots)
+    // Separate regular non-lembur slots vs lembur slots
+    const regularSlots = allSlots.filter(s => s.jenis !== 'LEMBUR' && !s.label?.toLowerCase().includes('lembur'))
+    const lemburSlots = allSlots.filter(s => s.jenis === 'LEMBUR' || s.label?.toLowerCase().includes('lembur'))
+    const lemburSlotIds = new Set(lemburSlots.map(s => s.id))
 
-    // Map verified slots & pending count by date
+    setSlotsList(allSlots)
+    setRegularSlotsList(regularSlots)
+
+    // Set of dates where employee has registered/approved overtime
+    const datesWithRegisteredLembur = new Set(
+      daftarLembur.filter(d => d.status !== 'REJECTED').map(d => d.tanggal)
+    )
+
+    // Map scans & laporans by date
     const statsByDate = {}
     scans.forEach(s => {
-      if (!statsByDate[s.tanggal]) statsByDate[s.tanggal] = { slots: new Set(), pendingCount: 0, scansMap: {}, laporansMap: {} }
-      statsByDate[s.tanggal].slots.add(s.slot_id)
+      if (!statsByDate[s.tanggal]) {
+        statsByDate[s.tanggal] = { verifiedRegular: new Set(), verifiedLembur: new Set(), pendingCount: 0, scansMap: {}, laporansMap: {} }
+      }
       statsByDate[s.tanggal].scansMap[s.slot_id] = s
+      if (lemburSlotIds.has(s.slot_id)) {
+        statsByDate[s.tanggal].verifiedLembur.add(s.slot_id)
+      } else {
+        statsByDate[s.tanggal].verifiedRegular.add(s.slot_id)
+      }
     })
+
     laporans.forEach(l => {
-      if (!statsByDate[l.tanggal]) statsByDate[l.tanggal] = { slots: new Set(), pendingCount: 0, scansMap: {}, laporansMap: {} }
+      if (!statsByDate[l.tanggal]) {
+        statsByDate[l.tanggal] = { verifiedRegular: new Set(), verifiedLembur: new Set(), pendingCount: 0, scansMap: {}, laporansMap: {} }
+      }
       statsByDate[l.tanggal].laporansMap[l.slot_id] = l
       if (l.status === 'APPROVED') {
-        statsByDate[l.tanggal].slots.add(l.slot_id)
+        if (lemburSlotIds.has(l.slot_id)) {
+          statsByDate[l.tanggal].verifiedLembur.add(l.slot_id)
+        } else {
+          statsByDate[l.tanggal].verifiedRegular.add(l.slot_id)
+        }
       } else if (l.status === 'PENDING') {
         statsByDate[l.tanggal].pendingCount += 1
       }
     })
 
     const enriched = harian.map(h => {
-      const st = statsByDate[h.tanggal] || { slots: new Set(), pendingCount: 0, scansMap: {}, laporansMap: {} }
-      const verifiedCount = st.slots.size
+      const st = statsByDate[h.tanggal] || { verifiedRegular: new Set(), verifiedLembur: new Set(), pendingCount: 0, scansMap: {}, laporansMap: {} }
+      const verifiedRegCount = st.verifiedRegular.size
+      const verifiedLemburCount = st.verifiedLembur.size
       const pendingCount = st.pendingCount
-      const isComplete = verifiedCount >= (masterSlots.length || 6)
+
+      // Determine if overtime slots apply to this date
+      const hasRegisteredLembur = datesWithRegisteredLembur.has(h.tanggal)
+      const hasLemburScan = verifiedLemburCount > 0 || (st.laporansMap && lemburSlots.some(s => st.laporansMap[s.id]))
+      const showLemburOnDate = hasRegisteredLembur || hasLemburScan
+
+      // Active master slots for this date (excludes lembur slots if employee has no overtime on this day!)
+      const activeMasterSlots = showLemburOnDate ? allSlots : regularSlots
+      const totalSlots = activeMasterSlots.length
+      const totalVerifiedCount = verifiedRegCount + (showLemburOnDate ? verifiedLemburCount : 0)
+
+      // Completeness is based on regular 6 slots
+      const isComplete = verifiedRegCount >= (regularSlots.length || 6)
 
       return {
         ...h,
-        verifiedCount,
+        verifiedCount: totalVerifiedCount,
+        verifiedRegCount,
+        verifiedLemburCount,
         pendingCount,
         isComplete,
-        totalSlots: masterSlots.length || 6,
+        totalSlots,
+        showLemburOnDate,
+        activeMasterSlots,
         scansMap: st.scansMap,
         laporansMap: st.laporansMap
       }
@@ -124,8 +172,11 @@ export default function UserRiwayat() {
 
   function openSlotDetail(item) {
     setSelectedDateDetail(item)
-    // Build breakdown for all master slots
-    const detail = slotsList.map(s => {
+
+    // Only map active master slots for this day (excludes lembur slots if no lembur on this day!)
+    const activeSlots = item.activeMasterSlots || regularSlotsList
+
+    const detail = activeSlots.map(s => {
       const sc = item.scansMap?.[s.id]
       const lap = item.laporansMap?.[s.id]
 
@@ -273,7 +324,7 @@ export default function UserRiwayat() {
                   <div className="text-sm font-bold text-slate-100 flex items-center gap-2">
                     {tgl.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' })}
                     <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-cyan-300 border border-slate-700">
-                      {d.verifiedCount} / {d.totalSlots} Slot
+                      {d.verifiedRegCount} / {regularSlotsList.length || 6} Slot
                     </span>
                   </div>
                   <div className="text-xs text-slate-400 font-mono">
@@ -304,7 +355,7 @@ export default function UserRiwayat() {
         </div>
       )}
 
-      {/* Modal Detail Presensi 6 Slot per Hari */}
+      {/* Modal Detail Presensi per Hari */}
       {selectedDateDetail && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
@@ -331,22 +382,24 @@ export default function UserRiwayat() {
             {/* Banner Ringkasan Slot */}
             <div className="bg-slate-950/70 p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between text-xs font-mono">
               <div>
-                <span className="text-[10px] text-slate-400 block uppercase font-semibold">Total Slot Disetujui</span>
+                <span className="text-[10px] text-slate-400 block uppercase font-semibold">Slot Disetujui</span>
                 <span className="text-sm font-extrabold text-cyan-300">
-                  {selectedDateDetail.verifiedCount} / {selectedDateDetail.totalSlots} Slot
+                  {selectedDateDetail.verifiedRegCount} / {regularSlotsList.length || 6} Slot Reguler
                 </span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-semibold">Bobot Gaji Hari Ini</span>
                 <span className="text-sm font-extrabold text-emerald-400">
-                  {Math.round((selectedDateDetail.verifiedCount / selectedDateDetail.totalSlots) * 100)}% ({ (selectedDateDetail.verifiedCount / selectedDateDetail.totalSlots).toFixed(2) } Hari)
+                  {Math.round((selectedDateDetail.verifiedRegCount / (regularSlotsList.length || 6)) * 100)}% ({ (selectedDateDetail.verifiedRegCount / (regularSlotsList.length || 6)).toFixed(2) } Hari)
                 </span>
               </div>
             </div>
 
-            {/* List 6 Slot Breakdown */}
+            {/* List Slot Breakdown (Overtime slots hidden unless registered) */}
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Detail 6 Slot Presensi Reguler</h4>
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Detail Slot Presensi {selectedDateDetail.showLemburOnDate ? '(Termasuk Lembur)' : 'Reguler (6 Slot)'}
+              </h4>
               {detailSlotsData.map((item, idx) => {
                 return (
                   <div 
