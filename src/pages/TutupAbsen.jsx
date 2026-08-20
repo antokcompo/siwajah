@@ -3,10 +3,13 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { Lock, Unlock, Clock, ShieldCheck, CheckCircle2, XCircle, AlertTriangle, FileText, Send, Calendar } from 'lucide-react'
 
+import { useToast } from '../contexts/ToastContext'
+
 const namaBulan = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 
 export default function TutupAbsen() {
   const { profile } = useAuth()
+  const { toastSuccess, toastError, toastWarning } = useToast()
   const role = profile?.role
   const isManagement = role === 'manajemen' || role === 'admin'
 
@@ -58,10 +61,11 @@ export default function TutupAbsen() {
         p_user_id: profile?.id || null
       })
       if (error) throw error
+      toastSuccess('Berhasil Tutup Absen', `Absensi bulan ${confirmLockModal.namaBulan} ${confirmLockModal.tahun} berhasil ditutup.`)
       setConfirmLockModal(null)
       loadData()
     } catch (err) {
-      alert('Gagal menutup absen: ' + err.message)
+      toastError('Gagal Menutup Absen', err.message || 'Terjadi kesalahan sistem saat menutup absen.')
     } finally {
       setLockSubmitting(false)
     }
@@ -71,7 +75,7 @@ export default function TutupAbsen() {
   async function handleSubmitRequest(e) {
     e.preventDefault()
     if (!requestAlasan.trim() || requestAlasan.trim().length < 5) {
-      alert('Alasan pembukaan lock wajib diisi minimal 5 karakter.')
+      toastWarning('Alasan Diperlukan', 'Alasan pembukaan lock wajib diisi minimal 5 karakter.')
       return
     }
     setRequestSubmitting(true)
@@ -83,11 +87,12 @@ export default function TutupAbsen() {
         p_user_id: profile?.id || null
       })
       if (error) throw error
+      toastSuccess('Permintaan Terkirim', 'Pengajuan buka lock berhasil dikirim ke Manajemen.')
       setRequestModal(null)
       setRequestAlasan('')
       loadData()
     } catch (err) {
-      alert('Gagal mengirim permintaan: ' + err.message)
+      toastError('Gagal Mengirim Permintaan', err.message || 'Terjadi kesalahan saat mengumpulkan pengajuan.')
     } finally {
       setRequestSubmitting(false)
     }
@@ -106,11 +111,13 @@ export default function TutupAbsen() {
         p_user_id: profile?.id || null
       })
       if (error) throw error
+      const actionText = approvalModal.action === 'APPROVE' ? 'disetujui. Akses edit terbuka 2 hari.' : 'ditolak.'
+      toastSuccess('Status Approval Diperbarui', `Permintaan buka lock bulan ${namaBulan[approvalModal.bulan]} ${approvalModal.tahun} berhasil ${actionText}`)
       setApprovalModal(null)
       setApprovalCatatan('')
       loadData()
     } catch (err) {
-      alert('Gagal memproses approval: ' + err.message)
+      toastError('Gagal Memproses Approval', err.message || 'Terjadi kesalahan saat memproses keputusan.')
     } finally {
       setApprovalSubmitting(false)
     }
