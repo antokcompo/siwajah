@@ -4,7 +4,9 @@
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
 
--- 1. Fix RPC absen_create_auth_user (menggunakan gen_salt('bf', 10) sesuai GoTrue Auth standard)
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+-- 1. Fix RPC absen_create_auth_user (menggunakan extensions.gen_salt & extensions.crypt)
 CREATE OR REPLACE FUNCTION absen_create_auth_user(
   p_email text,
   p_password text,
@@ -32,7 +34,7 @@ BEGIN
 
   v_user_id := gen_random_uuid();
 
-  -- Insert to auth.users with bcrypt cost 10
+  -- Insert to auth.users with extensions.crypt and extensions.gen_salt
   INSERT INTO auth.users (
     instance_id, id, aud, role, email,
     encrypted_password, email_confirmed_at,
@@ -45,7 +47,7 @@ BEGIN
     'authenticated',
     'authenticated',
     v_clean_email,
-    crypt(p_password, gen_salt('bf', 10)),
+    extensions.crypt(p_password, extensions.gen_salt('bf', 10)),
     now(),
     now(), now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
@@ -76,7 +78,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 2. Fix RPC absen_admin_reset_password (menggunakan gen_salt('bf', 10))
+-- 2. Fix RPC absen_admin_reset_password (menggunakan extensions.crypt & extensions.gen_salt)
 CREATE OR REPLACE FUNCTION absen_admin_reset_password(
   p_user_id uuid,
   p_new_password text
@@ -94,9 +96,9 @@ BEGIN
     RETURN jsonb_build_object('error', 'User tidak ditemukan');
   END IF;
 
-  -- Update auth.users with bcrypt cost 10
+  -- Update auth.users with extensions.crypt and extensions.gen_salt
   UPDATE auth.users
-  SET encrypted_password = crypt(p_new_password, gen_salt('bf', 10)),
+  SET encrypted_password = extensions.crypt(p_new_password, extensions.gen_salt('bf', 10)),
       email_confirmed_at = COALESCE(email_confirmed_at, now()),
       raw_app_meta_data = '{"provider":"email","providers":["email"]}'::jsonb,
       updated_at = now()
