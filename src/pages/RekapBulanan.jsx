@@ -849,12 +849,12 @@ export default function RekapBulanan() {
                                 <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1">
                                   <Info size={11} /> {verifiedCount}/6 Disetujui ({h.pendingCount} Menunggu Approval Admin)
                                 </span>
-                              ) : verifiedCount === 6 || h.status === 'LENGKAP' ? (
+                              ) : verifiedCount >= 6 ? (
                                 <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1">
                                   <CheckCircle size={11} /> 100% Lengkap (6/6 Disetujui)
                                 </span>
                               ) : (
-                                <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-slate-800 text-slate-300 border border-slate-700 inline-flex items-center gap-1">
+                                <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-sky-500/20 text-sky-300 border border-sky-500/30 inline-flex items-center gap-1">
                                   {verifiedCount}/6 Disetujui ({6 - verifiedCount} Terlewat)
                                 </span>
                               )}
