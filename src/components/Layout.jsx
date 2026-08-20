@@ -89,9 +89,12 @@ function PasswordField({ value, onChange, placeholder, id }) {
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showChangePassword, setShowChangePassword] = useState(false)
-  const { profile, signOut } = useAuth()
+  const { user, profile, loading, signOut } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+
+  if (loading) return <div className="flex items-center justify-center h-screen bg-[#0a0e1a]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" /></div>
+  if (!user) return <Navigate to="/user" replace />
 
   const role = profile?.role
 

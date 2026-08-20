@@ -56,16 +56,6 @@ function UserRoutes() {
   )
 }
 
-function AdminProtectedLayout() {
-  const { user } = useAuth()
-  if (!user) return <Navigate to="/user" replace />
-  return (
-    <ProtectedRoute>
-      <Layout />
-    </ProtectedRoute>
-  )
-}
-
 export default function App() {
   const { user, loading } = useAuth()
 
@@ -80,7 +70,7 @@ export default function App() {
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
 
       {/* Admin protected routes with layout outlet */}
-      <Route element={<AdminProtectedLayout />}>
+      <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/import" element={<ImportAbsensi />} />
         <Route path="/rekap-harian" element={<RekapHarian />} />
