@@ -38,8 +38,10 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function signIn(email, password) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const cleanEmail = email ? email.trim().toLowerCase() : ''
+    const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password })
     if (error) throw error
+    return data
   }
 
   async function signOut() {
