@@ -26,7 +26,7 @@ function getUserTz() {
 }
 
 export default function UserBeranda() {
-  const { karyawan, projectTz } = useUserAuth()
+  const { karyawan, projectTz, outdoorMode } = useUserAuth()
   const navigate = useNavigate()
   const [slots, setSlots] = useState([])
   const [todayScans, setTodayScans] = useState([])
@@ -37,17 +37,6 @@ export default function UserBeranda() {
   const [hasFace, setHasFace] = useState(null)
   const [now, setNow] = useState(new Date())
   const [loading, setLoading] = useState(true)
-
-  // Outdoor Sunlight Mode Toggle
-  const [outdoorMode, setOutdoorMode] = useState(() => {
-    return localStorage.getItem('siwajah_outdoor_mode') === 'true'
-  })
-
-  const toggleOutdoorMode = () => {
-    const next = !outdoorMode
-    setOutdoorMode(next)
-    localStorage.setItem('siwajah_outdoor_mode', next.toString())
-  }
 
   // Lapor Terlewat modal state
   const [modalSlot, setModalSlot] = useState(null)
