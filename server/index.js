@@ -118,7 +118,7 @@ app.post('/api/notify-lembur', async (req, res) => {
     return res.status(500).json({ error: 'BREVO_API_KEY not configured in Render Environment Variables' })
   }
 
-  const { to, subject, tanggal, karyawan, created_by, sender_name, sender_email, app_url, htmlContent, html } = req.body
+  const { to, subject, tanggal, karyawan, created_by, sender_name, sender_email, htmlContent, html } = req.body
 
   const finalSenderEmail = (typeof sender_email === 'string' && sender_email.trim().length > 0) ? sender_email.trim() : BREVO_SENDER_EMAIL
   const finalSenderName = (typeof sender_name === 'string' && sender_name.trim().length > 0) ? sender_name.trim() : BREVO_SENDER_NAME
@@ -151,10 +151,6 @@ app.post('/api/notify-lembur', async (req, res) => {
       </tr>`
     ).join('')
 
-    const linkHtml = app_url
-      ? `<a href="${app_url}" style="display:inline-block;background:#0ea5e9;color:#ffffff;padding:10px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">Akses SI WAJAH</a>`
-      : '<p style="color:#64748b;font-size:13px;">Silakan akses SI WAJAH untuk melakukan approval.</p>'
-
     finalHtml = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f8fafc;">
       <div style="max-width:600px;margin:0 auto;padding:24px;">
         <div style="background:#0f172a;padding:20px 24px;border-radius:12px 12px 0 0;">
@@ -176,7 +172,6 @@ app.post('/api/notify-lembur', async (req, res) => {
             </tr></thead>
             <tbody>${employeeRows}</tbody>
           </table>
-          ${linkHtml}
         </div>
         <p style="margin:16px 0 0;color:#94a3b8;font-size:11px;text-align:center;">Email ini dikirim otomatis oleh sistem SI WAJAH. Mohon tidak membalas email ini.</p>
       </div>

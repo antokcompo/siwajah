@@ -4,7 +4,7 @@
 -- 1. Mengirim notifikasi email otomatis ke Admin & Manajemen pukul 19:00
 --    apabila terdapat Laporan Terlewat (PENDING) atau Izin Pekerja (PENDING / CANCEL_REQUESTED).
 -- 2. Email TIDAK AKAN TERKIRIM jika tidak ada item yang berstatus pending.
--- 3. Menggunakan API Key Brevo Langsung (Arsitektur SIMONIKA - Tanpa Webhook)
+-- 3. Menggunakan API Key Brevo Langsung (Arsitektur SIMONIKA - Tanpa Link Tombol)
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
@@ -31,7 +31,6 @@ BEGIN
   SELECT value INTO v_brevo_api_key FROM absen_konfigurasi WHERE key = 'brevo_api_key';
   SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_name'), ''), 'SI WAJAH — PT PP (Persero) Tbk') INTO v_sender_name;
   SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_email'), ''), 'kuswibowo.heri@gmail.com') INTO v_sender_email;
-  SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'app_url'), ''), 'https://siwajah.pages.dev') INTO v_app_url;
 
   -- 2. Ambil List Laporan Terlewat Berstatus PENDING
   FOR v_rec IN
@@ -104,7 +103,7 @@ BEGIN
     v_to := v_to || jsonb_build_object('email', v_sender_email, 'name', v_sender_name);
   END IF;
 
-  -- 6. Buat Subject & HTML Email Template Resmi Bergaya SIMONIKA
+  -- 6. Buat Subject & HTML Email Template Resmi (Tanpa Tombol Link)
   v_subject := '[SI WAJAH] Ringkasan Pengajuan Pending Approval — PT PP (Persero) Tbk';
 
   v_html := '<!DOCTYPE html><html><head><meta charset="utf-8">'
@@ -125,8 +124,6 @@ BEGIN
     || 'table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;}'
     || 'th{background-color:#f1f5f9;color:#475569;text-align:left;padding:10px 12px;border:1px solid #cbd5e1;font-weight:600;}'
     || 'td{padding:10px 12px;border:1px solid #e2e8f0;color:#334155;}'
-    || '.btn-container{text-align:center;margin:28px 0 12px 0;}'
-    || '.btn{background:#0ea5e9;color:#ffffff!important;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:14px;display:inline-block;}'
     || '.footer{font-size:11px;color:#94a3b8;text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid #f1f5f9;}'
     || '</style></head><body>'
     || '<div class="container">'
@@ -177,8 +174,7 @@ BEGIN
     v_html := v_html || '</tbody></table>';
   END IF;
 
-  v_html := v_html || '<div class="btn-container"><a href="' || v_app_url || '/laporan-izin" class="btn">Buka Portal Approval Admin ➔</a></div>'
-    || '<div class="footer">Email ini dikirim otomatis oleh sistem SI WAJAH — PT PP (Persero) Tbk setiap pukul 19.00 WIT. Mohon tidak membalas email ini.</div>'
+  v_html := v_html || '<div class="footer">Email ini dikirim otomatis oleh sistem SI WAJAH — PT PP (Persero) Tbk setiap pukul 19.00 WIT. Mohon tidak membalas email ini.</div>'
     || '</div></div></body></html>';
 
   -- 7. Trigger Direct HTTP POST to Brevo API (https://api.brevo.com/v3/smtp/email) - Arsitektur SIMONIKA

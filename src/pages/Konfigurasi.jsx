@@ -131,9 +131,6 @@ export default function Konfigurasi() {
                   <strong style="color:#b45309;font-size:13px;">⚠️ Total ${data?.total_pending || 0} Item Pending</strong>
                   <p style="color:#d97706;font-size:12px;margin:4px 0 0;">(${data?.count_laporan || 0} Laporan Terlewat, ${data?.count_izin || 0} Pengajuan Izin)</p>
                 </div>
-                <div style="text-align:center;margin-top:20px;">
-                  <a href="${appUrl}/laporan-izin" style="display:inline-block;background:#0ea5e9;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;">Buka Portal Approval Admin ➔</a>
-                </div>
               </div>
               <p style="color:#94a3b8;font-size:11px;text-align:center;margin-top:16px;">Email dikirim otomatis oleh SI WAJAH — PT PP (Persero) Tbk.</p>
             </div>
