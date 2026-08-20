@@ -338,8 +338,8 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          {/* Trend Charts 2x2 Grid at TOP PANEL */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 mb-6 lg:mb-8">
+          {/* 4 Trend Charts in 1 Horizontal Row (Replacing Top Panel) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
             <ChartCard
               icon={TrendingUp}
               iconColor="#06b6d4"
@@ -489,25 +489,6 @@ export default function Dashboard() {
                 )}
               />
             </ChartCard>
-          </div>
-
-          {/* KPI Cards Summary Bar */}
-          <div className="grid-kpi mb-6 lg:mb-8">
-            {cards.map((c, i) => {
-              const Icon = c.icon
-              return (
-                <div key={i} className={`kpi-card kpi-card--${c.color}`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>{c.label}</div>
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: c.iconBg }}>
-                      <Icon className="w-[18px] h-[18px]" style={{ color: c.iconColor }} />
-                    </div>
-                  </div>
-                  <div className="kpi-value text-[1.75rem] sm:text-[2rem] lg:text-[2.5rem] font-bold leading-none text-white">{c.value}</div>
-                  <div className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>{c.desc}</div>
-                </div>
-              )
-            })}
           </div>
 
           {/* Alert Anomali Massal */}
