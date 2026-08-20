@@ -183,13 +183,10 @@ export default function Konfigurasi() {
       const todayStr = `${yyyy}-${mm}-${dd}`
       const todayFmt = `${dd}/${mm}/${yyyy}`
 
-      // 2. Query data lembur hari ini dari Supabase secara terpisah (menghindari error PostgREST relationship cache)
+      // 2. Query data lembur hari ini dari Supabase (3 query mandiri tanpa relasi PostgREST)
       const { data: listLembur, error: errLembur } = await supabase
         .from('absen_daftar_lembur')
-        .select(`
-          id, tanggal, catatan,
-          karyawan:absen_karyawan!inner(id, nama, jabatan, atasan_id)
-        `)
+        .select('id, tanggal, catatan, karyawan_id')
         .eq('tanggal', todayStr)
 
       if (errLembur) throw errLembur
@@ -205,15 +202,26 @@ export default function Konfigurasi() {
         return
       }
 
+      // Query data karyawan & atasan secara terpisah (bebas dari error PostgREST relationship cache)
+      const kIds = listLembur.map(item => item.karyawan_id).filter(Boolean)
+      const { data: listKaryawan } = await supabase
+        .from('absen_karyawan')
+        .select('id, nama, jabatan, atasan_id')
+        .in('id', kIds)
+
+      const karyawanMap = {}
+      if (listKaryawan) listKaryawan.forEach(k => { karyawanMap[k.id] = k })
+
       // Query nama atasan/mandor dari absen_user_profiles
       const { data: profiles } = await supabase.from('absen_user_profiles').select('id, nama')
       const profileMap = {}
       if (profiles) profiles.forEach(p => { profileMap[p.id] = p.nama })
 
       const rowsHtml = listLembur.map(item => {
-        const atasanNama = profileMap[item.karyawan?.atasan_id] || 'Harian Kantor'
+        const kObj = karyawanMap[item.karyawan_id] || {}
+        const atasanNama = profileMap[kObj.atasan_id] || 'Harian Kantor'
         return `<tr>
-          <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;"><strong>${item.karyawan?.nama || '-'}</strong><br><span style="color:#64748b;font-size:11px;">${item.karyawan?.jabatan || '-'}</span></td>
+          <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;"><strong>${kObj.nama || '-'}</strong><br><span style="color:#64748b;font-size:11px;">${kObj.jabatan || '-'}</span></td>
           <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;">${atasanNama}</td>
           <td style="padding:10px 12px;border:1px solid #e2e8f0;color:#334155;">${item.catatan || '-'}</td>
         </tr>`
