@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import { createClient } from '@supabase/supabase-js'
 
 const app = express()
 app.use(cors())
@@ -7,12 +8,24 @@ app.use(express.json({ limit: '1mb' }))
 
 const PORT = process.env.PORT || 3001
 
+const SUPABASE_URL = process.env.SUPABASE_URL || ''
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || ''
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+const supabaseAdmin = (SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY))
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, { auth: { persistSession: false } })
+  : null
+
 const BREVO_API_KEY = process.env.BREVO_API_KEY || ''
 const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'noreply@siwajah.app'
 const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'SI WAJAH'
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', brevo_configured: !!BREVO_API_KEY })
+  res.json({
+    status: 'ok',
+    brevo_configured: !!BREVO_API_KEY,
+    supabase_configured: !!supabaseAdmin,
+  })
 })
 
 app.post('/api/notify-lembur', async (req, res) => {
