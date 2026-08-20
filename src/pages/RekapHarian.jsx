@@ -82,7 +82,7 @@ export default function RekapHarian() {
   const [selectedScan, setSelectedScan] = useState(null)
   const [zoomPhoto, setZoomPhoto] = useState(null)
   const [projectTz, setProjectTz] = useState('Asia/Jayapura')
-  const [siteConfig, setSiteConfig] = useState({ lat: -6.200000, lng: 106.816666, radius: 500 })
+  const [siteConfig, setSiteConfig] = useState({ lat: -4.824518, lng: 136.844673, radius: 400 })
 
   const bulan = currentDate.getMonth() + 1
   const tahun = currentDate.getFullYear()
@@ -108,9 +108,9 @@ export default function RekapHarian() {
       configData.forEach(r => { map[r.key] = r.value })
       if (map.zona_waktu) setProjectTz(map.zona_waktu)
       setSiteConfig({
-        lat: Number(map.site_lat || -6.200000),
-        lng: Number(map.site_lng || 106.816666),
-        radius: Number(map.site_radius_meter || 500)
+        lat: Number(map.site_lat || -4.824518),
+        lng: Number(map.site_lng || 136.844673),
+        radius: Number(map.site_radius_meter || 400)
       })
     }
   }
@@ -490,51 +490,62 @@ export default function RekapHarian() {
                     <span className="text-gray-900">{selectedScan.keterangan}</span>
                   </div>
                 )}
-                {(() => {
-                  const scanDist = selectedScan?.gps_lat && selectedScan?.gps_lng
-                    ? getDistanceMeters(selectedScan.gps_lat, selectedScan.gps_lng, siteConfig.lat, siteConfig.lng)
-                    : 0
-                  const isOffsite = (scanDist > siteConfig.radius && scanDist > 0) || selectedScan?.di_luar_lokasi
-
-                  if (!isOffsite) return null
-
-                  return (
-                    <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 font-bold text-rose-700">
-                        <AlertTriangle size={15} />
-                        <span>⚠️ Presensi Di Luar Site Proyek (Off-Site)</span>
-                      </div>
-                      <p className="text-gray-600 font-sans">
-                        Jarak Scan: <strong className="text-rose-700 font-bold">{formatDistance(scanDist)}</strong> dari titik site (Batas Radius: <strong>{siteConfig.radius} m</strong>)
-                      </p>
-                    </div>
-                  )
-                })()}
               </div>
 
-              {/* GPS */}
-              {selectedScan.gps_lat && selectedScan.gps_lng && (
-                <div className="border border-gray-200 rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                      <MapPin size={14} className="text-emerald-500" />
-                      Koordinat GPS
+              {/* GPS & Off-Site Status Box */}
+              {selectedScan.gps_lat && selectedScan.gps_lng && (() => {
+                const sLat = Number(siteConfig?.lat || -4.824518)
+                const sLng = Number(siteConfig?.lng || 136.844673)
+                const sRadius = Number(siteConfig?.radius || 400)
+                const scanDist = getDistanceMeters(selectedScan.gps_lat, selectedScan.gps_lng, sLat, sLng)
+                const isOffsite = scanDist > sRadius || selectedScan?.di_luar_lokasi
+
+                return (
+                  <div className={`border rounded-xl p-3.5 space-y-2.5 ${isOffsite ? 'bg-rose-50 border-rose-300' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-sm font-bold text-gray-900">
+                        <MapPin size={15} className={isOffsite ? "text-rose-600" : "text-emerald-500"} />
+                        <span>Koordinat GPS</span>
+                      </div>
+                      <a
+                        href={`https://www.google.com/maps?q=${selectedScan.gps_lat},${selectedScan.gps_lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-semibold"
+                      >
+                        <ExternalLink size={12} />
+                        Buka di Google Maps
+                      </a>
                     </div>
-                    <a
-                      href={`https://www.google.com/maps?q=${selectedScan.gps_lat},${selectedScan.gps_lng}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      <ExternalLink size={12} />
-                      Buka di Google Maps
-                    </a>
+
+                    <div className="text-xs text-gray-600 font-mono">
+                      {Number(selectedScan.gps_lat).toFixed(7)}, {Number(selectedScan.gps_lng).toFixed(7)}
+                    </div>
+
+                    {isOffsite ? (
+                      <div className="pt-2.5 border-t border-rose-200 flex items-center justify-between text-xs font-bold text-rose-700">
+                        <span className="flex items-center gap-1.5">
+                          <AlertTriangle size={15} className="text-rose-600 shrink-0" />
+                          <span>⚠️ Absen Di Luar Site (Off-Site)</span>
+                        </span>
+                        <span className="font-mono text-[11px] bg-rose-100 border border-rose-300 px-2 py-0.5 rounded text-rose-800">
+                          {formatDistance(scanDist)} dari site (Maks: {sRadius}m)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="pt-2.5 border-t border-gray-200 flex items-center justify-between text-xs font-medium text-emerald-700">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle size={15} className="text-emerald-600 shrink-0" />
+                          <span>Di Dalam Radius Site</span>
+                        </span>
+                        <span className="font-mono text-[11px] bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded text-emerald-800">
+                          {formatDistance(scanDist)} dari site
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-xs text-gray-500 font-mono">
-                    {Number(selectedScan.gps_lat).toFixed(7)}, {Number(selectedScan.gps_lng).toFixed(7)}
-                  </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
           </div>
         </div>
