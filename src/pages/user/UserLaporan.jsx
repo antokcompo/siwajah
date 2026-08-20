@@ -77,9 +77,29 @@ export default function UserLaporan() {
 
   if (!slot || !tanggal) return null
 
+  const todayStr = new Date().toISOString().split('T')[0]
+  const isPastDate = tanggal < todayStr
+
   const tglLabel = new Date(tanggal + 'T00:00').toLocaleDateString('id-ID', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   })
+
+  if (isPastDate) {
+    return (
+      <div className="px-4 py-8 text-center">
+        <div className="w-14 h-14 bg-amber-500/15 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto mb-3 text-amber-400">
+          <AlertTriangle size={28} />
+        </div>
+        <h3 className="text-base font-bold text-slate-100 mb-1">Pengajuan Laporan Ditutup</h3>
+        <p className="text-xs text-slate-400 max-w-xs mx-auto mb-6 leading-relaxed">
+          Pengajuan laporan terlewat hanya dapat dilakukan pada hari yang sama. Laporan untuk tanggal <strong className="text-slate-200">{tglLabel}</strong> sudah tidak dapat diajukan oleh pengguna.
+        </p>
+        <button onClick={() => navigate('/user')} className="user-btn-secondary">
+          Kembali ke Beranda
+        </button>
+      </div>
+    )
+  }
 
   if (success) {
     return (
