@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, CheckCircle2, AlertCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe, Mail, X, MapPin } from 'lucide-react'
+import SiteMapPicker from '../components/SiteMapPicker'
 
 const timezoneOptions = [
   { value: 'Asia/Jakarta', label: 'WIB — Waktu Indonesia Barat (UTC+7)' },
@@ -493,7 +494,7 @@ export default function Konfigurasi() {
                 </div>
               </button>
 
-              <div className={`transition-all duration-300 ease-in-out ${isCollapsed ? 'max-h-0 opacity-0 overflow-hidden' : 'max-h-[600px] opacity-100'}`}>
+              <div className={`transition-all duration-300 ease-in-out ${isCollapsed ? 'max-h-0 opacity-0 overflow-hidden' : 'max-h-[1400px] opacity-100'}`}>
                 <div className="px-5 pb-5 pt-1">
                   <div className={`grid gap-4 ${section.fields.length === 1 ? '' : 'sm:grid-cols-2'}`}>
                     {section.fields.map(f => (
@@ -535,6 +536,18 @@ export default function Konfigurasi() {
                       </div>
                     ))}
                   </div>
+
+                  {section.id === 'geofence' && (
+                    <SiteMapPicker
+                      lat={values.site_lat}
+                      lng={values.site_lng}
+                      radius={values.site_radius_meter}
+                      onChange={(newLat, newLng) => {
+                        handleChange('site_lat', newLat)
+                        handleChange('site_lng', newLng)
+                      }}
+                    />
+                  )}
 
                   {section.id === 'email' && (
                     <div className="mt-4 pt-3 border-t flex flex-wrap justify-end gap-2">
