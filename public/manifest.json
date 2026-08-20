@@ -1,0 +1,21 @@
+{
+  "short_name": "SI Wajah",
+  "name": "SI Wajah — Absensi & Aktifitas Harian Proyek",
+  "icons": [
+    {
+      "src": "/logo-pp-icon.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/logo-pp-icon.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#060b18",
+  "theme_color": "#060b18",
+  "display": "standalone",
+  "orientation": "portrait"
+}
