@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPin, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle, X, Send, Download, Smartphone } from 'lucide-react'
+import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPin, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle, X, Send, Download, Sun, Moon } from 'lucide-react'
 import { cacheFaceData } from '../../lib/offlineQueue'
 import PhotoInput from '../../components/PhotoInput'
 
@@ -37,6 +37,17 @@ export default function UserBeranda() {
   const [hasFace, setHasFace] = useState(null)
   const [now, setNow] = useState(new Date())
   const [loading, setLoading] = useState(true)
+
+  // Outdoor Sunlight Mode Toggle
+  const [outdoorMode, setOutdoorMode] = useState(() => {
+    return localStorage.getItem('siwajah_outdoor_mode') === 'true'
+  })
+
+  const toggleOutdoorMode = () => {
+    const next = !outdoorMode
+    setOutdoorMode(next)
+    localStorage.setItem('siwajah_outdoor_mode', next.toString())
+  }
 
   // Lapor Terlewat modal state
   const [modalSlot, setModalSlot] = useState(null)
@@ -99,24 +110,20 @@ export default function UserBeranda() {
     ])
     setSlots(slotsRes.data || [])
     setTodayScans(scansRes.data || [])
-    setLemburRegistered(lemburRes.data === true)
     setHasFace(!!faceRes.data)
+    setLemburRegistered(!!lemburRes.data)
     setTodayLaporan(laporanRes.data || [])
     setTodayIzin(izinRes.data || null)
     setTodayKalender(kalenderRes.data || null)
-    setLoading(false)
 
-    if (navigator.onLine && faceRes.data) {
-      supabase.rpc('absen_get_all_face_data').then(({ data }) => {
-        if (data?.length) cacheFaceData(data).catch(() => {})
-      })
+    if (faceRes.data && scansRes.data) {
+      cacheFaceData(karyawan.id).catch(() => {})
     }
+
+    setLoading(false)
   }
 
-  const isTodayHoliday = todayKalender && todayKalender.jenis_hari !== 'kerja'
-
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-  const currentTimeMinutes = now.getHours() * 60 + now.getMinutes()
+  const isTodayHoliday = todayKalender?.is_libur === true
 
   function isLemburSlot(slot) {
     return slot.jenis === 'lembur' || slot.jenis === 'pulang_lembur'
@@ -125,50 +132,54 @@ export default function UserBeranda() {
   function getSlotStatus(slot) {
     if (todayIzin) return 'on_leave'
     if (isTodayHoliday && !lemburRegistered) return 'holiday'
-
-    const scanned = todayScans.find(s => s.slot_id === slot.id)
-    if (scanned) return 'done'
-
-    const pendingLap = todayLaporan.find(l => l.slot_id === slot.id && l.status === 'PENDING')
-    if (pendingLap) return 'pending_laporan'
-
     if (isLemburSlot(slot) && !lemburRegistered) return 'not_registered'
 
-    const [h, m] = slot.jam.split(':').map(Number)
-    const slotMinutes = h * 60 + m
+    const scan = todayScans.find(s => s.slot_id === slot.id)
+    if (scan) return 'done'
 
-    if (slot.jenis === 'pulang_lembur') {
-      // Khusus Pulang Lembur: Jam Slot + Toleransi = Batas Maksimal Akhir Absen (cth: 00:00 + 30m = 00:30)
-      const deadlineMinutes = slotMinutes + Number(slot.toleransi_menit || 0)
-      if (currentTimeMinutes >= 1020 || currentTimeMinutes <= deadlineMinutes) {
-        return 'active'
-      }
-      if (currentTimeMinutes > deadlineMinutes && currentTimeMinutes < 1020) {
-        return 'missed'
-      }
+    const laporan = todayLaporan.find(l => l.slot_id === slot.id)
+    if (laporan) {
+      if (laporan.status === 'PENDING') return 'pending_laporan'
+      if (laporan.status === 'APPROVED') return 'done'
     }
 
-    const diff = Math.abs(currentTimeMinutes - slotMinutes)
+    const todayStr = now.toISOString().split('T')[0]
+    const [h, m] = slot.jam.split(':').map(Number)
+    const slotTime = new Date(now)
+    slotTime.setHours(h, m, 0, 0)
 
-    if (diff <= slot.toleransi_menit) return 'active'
-    if (currentTimeMinutes < slotMinutes - slot.toleransi_menit) return 'upcoming'
-    return 'missed'
+    let windowStart, windowEnd
+
+    if (slot.jenis === 'pulang_lembur') {
+      windowStart = new Date(slotTime)
+      windowStart.setHours(windowStart.getHours() - 6)
+      windowEnd = new Date(slotTime)
+      windowEnd.setMinutes(windowEnd.getMinutes() + (slot.toleransi_menit || 30))
+    } else {
+      windowStart = new Date(slotTime)
+      windowStart.setMinutes(windowStart.getMinutes() - slot.toleransi_menit)
+      windowEnd = new Date(slotTime)
+      windowEnd.setMinutes(windowEnd.getMinutes() + slot.toleransi_menit)
+    }
+
+    if (now >= windowStart && now <= windowEnd) return 'active'
+    if (now > windowEnd) return 'missed'
+
+    return 'upcoming'
   }
 
   function handleOpenLapor(slot) {
     setModalSlot(slot)
     setLaporAlasan('')
     setLaporFotoFile(null)
-    if (laporFotoPreview) URL.revokeObjectURL(laporFotoPreview)
     setLaporFotoPreview(null)
-    setLaporError('')
     setLaporGps(null)
-
+    setLaporError('')
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        pos => setLaporGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) => setLaporGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         () => {},
-        { enableHighAccuracy: true, timeout: 10000 }
+        { enableHighAccuracy: true, timeout: 5000 }
       )
     }
   }
@@ -177,19 +188,17 @@ export default function UserBeranda() {
     setModalSlot(null)
     setLaporAlasan('')
     setLaporFotoFile(null)
-    if (laporFotoPreview) URL.revokeObjectURL(laporFotoPreview)
     setLaporFotoPreview(null)
-    setLaporError('')
     setLaporGps(null)
+    setLaporError('')
   }
 
   async function handleLaporSubmit(e) {
     e.preventDefault()
-    if (!laporAlasan || laporAlasan.trim().length < 5) {
-      setLaporError('Alasan harus minimal 5 karakter')
+    if (!laporAlasan.trim()) {
+      setLaporError('Alasan terlewat wajib diisi.')
       return
     }
-
     setSubmittingLapor(true)
     setLaporError('')
 
@@ -258,7 +267,7 @@ export default function UserBeranda() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
       </div>
     )
   }
@@ -266,12 +275,12 @@ export default function UserBeranda() {
   if (hasFace === false) {
     return (
       <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 flex items-center justify-center">
-          <ScanFace size={32} className="text-blue-400" />
+        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 flex items-center justify-center shadow-lg">
+          <ScanFace size={32} className="text-cyan-400" />
         </div>
-        <h2 className="text-lg font-bold text-slate-100 mb-2">Daftarkan Wajah</h2>
-        <p className="text-sm text-slate-400 mb-6">Anda perlu mendaftarkan wajah terlebih dahulu sebelum bisa absen</p>
-        <button onClick={() => navigate('/user/daftar-wajah')} className="user-btn-primary flex items-center gap-2">
+        <h2 className="text-lg font-extrabold text-white mb-2">Daftarkan Wajah</h2>
+        <p className="text-xs text-slate-300 mb-6 font-medium">Anda perlu mendaftarkan wajah terlebih dahulu sebelum bisa absen</p>
+        <button onClick={() => navigate('/user/daftar-wajah')} className="user-btn-primary flex items-center gap-2 font-bold">
           <Camera size={18} /> Daftar Wajah Sekarang
         </button>
       </div>
@@ -279,37 +288,63 @@ export default function UserBeranda() {
   }
 
   return (
-    <div className="px-4 py-4">
-      {/* Header */}
-      <div className="text-center mb-4">
-        <p className="text-xs text-slate-500">{greeting}</p>
-        <h2 className="text-lg font-bold text-slate-100">{karyawan?.nama}</h2>
-        <p className="text-xs text-slate-500 mt-0.5">{fmtDate}</p>
+    <div className={`px-4 py-4 min-h-screen transition-colors duration-200 ${outdoorMode ? 'bg-slate-950 text-white' : ''}`}>
+      {/* Sunlight Outdoor Mode Toggle Header Bar */}
+      <div className="mb-4 flex items-center justify-between bg-slate-900/90 border border-slate-800 p-2.5 rounded-2xl shadow-md backdrop-blur-md">
+        <div className="flex items-center gap-2">
+          <Sun size={18} className={outdoorMode ? 'text-amber-400 animate-spin' : 'text-slate-400'} />
+          <span className="text-xs font-bold text-white">
+            {outdoorMode ? 'Mode Outdoor Terik Matahari (Kontras Tinggi)' : 'Mode Standar'}
+          </span>
+        </div>
+
+        <button
+          onClick={toggleOutdoorMode}
+          className={`px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-md ${
+            outdoorMode
+              ? 'bg-amber-400 text-slate-950 shadow-amber-400/40 border border-amber-300'
+              : 'bg-slate-800 text-slate-300 hover:text-white border border-slate-700'
+          }`}
+        >
+          {outdoorMode ? <Sun size={14} /> : <Moon size={14} />}
+          <span>{outdoorMode ? 'Mode Terik Aktif' : 'Aktifkan Mode Outdoor'}</span>
+        </button>
+      </div>
+
+      {/* Header Profile Info */}
+      <div className={`text-center mb-5 p-4 rounded-2xl border transition-all ${
+        outdoorMode
+          ? 'bg-slate-900 border-2 border-cyan-400/80 shadow-lg shadow-cyan-950/60'
+          : 'bg-slate-900/60 border border-slate-800'
+      }`}>
+        <p className={`text-xs font-bold ${outdoorMode ? 'text-amber-300' : 'text-slate-300'}`}>{greeting}</p>
+        <h2 className={`text-xl font-black ${outdoorMode ? 'text-white tracking-wide' : 'text-slate-100'}`}>{karyawan?.nama}</h2>
+        <p className={`text-xs font-medium mt-1 ${outdoorMode ? 'text-cyan-300' : 'text-slate-400'}`}>{fmtDate}</p>
       </div>
 
       {/* Alert Notification */}
       {laporSuccess && (
-        <div className="mb-4 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-400">
-          <CheckCircle size={16} className="shrink-0" />
+        <div className="mb-4 flex items-center gap-2 px-3.5 py-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/50 text-xs font-bold text-emerald-300 shadow-md">
+          <CheckCircle size={18} className="shrink-0 text-emerald-400" />
           <span>{laporSuccess}</span>
         </div>
       )}
 
       {/* PWA Install Banner */}
       {deferredPrompt && !isStandalone && (
-        <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-cyan-500/30 flex items-center justify-between gap-3 shadow-lg">
+        <div className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-cyan-500/25 to-blue-500/25 border border-cyan-400/40 flex items-center justify-between gap-3 shadow-lg">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 border border-cyan-500/30">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 border border-cyan-500/40">
               <Download size={20} />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-slate-100">Install Aplikasi SI WAJAH</h4>
-              <p className="text-[10px] text-slate-400">Pasang di Layar Utama HP untuk absen offline</p>
+              <h4 className="text-xs font-extrabold text-white">Install Aplikasi SI WAJAH</h4>
+              <p className="text-[11px] text-slate-300">Pasang di Layar HP untuk absen offline</p>
             </div>
           </div>
           <button
             onClick={handleInstallClick}
-            className="px-3.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold shrink-0 transition-all shadow-md"
+            className="px-3.5 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 text-xs font-black shrink-0 transition-all shadow-md"
           >
             Install
           </button>
@@ -318,9 +353,9 @@ export default function UserBeranda() {
 
       {/* Offsite indicator */}
       {isOffsite && (
-        <div className="flex items-center gap-2 px-3 py-2 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
-          <MapPinOff size={14} className="text-amber-400 shrink-0" />
-          <span className="text-[11px] text-amber-400">
+        <div className="flex items-center gap-2 px-3.5 py-2.5 mb-4 rounded-2xl bg-amber-500/20 border border-amber-500/40 shadow-sm">
+          <MapPinOff size={16} className="text-amber-400 shrink-0" />
+          <span className="text-xs font-bold text-amber-300">
             Di luar lokasi proyek — Anda di {userTzLabel}, proyek di {projectTzLabel}
           </span>
         </div>
@@ -328,59 +363,63 @@ export default function UserBeranda() {
 
       {/* Today Approved Leave Banner */}
       {todayIzin ? (
-        <div className="bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 rounded-2xl p-5 mb-5 text-center shadow-lg">
-          <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-3 text-amber-400 border border-amber-500/30">
+        <div className="bg-gradient-to-br from-amber-500/25 to-amber-500/10 border-2 border-amber-500/50 rounded-2xl p-5 mb-5 text-center shadow-xl">
+          <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-3 text-amber-400 border border-amber-500/40">
             <Ban size={24} />
           </div>
-          <span className="text-[10px] text-amber-400 uppercase tracking-widest font-bold">STATUS HARI INI</span>
-          <h3 className="text-base font-bold text-amber-300 mt-1">Sedang Masa Izin (Disetujui)</h3>
-          <p className="text-xs text-amber-200/80 mt-1.5 max-w-xs mx-auto">
+          <span className="text-[11px] text-amber-300 uppercase tracking-widest font-black">STATUS HARI INI</span>
+          <h3 className="text-base font-extrabold text-white mt-1">Sedang Masa Izin (Disetujui)</h3>
+          <p className="text-xs text-amber-100 mt-1.5 max-w-xs mx-auto font-medium">
             Anda telah mendapatkan persetujuan {todayIzin.jenis === 'PAID' ? 'Izin Berbayar' : 'Izin Tidak Berbayar'} untuk hari ini ({todayIzin.alasan}).
           </p>
-          <p className="text-[11px] text-amber-300/60 mt-2.5 italic bg-black/20 py-1.5 px-3 rounded-lg inline-block">
+          <p className="text-xs text-amber-300 mt-2.5 font-bold bg-slate-950/60 py-1.5 px-3 rounded-xl inline-block border border-amber-500/30">
             Tombol absen dinonaktifkan selama masa izin.
           </p>
-          <div className="mt-4 pt-3 border-t border-amber-500/20 flex justify-center">
+          <div className="mt-4 pt-3 border-t border-amber-500/30 flex justify-center">
             <button
               onClick={() => navigate('/user/izin')}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/30 hover:bg-amber-500/40 border border-amber-400 text-white text-xs font-extrabold transition-all"
             >
-              <FileWarning size={14} /> Ajukan Batal Izin ke Admin
+              <FileWarning size={15} /> Ajukan Batal Izin ke Admin
             </button>
           </div>
         </div>
       ) : isTodayHoliday && !lemburRegistered ? (
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/60 rounded-2xl p-5 mb-5 text-center shadow-lg">
-          <div className="w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center mx-auto mb-3 text-cyan-400 border border-cyan-500/20">
+        <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 mb-5 text-center shadow-lg">
+          <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-3 text-cyan-400 border border-cyan-500/30">
             <Clock size={24} />
           </div>
-          <span className="text-[10px] text-cyan-400 uppercase tracking-widest font-bold">KALENDER KERJA</span>
-          <h3 className="text-base font-bold text-slate-100 mt-1">
+          <span className="text-[11px] text-cyan-400 uppercase tracking-widest font-black">KALENDER KERJA</span>
+          <h3 className="text-base font-extrabold text-white mt-1">
             Hari Ini Adalah Hari Libur
           </h3>
-          <p className="text-xs text-slate-400 mt-1.5 max-w-xs mx-auto">
+          <p className="text-xs text-slate-300 mt-1.5 max-w-xs mx-auto font-medium">
             {todayKalender?.keterangan || 'Libur Operasional Proyek'}. Presensi dinonaktifkan pada hari libur.
           </p>
-          <p className="text-[11px] text-amber-300/70 mt-2.5 italic bg-black/30 py-1.5 px-3 rounded-lg inline-block">
+          <p className="text-xs text-amber-300 mt-2.5 font-bold bg-slate-950/60 py-1.5 px-3 rounded-xl inline-block border border-slate-800">
             Kecuali didaftarkan lembur & disetujui admin.
           </p>
         </div>
       ) : nextSlot && (
-        <div className="bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-5 text-center">
-          <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Absen Berikutnya</p>
-          <p className="text-3xl font-extrabold text-emerald-400 mt-1">{nextSlot.jam.slice(0, 5)}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{nextSlot.label} &bull; Toleransi ±{nextSlot.toleransi_menit} menit</p>
+        <div className={`rounded-3xl p-5 mb-5 text-center transition-all ${
+          outdoorMode
+            ? 'bg-emerald-950/80 border-2 border-emerald-400 shadow-2xl shadow-emerald-950/80'
+            : 'bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 border border-emerald-500/40 shadow-lg'
+        }`}>
+          <p className="text-xs text-emerald-300 uppercase tracking-wider font-black">Absen Berikutnya</p>
+          <p className="text-4xl font-black text-emerald-400 mt-1 tracking-tight">{nextSlot.jam.slice(0, 5)}</p>
+          <p className="text-xs text-slate-200 mt-1 font-bold">{nextSlot.label} &bull; Toleransi ±{nextSlot.toleransi_menit} menit</p>
 
           {getSlotStatus(nextSlot) === 'active' ? (
             <button
               onClick={() => navigate('/user/scan', { state: { slot: nextSlot } })}
-              className="user-btn-primary w-full mt-4 flex items-center justify-center gap-2 text-base"
+              className="w-full mt-4 py-3.5 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-black text-base flex items-center justify-center gap-2 shadow-xl shadow-emerald-400/40 transition-all border border-emerald-300 tracking-wide"
             >
-              <Camera size={20} /> ABSEN SEKARANG
+              <Camera size={22} /> ABSEN SEKARANG
             </button>
           ) : (
-            <div className="mt-4 flex items-center justify-center gap-2 text-slate-500 text-sm">
-              <Clock size={16} />
+            <div className="mt-4 flex items-center justify-center gap-2 text-slate-300 font-bold text-sm">
+              <Clock size={16} className="text-emerald-400" />
               <span>Buka pukul {nextSlot.jam.slice(0, 5)}</span>
             </div>
           )}
@@ -388,40 +427,56 @@ export default function UserBeranda() {
       )}
 
       {!nextSlot && slots.length > 0 && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-5 text-center">
-          <p className="text-sm text-slate-400">Semua absen hari ini sudah selesai</p>
-          <p className="text-xs text-slate-600 mt-1">Sampai jumpa besok!</p>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-5 text-center shadow-md">
+          <p className="text-sm font-extrabold text-white">Semua absen hari ini sudah selesai</p>
+          <p className="text-xs text-slate-400 mt-1 font-medium">Sampai jumpa besok!</p>
         </div>
       )}
 
-      {/* Menu Cards */}
-      <div className="grid grid-cols-2 gap-2 mb-5">
+      {/* Quick Action Navigation Buttons */}
+      <div className="grid grid-cols-2 gap-3 mb-5">
         <button
           onClick={() => navigate('/user/izin')}
-          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 hover:border-cyan-500/30 transition-all text-left"
+          className={`flex items-center gap-3 p-3.5 rounded-2xl transition-all text-left ${
+            outdoorMode
+              ? 'bg-slate-900 border-2 border-cyan-400 text-white shadow-lg'
+              : 'bg-slate-900/80 border border-slate-800 hover:border-cyan-500/40'
+          }`}
         >
-          <CalendarDays size={18} className="text-cyan-400 shrink-0" />
-          <div className="text-left">
-            <div className="text-xs font-bold text-slate-200">Ajukan Izin</div>
-            <div className="text-[10px] text-slate-500">Izin berbayar / tidak berbayar</div>
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 border border-cyan-500/30">
+            <CalendarDays size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-black text-white">Ajukan Izin</div>
+            <div className="text-[11px] text-slate-300 font-medium">Izin berbayar / tidak</div>
           </div>
         </button>
         <button
           onClick={() => navigate('/user/laporan-terlewat')}
-          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all text-left"
+          className={`flex items-center gap-3 p-3.5 rounded-2xl transition-all text-left ${
+            outdoorMode
+              ? 'bg-slate-900 border-2 border-amber-400 text-white shadow-lg'
+              : 'bg-slate-900/80 border border-slate-800 hover:border-amber-500/40'
+          }`}
         >
-          <FileWarning size={18} className="text-amber-400 shrink-0" />
-          <div className="text-left">
-            <div className="text-xs font-bold text-slate-200">Laporan Terlewat</div>
-            <div className="text-[10px] text-slate-500">Cek status laporan & catatan</div>
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 border border-amber-500/30">
+            <FileWarning size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-black text-white">Laporan Terlewat</div>
+            <div className="text-[11px] text-slate-300 font-medium">Cek status laporan</div>
           </div>
         </button>
       </div>
 
-      {/* Timeline */}
-      <div className="mb-2">
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Hari Ini</h3>
-        <div className="space-y-1.5">
+      {/* Timeline Section */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider">Jadwal Absen Hari Ini</h3>
+          <span className="text-[11px] text-slate-400 font-medium">{slots.length} Slot Hari Ini</span>
+        </div>
+
+        <div className="space-y-2">
           {slots.map(slot => {
             const st = getSlotStatus(slot)
             const scan = todayScans.find(s => s.slot_id === slot.id)
@@ -430,196 +485,166 @@ export default function UserBeranda() {
             return (
               <div
                 key={slot.id}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all
-                  ${st === 'active' ? 'bg-emerald-500/10 border border-emerald-500/20' :
-                    st === 'done' ? 'bg-white/5' :
-                    st === 'pending_laporan' ? 'bg-amber-500/5 border border-amber-500/10' :
-                    st === 'missed' ? 'bg-red-500/5 border border-red-500/10' :
-                    st === 'not_registered' ? 'opacity-30' :
-                    'opacity-40'}`}
+                className={`flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all border ${
+                  st === 'active'
+                    ? 'bg-emerald-950/80 border-2 border-emerald-400 shadow-lg shadow-emerald-950/50'
+                    : st === 'done'
+                    ? 'bg-slate-900 border-slate-800'
+                    : st === 'pending_laporan'
+                    ? 'bg-amber-950/60 border-2 border-amber-400/80'
+                    : st === 'missed'
+                    ? 'bg-rose-950/60 border-2 border-rose-500/80'
+                    : 'bg-slate-900/40 border-slate-800/80 opacity-60'
+                }`}
                 onClick={() => {
                   if (st === 'active') navigate('/user/scan', { state: { slot } })
                   else if (st === 'missed') handleOpenLapor(slot)
                 }}
               >
-                {/* Status dot */}
-                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                  st === 'done' ? 'bg-emerald-500' :
-                  st === 'active' ? 'bg-emerald-400 animate-pulse' :
-                  st === 'pending_laporan' ? 'bg-amber-400 animate-pulse' :
-                  st === 'missed' ? 'bg-red-400' :
-                  st === 'not_registered' ? 'bg-slate-600' :
-                  'bg-slate-700'
+                {/* Status Dot */}
+                <div className={`w-3 h-3 rounded-full shrink-0 ${
+                  st === 'done' ? 'bg-emerald-400 shadow-sm shadow-emerald-400' :
+                  st === 'active' ? 'bg-emerald-400 animate-pulse shadow-md shadow-emerald-400' :
+                  st === 'pending_laporan' ? 'bg-amber-400 animate-pulse shadow-md shadow-amber-400' :
+                  st === 'missed' ? 'bg-rose-500 shadow-sm shadow-rose-500' :
+                  'bg-slate-600'
                 }`} />
 
                 {/* Time */}
-                <span className={`text-sm font-semibold w-12 ${
-                  st === 'active' ? 'text-emerald-400' :
-                  st === 'pending_laporan' ? 'text-amber-400' :
-                  st === 'missed' ? 'text-red-400' :
-                  'text-slate-200'
+                <span className={`text-sm font-black w-14 ${
+                  st === 'active' ? 'text-emerald-300' :
+                  st === 'pending_laporan' ? 'text-amber-300' :
+                  st === 'missed' ? 'text-rose-400' :
+                  'text-white'
                 }`}>{slot.jam.slice(0, 5)}</span>
 
-                {/* Status text */}
-                <div className="flex-1 min-w-0">
+                {/* Status Content */}
+                <div className="flex-1 min-w-0 font-sans">
                   {st === 'done' ? (
                     <div className="flex items-center gap-1.5">
-                      <CheckCircle size={12} className="text-emerald-400 shrink-0" />
-                      <span className="text-xs text-emerald-400">{scanTime}</span>
+                      <CheckCircle size={14} className="text-emerald-400 shrink-0" />
+                      <span className="text-xs font-extrabold text-emerald-300">Berhasil ({scanTime})</span>
                       {scan?.lokasi_kerja && (
-                        <span className="text-[10px] text-slate-500 truncate">• {scan.lokasi_kerja}</span>
+                        <span className="text-[11px] text-slate-300 truncate font-medium">• {scan.lokasi_kerja}</span>
                       )}
                     </div>
                   ) : st === 'active' ? (
-                    <span className="text-xs text-emerald-300">Siap absen</span>
+                    <span className="text-xs font-black text-emerald-300 uppercase tracking-wide">Siap Absen Sekarang</span>
                   ) : st === 'pending_laporan' ? (
-                    <div className="flex items-center gap-1 text-xs text-amber-400">
-                      <Clock size={12} className="shrink-0" />
+                    <div className="flex items-center gap-1 text-xs font-bold text-amber-300">
+                      <Clock size={13} className="shrink-0" />
                       Menunggu Approval Admin
                     </div>
                   ) : st === 'missed' ? (
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1 text-xs text-red-400">
-                        <FileWarning size={12} className="shrink-0" />
+                      <div className="flex items-center gap-1 text-xs font-extrabold text-rose-300">
+                        <FileWarning size={13} className="shrink-0" />
                         Terlewat
                       </div>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleOpenLapor(slot) }}
-                        className="text-[10px] bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 px-2 py-0.5 rounded-lg transition-colors font-medium"
+                        className="text-xs bg-rose-500 hover:bg-rose-400 text-white font-extrabold px-2.5 py-1 rounded-xl transition-colors shadow-sm"
                       >
                         Lapor Terlewat
                       </button>
                     </div>
                   ) : st === 'holiday' ? (
-                    <div className="flex items-center gap-1 text-xs text-slate-400 font-medium">
-                      <Clock size={12} className="shrink-0 text-slate-500" />
+                    <div className="flex items-center gap-1 text-xs text-slate-300 font-bold">
+                      <Clock size={13} className="shrink-0 text-slate-400" />
                       Hari Libur (Presensi Tutup)
                     </div>
                   ) : st === 'on_leave' ? (
-                    <div className="flex items-center gap-1 text-xs text-amber-400 font-medium">
-                      <Ban size={12} className="shrink-0 text-amber-400" />
-                      Sedang Masa Izin
-                    </div>
-                  ) : st === 'not_registered' ? (
-                    <div className="flex items-center gap-1 text-xs text-slate-500">
-                      <Ban size={12} className="shrink-0" />
-                      Tidak terdaftar lembur
+                    <div className="flex items-center gap-1 text-xs text-amber-300 font-bold">
+                      <Ban size={13} className="shrink-0" />
+                      Masa Izin
                     </div>
                   ) : (
-                    <span className="text-xs text-slate-600">—</span>
+                    <span className="text-xs text-slate-300 font-semibold">{slot.label}</span>
                   )}
                 </div>
-
-                {/* Label */}
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${jenisColor[slot.jenis]} text-white shrink-0`}>
-                  {slot.label}
-                </span>
               </div>
             )
           })}
         </div>
-
-        {/* Missed scan warning */}
-        {(() => {
-          const missedNonLembur = slots.filter(s => getSlotStatus(s) === 'missed' && !isLemburSlot(s))
-          if (missedNonLembur.length === 0) return null
-          return (
-            <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle size={14} className="text-red-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs text-red-400 font-semibold">{missedNonLembur.length} absen terlewat</p>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Segera laporkan alasan & foto bukti ke admin untuk koreksi absensi.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleOpenLapor(missedNonLembur[0])}
-                  className="text-xs bg-red-500 hover:bg-red-600 text-white font-medium px-2.5 py-1.5 rounded-lg shrink-0 flex items-center gap-1 transition-colors"
-                >
-                  <FileWarning size={12} /> Lapor
-                </button>
-              </div>
-            </div>
-          )
-        })()}
       </div>
 
-      {/* Modal Lapor Absen Terlewat */}
+      {/* Lapor Terlewat Modal */}
       {modalSlot && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl animate-fade-in" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <form onSubmit={handleLaporSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <FileWarning size={18} className="text-red-400" />
-                <h3 className="text-sm font-bold text-slate-100">Lapor Absen Terlewat</h3>
+                <FileWarning className="text-amber-400" size={20} />
+                <h3 className="font-bold text-white text-base">Lapor Absen Terlewat</h3>
               </div>
-              <button onClick={handleCloseLapor} className="text-slate-400 hover:text-slate-200 p-1 rounded-lg">
+              <button type="button" onClick={handleCloseLapor} className="p-1 text-slate-400 hover:text-white">
                 <X size={18} />
               </button>
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-xs space-y-1">
-              <div className="text-slate-400">Pekerja: <span className="text-slate-200 font-medium">{karyawan?.nama}</span></div>
-              <div className="text-slate-400">Slot Terlewat: <span className="text-red-400 font-semibold">{modalSlot.jam.slice(0, 5)} ({modalSlot.label})</span></div>
-              <div className="text-slate-400">Tanggal: <span className="text-slate-200">{fmtDate}</span></div>
-              <div className="text-slate-400 flex items-center gap-1.5 pt-1">
-                <MapPin size={13} className="text-cyan-400 shrink-0" />
-                <span>Posisi GPS: {laporGps ? <span className="text-cyan-300 font-mono">{laporGps.lat.toFixed(6)}, {laporGps.lng.toFixed(6)}</span> : <span className="text-slate-500 italic">Mendapatkan posisi GPS...</span>}</span>
+            {laporError && (
+              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-xs text-rose-300 font-bold">
+                {laporError}
               </div>
-            </div>
+            )}
 
-            <form onSubmit={handleLaporSubmit} className="space-y-4">
+            <div className="space-y-3 text-xs text-slate-300 font-sans">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <div>Slot: <strong className="text-white">{modalSlot.label} ({modalSlot.jam.slice(0, 5)})</strong></div>
+              </div>
+
               <div>
-                <label className="text-xs text-slate-400 block mb-1.5">Alasan Kendala <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-bold text-slate-200 mb-1">Alasan Terlewat (Wajib)</label>
                 <textarea
                   value={laporAlasan}
                   onChange={e => setLaporAlasan(e.target.value)}
-                  placeholder="Jelaskan alasan terlewat (misal: Lupa scan saat masuk lokasi proyek, HP mati, sedang tugas lapangan...)"
-                  rows={3}
-                  className="user-input resize-none"
+                  placeholder="Contoh: Terkendala sinyal seluler di area kerja..."
+                  className="w-full h-20 p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-400 font-sans"
                   required
                 />
               </div>
 
-              <PhotoInput
-                preview={laporFotoPreview}
-                onCapture={(file, url) => {
-                  setLaporFotoFile(file)
-                  setLaporFotoPreview(url)
-                }}
-                onRemove={() => {
-                  setLaporFotoFile(null)
-                  if (laporFotoPreview) URL.revokeObjectURL(laporFotoPreview)
-                  setLaporFotoPreview(null)
-                }}
-                label="Foto Evidence / Bukti (opsional)"
-              />
-
-              {laporError && (
-                <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-                  <AlertTriangle size={14} className="shrink-0" /> {laporError}
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <button type="button" onClick={handleCloseLapor} className="user-btn-secondary flex-1 text-xs py-2.5">
-                  Batal
-                </button>
-                <button type="submit" disabled={submittingLapor} className="user-btn-primary flex-1 text-xs py-2.5 flex items-center justify-center gap-1.5">
-                  <Send size={14} />
-                  {submittingLapor ? 'Mengirim...' : 'Kirim Laporan'}
-                </button>
+              <div>
+                <label className="block text-xs font-bold text-slate-200 mb-1">Foto Bukti (Opsional)</label>
+                <PhotoInput
+                  onPhotoCaptured={(file, preview) => {
+                    setLaporFotoFile(file)
+                    setLaporFotoPreview(preview)
+                  }}
+                  previewUrl={laporFotoPreview}
+                  onClear={() => {
+                    setLaporFotoFile(null)
+                    setLaporFotoPreview(null)
+                  }}
+                />
               </div>
-            </form>
-          </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={handleCloseLapor}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={submittingLapor || !laporAlasan.trim()}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-lg shadow-amber-950/60"
+              >
+                {submittingLapor ? (
+                  <div className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                ) : (
+                  <Send size={14} />
+                )}
+                <span>Kirim Laporan</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
   )
 }
-
