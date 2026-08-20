@@ -44,7 +44,7 @@ export default function RekapBulanan() {
         .order('tanggal', { ascending: false }),
       supabase
         .from('absen_scan_wajah')
-        .select('tanggal, slot_id')
+        .select('tanggal, slot_id, waktu_scan')
         .eq('karyawan_id', item.karyawan_id)
         .gte('tanggal', startDate)
         .lte('tanggal', endDate),
@@ -60,14 +60,26 @@ export default function RekapBulanan() {
     const scanList = scanRes.data || []
     const laporanList = laporanRes.data || []
 
-    // Calculate per-day slot statistics
+    // Calculate per-day slot statistics including min/max scan times
     const statsByDate = {}
     scanList.forEach(s => {
-      if (!statsByDate[s.tanggal]) statsByDate[s.tanggal] = { slots: new Set(), pendingCount: 0 }
+      if (!statsByDate[s.tanggal]) statsByDate[s.tanggal] = { slots: new Set(), pendingCount: 0, minScan: null, maxScan: null }
       statsByDate[s.tanggal].slots.add(s.slot_id)
+
+      if (s.waktu_scan) {
+        const wObj = new Date(s.waktu_scan)
+        const tStr = !isNaN(wObj.getTime())
+          ? wObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+          : null
+        if (tStr) {
+          if (!statsByDate[s.tanggal].minScan || tStr < statsByDate[s.tanggal].minScan) statsByDate[s.tanggal].minScan = tStr
+          if (!statsByDate[s.tanggal].maxScan || tStr > statsByDate[s.tanggal].maxScan) statsByDate[s.tanggal].maxScan = tStr
+        }
+      }
     })
+
     laporanList.forEach(l => {
-      if (!statsByDate[l.tanggal]) statsByDate[l.tanggal] = { slots: new Set(), pendingCount: 0 }
+      if (!statsByDate[l.tanggal]) statsByDate[l.tanggal] = { slots: new Set(), pendingCount: 0, minScan: null, maxScan: null }
       if (l.status === 'APPROVED') {
         statsByDate[l.tanggal].slots.add(l.slot_id)
       } else if (l.status === 'PENDING') {
@@ -75,12 +87,31 @@ export default function RekapBulanan() {
       }
     })
 
-    const enrichedHarian = harianList.map(h => {
-      const st = statsByDate[h.tanggal] || { slots: new Set(), pendingCount: 0 }
+    // Collect all distinct dates where employee has any record or scan
+    const allDatesSet = new Set([
+      ...harianList.map(h => h.tanggal),
+      ...scanList.map(s => s.tanggal),
+      ...laporanList.map(l => l.tanggal)
+    ])
+
+    const sortedDates = Array.from(allDatesSet).sort().reverse()
+
+    const harianByDate = {}
+    harianList.forEach(h => { harianByDate[h.tanggal] = h })
+
+    const enrichedHarian = sortedDates.map(tgl => {
+      const h = harianByDate[tgl] || { id: tgl, tanggal: tgl, jam_masuk: null, jam_pulang: null, status: 'PRO_RATA', jam_lembur: 0 }
+      const st = statsByDate[tgl] || { slots: new Set(), pendingCount: 0, minScan: null, maxScan: null }
       const verifiedSlots = st.slots.size
       const pendingCount = st.pendingCount
+
+      const jamMasuk = h.jam_masuk || st.minScan || '-'
+      const jamPulang = h.jam_pulang || (st.maxScan !== st.minScan ? st.maxScan : '-')
+
       return {
         ...h,
+        jam_masuk: jamMasuk,
+        jam_pulang: jamPulang,
         verifiedSlots,
         pendingCount,
         bobot: Math.min(1.0, verifiedSlots / 6.0)
@@ -567,7 +598,9 @@ export default function RekapBulanan() {
                               {d.is_gaji_full && <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-semibold text-[10px]">Full</span>}
                             </div>
                           </td>
-                          <td className="px-3 py-2.5 text-center tabular-nums text-gray-700 font-medium">{d.hari_kerja}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums text-gray-700 font-medium">
+                            {Number(d.hari_kerja || 0) % 1 === 0 ? Number(d.hari_kerja || 0) : Number(d.hari_kerja || 0).toFixed(2)}
+                          </td>
                           <td className="px-3 py-2.5 text-center tabular-nums text-gray-500">{d.jam_lembur_total}j</td>
                           <td className="px-3 py-2.5 text-right tabular-nums text-gray-900 whitespace-nowrap">Rp {fmt(d.gaji_pokok)}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums text-gray-500 whitespace-nowrap">Rp {fmt(d.gaji_lembur)}</td>
@@ -697,7 +730,7 @@ export default function RekapBulanan() {
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold text-xs">
-                            <Info size={13} /> Pro-Rata Kehadiran ({detailModalItem.hari_kerja} / {daysInMonth} Hari)
+                            <Info size={13} /> Pro-Rata Kehadiran ({Number(detailModalItem.hari_kerja || 0) % 1 === 0 ? Number(detailModalItem.hari_kerja || 0) : Number(detailModalItem.hari_kerja || 0).toFixed(2)} / {daysInMonth} Hari)
                           </span>
                         )}
                       </div>
@@ -720,10 +753,10 @@ export default function RekapBulanan() {
                           <div className="text-emerald-300">✓ Masuk di seluruh hari kerja bulan ini → Mendapatkan 100% Gaji Bulanan Penuh (Rp {fmt(gajiMasterVal)})</div>
                         ) : (
                           <>
-                            <div className="text-slate-400">Rumus Pro-Rata Harian:</div>
-                            <div className="text-amber-300">(Gaji Master ÷ Total Hari Kalender) × Hari Masuk</div>
+                            <div className="text-slate-400">Rumus Pro-Rata Harian (6 Slot Presensi):</div>
+                            <div className="text-amber-300">(Gaji Master ÷ Total Hari Kalender) × Hari Kerja Efektif</div>
                             <div className="text-slate-300">
-                              (Rp {fmt(gajiMasterVal)} ÷ {daysInMonth} Hari) × {detailModalItem.hari_kerja} Hari = Rp {fmt(detailModalItem.gaji_pokok)}
+                              (Rp {fmt(gajiMasterVal)} ÷ {daysInMonth} Hari) × {Number(detailModalItem.hari_kerja || 0) % 1 === 0 ? Number(detailModalItem.hari_kerja || 0) : Number(detailModalItem.hari_kerja || 0).toFixed(2)} Hari Kerja = Rp {fmt(detailModalItem.gaji_pokok)}
                             </div>
                           </>
                         )}
