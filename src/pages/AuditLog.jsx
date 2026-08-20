@@ -27,7 +27,8 @@ export default function AuditLog() {
   const [filterAction, setFilterAction] = useState('')
   const [search, setSearch] = useState('')
   const [expandedBatchId, setExpandedBatchId] = useState(null)
-  const pageSize = 100 // Fetch 100 items per query for smooth batch consolidation
+  
+  const displayPageSize = 10 // Exactly 10 grouped rows per page for uniform pagination
 
   useEffect(() => {
     supabase.from('absen_user_profiles').select('id, nama').then(({ data }) => {
@@ -37,7 +38,7 @@ export default function AuditLog() {
     })
   }, [])
 
-  useEffect(() => { load() }, [page, filterEntity, filterAction])
+  useEffect(() => { load() }, [filterEntity, filterAction])
 
   async function load() {
     setLoading(true)
@@ -45,7 +46,7 @@ export default function AuditLog() {
       .from('absen_audit_log')
       .select('*')
       .order('created_at', { ascending: false })
-      .range(page * pageSize, (page + 1) * pageSize - 1)
+      .limit(1000) // Fetch generous window to consolidate all batches
 
     if (filterEntity) q = q.eq('entity', filterEntity)
     if (filterAction) q = q.eq('action', filterAction)
@@ -68,8 +69,8 @@ export default function AuditLog() {
     })
   }, [data, search, userMap])
 
-  // Consolidate contiguous batch logs into single grouped rows
-  const groupedList = useMemo(() => {
+  // Consolidate contiguous batch logs into single grouped rows across the entire dataset FIRST
+  const allGroupedList = useMemo(() => {
     if (!filtered || filtered.length === 0) return []
 
     const groups = []
@@ -118,6 +119,14 @@ export default function AuditLog() {
     return groups
   }, [filtered])
 
+  // Paginate AFTER batch consolidation so every page has exactly 10 rows
+  const totalPages = Math.ceil(allGroupedList.length / displayPageSize) || 1
+
+  const paginatedList = useMemo(() => {
+    const start = page * displayPageSize
+    return allGroupedList.slice(start, start + displayPageSize)
+  }, [allGroupedList, page, displayPageSize])
+
   return (
     <div>
       {/* Header Page */}
@@ -129,7 +138,7 @@ export default function AuditLog() {
               <span>Audit Log & System History</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              Riwayat audit aktivitas sistem dengan sistem konsolidasi update batch otomatis.
+              Riwayat audit aktivitas sistem dengan konsolidasi batch otomatis & pagination seragam.
             </p>
           </div>
 
@@ -164,7 +173,7 @@ export default function AuditLog() {
               <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={e => { setSearch(e.target.value); setPage(0) }}
                 placeholder="Cari user, entitas, atau aksi audit..."
                 className="input-field pl-10 text-xs py-2 bg-slate-950/80 border-slate-800"
               />
@@ -189,10 +198,9 @@ export default function AuditLog() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
-                    {groupedList.map(g => {
+                    {paginatedList.map(g => {
                       const isBatch = g.items.length > 1
                       const isExpanded = expandedBatchId === g.id
-                      const primaryItem = g.items[0]
 
                       return (
                         <Fragment key={g.id}>
@@ -293,7 +301,7 @@ export default function AuditLog() {
                       )
                     })}
 
-                    {groupedList.length === 0 && (
+                    {paginatedList.length === 0 && (
                       <tr>
                         <td colSpan={5} className="px-5 py-12 text-center text-slate-400">
                           <Shield size={32} className="mx-auto text-slate-600 mb-2" />
@@ -314,10 +322,12 @@ export default function AuditLog() {
                 >
                   <ChevronLeft size={14} /> Sebelumnya
                 </button>
-                <span className="text-xs text-slate-400 font-medium">Halaman {page + 1}</span>
+                <span className="text-xs text-slate-400 font-medium">
+                  Halaman {page + 1} dari {totalPages} (Total {allGroupedList.length} Transaksi)
+                </span>
                 <button
-                  onClick={() => setPage(p => p + 1)}
-                  disabled={data.length < pageSize}
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
                   className="btn-secondary py-1.5 px-3 text-xs disabled:opacity-30 flex items-center gap-1"
                 >
                   Selanjutnya <ChevronRight size={14} />
