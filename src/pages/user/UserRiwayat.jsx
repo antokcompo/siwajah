@@ -129,10 +129,10 @@ export default function UserRiwayat() {
       const verifiedLemburCount = st.verifiedLembur.size
       const pendingCount = st.pendingCount
 
-      // Determine if overtime slots apply to this date
+      // Determine if overtime slots apply to this date (strictly requires registered lembur or approved overtime scan)
       const hasRegisteredLembur = datesWithRegisteredLembur.has(h.tanggal)
-      const hasLemburScan = verifiedLemburCount > 0 || (st.laporansMap && lemburSlots.some(s => st.laporansMap[s.id]))
-      const showLemburOnDate = hasRegisteredLembur || hasLemburScan
+      const hasApprovedLemburScan = verifiedLemburCount > 0
+      const showLemburOnDate = hasRegisteredLembur || hasApprovedLemburScan
 
       // Active master slots for this date (excludes lembur slots if employee has no overtime on this day!)
       const activeMasterSlots = showLemburOnDate ? allSlots : regularSlots
