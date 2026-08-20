@@ -348,7 +348,10 @@ export default function UserScan() {
             <div className="bg-rose-950/60 border border-rose-500/50 rounded-xl p-3 flex items-start gap-2.5 mb-4 text-xs text-rose-200">
               <ShieldAlert size={18} className="text-rose-400 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold text-rose-300 block mb-0.5">⚠️ Proteksi Anti-Fake GPS Terdeteksi</span>
+                <span className="font-bold text-rose-300 flex items-center gap-1.5 mb-0.5">
+                  <ShieldAlert size={14} className="text-rose-400" />
+                  <span>Proteksi Anti-Fake GPS Terdeteksi</span>
+                </span>
                 <span>
                   Sistem mendeteksi indikasi sinyal GPS buatan ({gps.reasons?.join('; ')}). Scan presensi Anda akan ditandai untuk peninjauan khusus atasan.
                 </span>

@@ -527,7 +527,7 @@ export default function RekapHarian() {
                       <div className="pt-2.5 border-t border-rose-200 flex items-center justify-between text-xs font-bold text-rose-700">
                         <span className="flex items-center gap-1.5">
                           <AlertTriangle size={15} className="text-rose-600 shrink-0" />
-                          <span>⚠️ Absen Di Luar Site (Off-Site)</span>
+                          <span>Presensi Di Luar Site (Off-Site)</span>
                         </span>
                         <span className="font-mono text-[11px] bg-rose-100 border border-rose-300 px-2 py-0.5 rounded text-rose-800">
                           {formatDistance(scanDist)} dari site (Maks: {sRadius}m)

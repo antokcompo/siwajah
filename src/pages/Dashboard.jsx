@@ -5,7 +5,7 @@ import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 import { 
   Users, CheckCircle, AlertTriangle, Clock, TrendingUp, 
   BarChart3, Timer, UserCheck, Hammer, MapPinOff, ExternalLink, MapPin, X,
-  ShieldAlert, Radio, Navigation, Building2, ZoomIn, Eye, ScanFace, Globe, Maximize2, Search
+  ShieldAlert, Radio, Navigation, Building2, ZoomIn, Eye, ScanFace, Globe, Maximize2, Search, Target, Lightbulb
 } from 'lucide-react'
 
 const namaBulan = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
@@ -548,8 +548,9 @@ export default function Dashboard() {
                   </h2>
                   <p className="text-xs text-slate-400 flex items-center gap-2 mt-1">
                     <span>Radius Geofence Site:</span>
-                    <span className="font-mono font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded text-[11px] inline-flex items-center gap-1">
-                      🎯 {siteConfig.radius} Meter ({siteConfig.lat?.toFixed(5)}, {siteConfig.lng?.toFixed(5)})
+                    <span className="font-mono font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded text-[11px] inline-flex items-center gap-1.5">
+                      <Target size={12} className="text-cyan-400 shrink-0" />
+                      <span>{siteConfig.radius} Meter ({siteConfig.lat?.toFixed(5)}, {siteConfig.lng?.toFixed(5)})</span>
                     </span>
                   </p>
                 </div>
@@ -805,7 +806,10 @@ export default function Dashboard() {
 
               {/* Footer */}
               <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs text-slate-400">
-                <span>💡 Arahkan kursor pada titik grafik untuk melihat tooltip detail rincian.</span>
+                <span className="flex items-center gap-1.5">
+                  <Lightbulb size={14} className="text-amber-400 shrink-0" />
+                  <span>Arahkan kursor pada titik grafik untuk melihat tooltip detail rincian.</span>
+                </span>
                 <button 
                   onClick={() => setZoomChartModal(null)}
                   className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold text-white transition-colors"
