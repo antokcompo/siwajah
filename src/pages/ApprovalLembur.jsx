@@ -25,28 +25,28 @@ export default function ApprovalLembur() {
       <div className="page-header">
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="page-title">Lembur</h1>
-          <div className="bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 shadow-inner inline-flex items-center gap-1.5 backdrop-blur-md">
+          <div className="bg-slate-950/90 p-1.5 rounded-2xl border border-slate-800 shadow-inner inline-flex items-center gap-1.5 backdrop-blur-md">
             <button
               onClick={() => setMainTab('daftar')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
                 mainTab === 'daftar'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 font-semibold'
+                  ? 'bg-cyan-500/20 !text-white border border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.35)]'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-900/60 font-medium'
               }`}
             >
-              <CalendarPlus size={14} className={mainTab === 'daftar' ? 'text-cyan-200' : 'text-slate-400'} />
-              <span>Daftar Lembur</span>
+              <CalendarPlus size={14} className={mainTab === 'daftar' ? 'text-cyan-400' : 'text-slate-400'} />
+              <span className="!text-white font-extrabold tracking-wide">Daftar Lembur</span>
             </button>
             <button
               onClick={() => setMainTab('approval')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
                 mainTab === 'approval'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 font-semibold'
+                  ? 'bg-cyan-500/20 !text-white border border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.35)]'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-900/60 font-medium'
               }`}
             >
-              <ClipboardCheck size={14} className={mainTab === 'approval' ? 'text-cyan-200' : 'text-slate-400'} />
-              <span>Approval Jam</span>
+              <ClipboardCheck size={14} className={mainTab === 'approval' ? 'text-cyan-400' : 'text-slate-400'} />
+              <span className="!text-white font-extrabold tracking-wide">Approval Jam</span>
             </button>
           </div>
         </div>

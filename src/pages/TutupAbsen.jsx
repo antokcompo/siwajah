@@ -189,18 +189,18 @@ export default function TutupAbsen() {
 
         {/* Tab Navigation Segmented Bar */}
         <div className="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between flex-wrap gap-3">
-          <div className="bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 shadow-inner inline-flex items-center gap-1.5 backdrop-blur-md">
+          <div className="bg-slate-950/90 p-1.5 rounded-2xl border border-slate-800 shadow-inner inline-flex items-center gap-1.5 backdrop-blur-md">
             <button
               type="button"
               onClick={() => setTab('status')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 ${
                 tab === 'status'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 font-semibold'
+                  ? 'bg-cyan-500/20 !text-white border border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.35)]'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-900/60 font-medium'
               }`}
             >
-              <Calendar size={15} className={tab === 'status' ? 'text-cyan-200' : 'text-slate-400'} />
-              <span>Status Bulanan ({tahun})</span>
+              <Calendar size={15} className={tab === 'status' ? 'text-cyan-400' : 'text-slate-400'} />
+              <span className="!text-white font-extrabold tracking-wide">Status Bulanan ({tahun})</span>
             </button>
 
             <button
@@ -208,12 +208,12 @@ export default function TutupAbsen() {
               onClick={() => setTab('requests')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-2 relative ${
                 tab === 'requests'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 font-semibold'
+                  ? 'bg-cyan-500/20 !text-white border border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.35)]'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-900/60 font-medium'
               }`}
             >
-              <ShieldCheck size={15} className={tab === 'requests' ? 'text-cyan-200' : 'text-slate-400'} />
-              <span>Permintaan Approval</span>
+              <ShieldCheck size={15} className={tab === 'requests' ? 'text-cyan-400' : 'text-slate-400'} />
+              <span className="!text-white font-extrabold tracking-wide">Permintaan Approval</span>
               {pendingRequests.length > 0 && (
                 <span className="ml-1 px-2 py-0.5 rounded-full bg-rose-500 text-white font-extrabold text-[10px] shadow-md shadow-rose-950/80 animate-pulse">
                   {pendingRequests.length}
