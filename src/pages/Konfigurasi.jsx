@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe, Mail } from 'lucide-react'
+import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe, Mail, X } from 'lucide-react'
 
 const timezoneOptions = [
   { value: 'Asia/Jakarta', label: 'WIB — Waktu Indonesia Barat (UTC+7)' },
