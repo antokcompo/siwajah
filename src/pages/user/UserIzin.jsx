@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { AlertTriangle, CheckCircle, ChevronLeft, Calendar, Info, FileWarning, Image, X, MapPin } from 'lucide-react'
+import { AlertTriangle, CheckCircle, ChevronLeft, Calendar, Info, FileWarning, Image, X, MapPin, MessageSquare } from 'lucide-react'
 import PhotoInput from '../../components/PhotoInput'
 
 const jenisOptions = [
@@ -290,7 +290,19 @@ export default function UserIzin() {
                     <span className="text-slate-400 truncate">{izin.alasan}</span>
                   </div>
                   {izin.catatan_admin && (
-                    <p className="text-[10px] text-slate-400 mt-1 italic">Admin: {izin.catatan_admin}</p>
+                    <div className={`mt-2.5 p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
+                      izin.status === 'REJECTED'
+                        ? 'bg-red-500/10 border-red-500/20 text-red-300'
+                        : izin.status === 'APPROVED'
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                        : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                    }`}>
+                      <MessageSquare size={13} className="shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold text-[11px] block">Catatan Admin:</span>
+                        <span className="text-[11px] leading-relaxed opacity-90">{izin.catatan_admin}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
               )
@@ -340,7 +352,19 @@ export default function UserIzin() {
                   </div>
 
                   {lap.catatan_admin && (
-                    <p className="text-[10px] text-slate-400 mt-1 italic">Catatan Admin: {lap.catatan_admin}</p>
+                    <div className={`mt-2.5 p-2.5 rounded-xl border text-xs flex items-start gap-2 ${
+                      lap.status === 'REJECTED'
+                        ? 'bg-red-500/10 border-red-500/20 text-red-300'
+                        : lap.status === 'APPROVED'
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                        : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                    }`}>
+                      <MessageSquare size={13} className="shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold text-[11px] block">Catatan Admin:</span>
+                        <span className="text-[11px] leading-relaxed opacity-90">{lap.catatan_admin}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
               )
