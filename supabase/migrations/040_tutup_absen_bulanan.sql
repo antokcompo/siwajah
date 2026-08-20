@@ -35,15 +35,8 @@ CREATE TABLE absen_tutup_bulan (
 
 CREATE INDEX idx_tutup_bulan_lookup ON absen_tutup_bulan (tahun, bulan);
 
--- Enable RLS and grant public access
-ALTER TABLE absen_tutup_bulan ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Public all access for absen_tutup_bulan" ON absen_tutup_bulan;
-CREATE POLICY "Public all access for absen_tutup_bulan"
-ON absen_tutup_bulan FOR ALL
-TO public
-USING (true)
-WITH CHECK (true);
+-- Disable RLS on absen_tutup_bulan to allow full PostgREST select/insert access
+ALTER TABLE absen_tutup_bulan DISABLE ROW LEVEL SECURITY;
 
 GRANT ALL ON TABLE absen_tutup_bulan TO anon, authenticated, service_role;
 

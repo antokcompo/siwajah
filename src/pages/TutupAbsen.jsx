@@ -55,10 +55,16 @@ export default function TutupAbsen() {
       .eq('tahun', tahun)
       .order('bulan', { ascending: true })
 
-    let rawList = (data && data.length > 0) ? data : cachedList
-
+    // Merge cached items with Supabase DB data so state is never lost or wiped out
+    const map = {}
+    cachedList.forEach(item => { if (item && item.bulan) map[item.bulan] = item })
     if (data && data.length > 0) {
-      localStorage.setItem(cacheKey, JSON.stringify(data))
+      data.forEach(item => { if (item && item.bulan) map[item.bulan] = item })
+    }
+
+    const rawList = Object.values(map)
+    if (rawList.length > 0) {
+      localStorage.setItem(cacheKey, JSON.stringify(rawList))
     }
 
     const userIds = [...new Set(
