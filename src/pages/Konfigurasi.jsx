@@ -172,6 +172,43 @@ export default function Konfigurasi() {
     }
   }
 
+  async function handleTestLemburDigest() {
+    setTesting(true)
+    try {
+      // 1. Panggil RPC Supabase untuk cek daftar lembur hari ini
+      const { data, error } = await supabase.rpc('absen_kirim_digest_daftar_lembur')
+      if (error) throw error
+
+      if (!data?.sent) {
+        setTestResultModal({
+          success: false,
+          reason: data?.reason || 'Tidak ada daftar lembur hari ini',
+          message: `Dibatalkan: ${data?.reason || 'Tidak ada daftar pekerja lembur untuk tanggal hari ini'}`
+        })
+        return
+      }
+
+      setTestResultModal({
+        success: true,
+        recipientsCount: data.recipients_count || 1,
+        totalPending: data.count_lembur || 0,
+        countLaporan: data.count_lembur || 0,
+        countIzin: 0,
+        senderEmail: 'Dikonfigurasi di Environment Render (kuswibowo.heri@gmail.com)',
+        messageId: 'Success',
+        message: `Berhasil! Email Digest Daftar Lembur Hari Ini (${data.count_lembur} pekerja) telah dikirimkan via Brevo API ke Admin & Manajemen!`
+      })
+    } catch (err) {
+      setTestResultModal({
+        success: false,
+        reason: err.message,
+        message: `Gagal mengirim email digest lembur: ${err.message}`
+      })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   async function load() {
     setLoading(true)
     setError('')
@@ -378,7 +415,7 @@ export default function Konfigurasi() {
                   </div>
 
                   {section.id === 'email' && (
-                    <div className="mt-4 pt-3 border-t flex justify-end">
+                    <div className="mt-4 pt-3 border-t flex flex-wrap justify-end gap-2">
                       <button
                         type="button"
                         onClick={handleTestDigest}
@@ -389,6 +426,18 @@ export default function Konfigurasi() {
                           <><div className="w-3.5 h-3.5 border-2 border-indigo-400/30 border-t-indigo-600 rounded-full animate-spin" /> Mengirim Test Digest...</>
                         ) : (
                           <><Mail size={14} /> Tes Kirim Email Digest Pending (19.00)</>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleTestLemburDigest}
+                        disabled={testing}
+                        className="px-3.5 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition-colors flex items-center gap-1.5"
+                      >
+                        {testing ? (
+                          <><div className="w-3.5 h-3.5 border-2 border-emerald-400/30 border-t-emerald-600 rounded-full animate-spin" /> Mengirim Test Lembur...</>
+                        ) : (
+                          <><Mail size={14} /> Tes Kirim Email Digest Lembur (19.10)</>
                         )}
                       </button>
                     </div>
