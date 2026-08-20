@@ -32,6 +32,7 @@ export default function UserBeranda() {
   const [todayScans, setTodayScans] = useState([])
   const [todayLaporan, setTodayLaporan] = useState([])
   const [todayIzin, setTodayIzin] = useState(null)
+  const [todayKalender, setTodayKalender] = useState(null)
   const [lemburRegistered, setLemburRegistered] = useState(false)
   const [hasFace, setHasFace] = useState(null)
   const [now, setNow] = useState(new Date())
@@ -87,13 +88,14 @@ export default function UserBeranda() {
     setLoading(true)
     const todayStr = new Date().toISOString().split('T')[0]
 
-    const [slotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes] = await Promise.all([
+    const [slotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
       supabase.rpc('absen_get_jadwal_slot'),
       supabase.rpc('absen_scan_hari_ini', { p_karyawan_id: karyawan.id }),
       supabase.from('absen_face_data').select('id').eq('karyawan_id', karyawan.id).maybeSingle(),
       supabase.rpc('absen_cek_lembur_hari_ini', { p_karyawan_id: karyawan.id }),
       supabase.from('absen_laporan_terlewat').select('*').eq('karyawan_id', karyawan.id).eq('tanggal', todayStr),
       supabase.from('absen_izin').select('*').eq('karyawan_id', karyawan.id).eq('status', 'APPROVED').lte('tanggal_mulai', todayStr).gte('tanggal_selesai', todayStr).maybeSingle(),
+      supabase.from('absen_kalender').select('*').eq('tanggal', todayStr).maybeSingle(),
     ])
     setSlots(slotsRes.data || [])
     setTodayScans(scansRes.data || [])
@@ -101,6 +103,7 @@ export default function UserBeranda() {
     setHasFace(!!faceRes.data)
     setTodayLaporan(laporanRes.data || [])
     setTodayIzin(izinRes.data || null)
+    setTodayKalender(kalenderRes.data || null)
     setLoading(false)
 
     if (navigator.onLine && faceRes.data) {
@@ -109,6 +112,8 @@ export default function UserBeranda() {
       })
     }
   }
+
+  const isTodayHoliday = todayKalender && todayKalender.jenis_hari !== 'kerja'
 
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   const currentTimeMinutes = now.getHours() * 60 + now.getMinutes()
@@ -119,6 +124,7 @@ export default function UserBeranda() {
 
   function getSlotStatus(slot) {
     if (todayIzin) return 'on_leave'
+    if (isTodayHoliday && !lemburRegistered) return 'holiday'
 
     const scanned = todayScans.find(s => s.slot_id === slot.id)
     if (scanned) return 'done'
@@ -331,6 +337,22 @@ export default function UserBeranda() {
             </button>
           </div>
         </div>
+      ) : isTodayHoliday && !lemburRegistered ? (
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/60 rounded-2xl p-5 mb-5 text-center shadow-lg">
+          <div className="w-12 h-12 rounded-full bg-cyan-500/10 flex items-center justify-center mx-auto mb-3 text-cyan-400 border border-cyan-500/20">
+            <Clock size={24} />
+          </div>
+          <span className="text-[10px] text-cyan-400 uppercase tracking-widest font-bold">KALENDER KERJA</span>
+          <h3 className="text-base font-bold text-slate-100 mt-1">
+            Hari Ini Adalah Hari Libur
+          </h3>
+          <p className="text-xs text-slate-400 mt-1.5 max-w-xs mx-auto">
+            {todayKalender?.keterangan || 'Libur Operasional Proyek'}. Presensi dinonaktifkan pada hari libur.
+          </p>
+          <p className="text-[11px] text-amber-300/70 mt-2.5 italic bg-black/30 py-1.5 px-3 rounded-lg inline-block">
+            Kecuali didaftarkan lembur & disetujui admin.
+          </p>
+        </div>
       ) : nextSlot && (
         <div className="bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 mb-5 text-center">
           <p className="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Absen Berikutnya</p>
@@ -456,6 +478,16 @@ export default function UserBeranda() {
                       >
                         Lapor Terlewat
                       </button>
+                    </div>
+                  ) : st === 'holiday' ? (
+                    <div className="flex items-center gap-1 text-xs text-slate-400 font-medium">
+                      <Clock size={12} className="shrink-0 text-slate-500" />
+                      Hari Libur (Presensi Tutup)
+                    </div>
+                  ) : st === 'on_leave' ? (
+                    <div className="flex items-center gap-1 text-xs text-amber-400 font-medium">
+                      <Ban size={12} className="shrink-0 text-amber-400" />
+                      Sedang Masa Izin
                     </div>
                   ) : st === 'not_registered' ? (
                     <div className="flex items-center gap-1 text-xs text-slate-500">
