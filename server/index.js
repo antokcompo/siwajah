@@ -8,6 +8,8 @@ app.use(express.json({ limit: '1mb' }))
 const PORT = process.env.PORT || 3001
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY || ''
+const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'noreply@siwajah.app'
+const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'SI WAJAH'
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', brevo_configured: !!BREVO_API_KEY })
@@ -75,8 +77,8 @@ app.post('/api/notify-lembur', async (req, res) => {
       },
       body: JSON.stringify({
         sender: {
-          name: sender_name || 'SI WAJAH',
-          email: sender_email || 'noreply@siwajah.app',
+          name: sender_name || BREVO_SENDER_NAME,
+          email: sender_email || BREVO_SENDER_EMAIL,
         },
         to,
         subject: subject || `Pengajuan Lembur - ${tanggal}`,
