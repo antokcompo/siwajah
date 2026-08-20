@@ -190,11 +190,12 @@ export default function JadwalSlot() {
         {/* Info card */}
         <div className="card p-5 mt-6">
           <div className="flex items-start gap-3">
-            <Clock size={18} className="text-blue-400 shrink-0 mt-0.5" />
-            <div className="text-sm text-slate-400">
-              <p className="font-medium text-slate-300 mb-1">Cara Kerja Toleransi</p>
-              <p>Jika jam slot = <strong className="text-slate-200">10:00</strong> dan toleransi = <strong className="text-slate-200">±10 menit</strong>, maka user bisa scan antara <strong className="text-slate-200">09:50 — 10:10</strong>.</p>
-              <p className="mt-1">Slot lembur dan pulang lembur bersifat opsional (tidak wajib).</p>
+            <Clock size={18} className="text-cyan-400 shrink-0 mt-0.5" />
+            <div className="text-sm text-slate-400 space-y-1.5">
+              <p className="font-semibold text-slate-200">Cara Kerja Toleransi & Slot Pulang Lembur</p>
+              <p>• <strong>Slot Reguler / Masuk / Pulang:</strong> Jika jam slot = <strong className="text-slate-200">10:00</strong> dan toleransi = <strong className="text-slate-200">10 menit</strong>, maka user bisa scan antara <strong className="text-slate-200">09:50 — 10:10</strong>.</p>
+              <p>• <strong>Slot Pulang Lembur (Batas Maksimal):</strong> Jam slot + toleransi menit adalah <strong>BATAS MAKSIMAL AKHIR</strong> absen pulang lembur. Contoh: Jam <strong className="text-slate-200">00:00</strong> dengan toleransi <strong className="text-slate-200">30 menit</strong> berarti karyawan dapat absen pulang lembur kapan saja sejak jam lembur dimulai hingga MAKSIMAL pukul <strong className="text-cyan-300 font-mono">00:30</strong>.</p>
+              <p className="text-xs text-slate-500 pt-1">Slot lembur dan pulang lembur bersifat opsional (tidak wajib).</p>
             </div>
           </div>
         </div>

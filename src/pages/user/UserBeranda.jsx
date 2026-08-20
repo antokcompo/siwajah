@@ -136,6 +136,18 @@ export default function UserBeranda() {
 
     const [h, m] = slot.jam.split(':').map(Number)
     const slotMinutes = h * 60 + m
+
+    if (slot.jenis === 'pulang_lembur') {
+      // Khusus Pulang Lembur: Jam Slot + Toleransi = Batas Maksimal Akhir Absen (cth: 00:00 + 30m = 00:30)
+      const deadlineMinutes = slotMinutes + Number(slot.toleransi_menit || 0)
+      if (currentTimeMinutes >= 1020 || currentTimeMinutes <= deadlineMinutes) {
+        return 'active'
+      }
+      if (currentTimeMinutes > deadlineMinutes && currentTimeMinutes < 1020) {
+        return 'missed'
+      }
+    }
+
     const diff = Math.abs(currentTimeMinutes - slotMinutes)
 
     if (diff <= slot.toleransi_menit) return 'active'
