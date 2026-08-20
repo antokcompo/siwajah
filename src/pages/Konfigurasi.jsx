@@ -88,10 +88,26 @@ export default function Konfigurasi() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [collapsed, setCollapsed] = useState({})
-  const [changed, setChanged] = useState({})
-  const [origValues, setOrigValues] = useState({})
+  const [testing, setTesting] = useState(false)
 
   useEffect(() => { load() }, [])
+
+  async function handleTestDigest() {
+    setTesting(true)
+    try {
+      const { data, error } = await supabase.rpc('absen_kirim_digest_pending_approval')
+      if (error) throw error
+      if (data?.sent) {
+        alert(`Berhasil! Email digest pending approval terkirim ke ${data.recipients_count} penerima (${data.total_pending} item pending).`)
+      } else {
+        alert(`Email tidak dikirim: ${data?.reason || 'Tidak ada data pending'}`)
+      }
+    } catch (err) {
+      alert(`Gagal: ${err.message}`)
+    } finally {
+      setTesting(false)
+    }
+  }
 
   async function load() {
     setLoading(true)
@@ -297,6 +313,23 @@ export default function Konfigurasi() {
                       </div>
                     ))}
                   </div>
+
+                  {section.id === 'email' && (
+                    <div className="mt-4 pt-3 border-t flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleTestDigest}
+                        disabled={testing}
+                        className="px-3.5 py-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-semibold hover:bg-indigo-100 transition-colors flex items-center gap-1.5"
+                      >
+                        {testing ? (
+                          <><div className="w-3.5 h-3.5 border-2 border-indigo-400/30 border-t-indigo-600 rounded-full animate-spin" /> Mengirim Test Digest...</>
+                        ) : (
+                          <><Mail size={14} /> Tes Kirim Email Digest Pending (19.00)</>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
