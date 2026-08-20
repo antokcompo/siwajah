@@ -4,8 +4,8 @@
 -- 1. Mengirim notifikasi email otomatis ke Admin & Manajemen pukul 19:00
 --    apabila terdapat Laporan Terlewat (PENDING) atau Izin Pekerja (PENDING / CANCEL_REQUESTED).
 -- 2. Email TIDAK AKAN TERKIRIM jika tidak ada item yang berstatus pending.
--- 3. Menggunakan API Key Brevo yang tersimpan di Render (seperti SIMONIKA)
---    dengan fallback otomatis ke email pengirim kuswibowo.heri@gmail.com.
+-- 3. Menggunakan domain pengirim resmi Brevo SIMONIKA (kuswibowo.heri@11843045.brevosend.com)
+--    sehingga lolos pemeriksaan DMARC/SPF pada Outlook, PTPP, dan Gmail.
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
@@ -28,14 +28,15 @@ DECLARE
   v_html text;
   v_found_sender bool := false;
 BEGIN
-  -- 1. Ambil Konfigurasi Email Webhook
+  -- 1. Ambil Konfigurasi Email Webhook & Sender Brevo SIMONIKA
   SELECT value INTO v_webhook_url FROM absen_konfigurasi WHERE key = 'email_webhook_url';
   IF v_webhook_url IS NULL OR v_webhook_url = '' THEN
     v_webhook_url := 'https://siwajah-api.onrender.com/api/notify-lembur';
   END IF;
 
-  SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_name'), ''), 'SI WAJAH') INTO v_sender_name;
-  SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'email_sender_email'), ''), 'kuswibowo.heri@gmail.com') INTO v_sender_email;
+  v_sender_name := 'SI WAJAH — PT PP (Persero) Tbk';
+  v_sender_email := 'kuswibowo.heri@11843045.brevosend.com';
+
   SELECT COALESCE(NULLIF((SELECT value FROM absen_konfigurasi WHERE key = 'app_url'), ''), 'https://siwajah.pages.dev') INTO v_app_url;
 
   -- 2. Ambil List Laporan Terlewat Berstatus PENDING
@@ -98,39 +99,57 @@ BEGIN
       AND au.email IS NOT NULL
       AND au.email != ''
   LOOP
-    IF lower(v_rec.email) = lower(v_sender_email) THEN
+    IF lower(v_rec.email) = 'kuswibowo.heri@gmail.com' THEN
       v_found_sender := true;
     END IF;
     v_to := v_to || jsonb_build_object('email', v_rec.email, 'name', COALESCE(v_rec.nama, 'Admin'));
   END LOOP;
 
-  -- Jika email pengirim belum ada di daftar penerima, tambahkan agar Admin pengirim selalu menerima salinan
+  -- Selalu sertakan email penguji kuswibowo.heri@gmail.com agar salinan tes pasti diterima
   IF NOT v_found_sender THEN
-    v_to := v_to || jsonb_build_object('email', v_sender_email, 'name', v_sender_name);
+    v_to := v_to || jsonb_build_object('email', 'kuswibowo.heri@gmail.com', 'name', 'Kuswibowo Heri');
   END IF;
 
-  -- 6. Buat Subject & HTML Email Template Profesional
-  v_subject := '[SI WAJAH] Pengingat Approval: ' || v_total_pending || ' Item Pending (19.00)';
+  -- 6. Buat Subject & HTML Email Template Resmi Bergaya SIMONIKA
+  v_subject := '[SI WAJAH] Ringkasan Pengajuan Pending Approval — PT PP (Persero) Tbk';
 
   v_html := '<!DOCTYPE html><html><head><meta charset="utf-8">'
-    || '<style>body{font-family:sans-serif;background-color:#0f172a;color:#e2e8f0;margin:0;padding:20px;}'
-    || '.container{max-width:600px;margin:0 auto;background-color:#1e293b;border-radius:16px;padding:24px;border:1px solid #334155;}'
-    || '.header{background:linear-gradient(135deg,#0284c7,#0f766e);padding:20px;border-radius:12px;text-align:center;margin-bottom:20px;}'
-    || '.header h2{color:#fff;margin:0;font-size:18px;}.header p{color:#e0f2fe;margin:4px 0 0 0;font-size:12px;}'
-    || '.alert{background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:14px;text-align:center;margin-bottom:20px;}'
-    || '.alert h4{color:#fbbf24;margin:0 0 4px 0;font-size:14px;}.alert p{color:#fef3c7;margin:0;font-size:12px;}'
-    || 'table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px;}'
-    || 'th{background:#0f172a;color:#94a3b8;text-align:left;padding:8px 10px;border-bottom:1px solid #334155;}'
-    || 'td{padding:8px 10px;border-bottom:1px solid #334155;color:#cbd5e1;}'
-    || '.btn{background:linear-gradient(135deg,#0284c7,#2563eb);color:#fff!important;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:bold;font-size:13px;display:inline-block;}'
+    || '<style>'
+    || 'body{font-family:Arial,Helvetica,sans-serif;background-color:#f8fafc;color:#334155;margin:0;padding:20px;}'
+    || '.container{max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;}'
+    || '.header{background-color:#0f172a;padding:24px;text-align:center;color:#ffffff;}'
+    || '.header h1{margin:0;font-size:22px;color:#67e8f9;letter-spacing:1px;}'
+    || '.header p{margin:4px 0 0 0;font-size:12px;color:#94a3b8;}'
+    || '.content{padding:24px;}'
+    || '.section-box{background-color:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:16px;margin-bottom:20px;}'
+    || '.section-title{font-size:15px;font-weight:bold;color:#0369a1;margin:0 0 4px 0;}'
+    || '.section-subtitle{font-size:12px;color:#0284c7;margin:0;}'
+    || '.intro-text{font-size:14px;color:#475569;line-height:1.5;margin-bottom:20px;}'
+    || '.alert-box{background-color:#fffbeb;border:1px solid #fef3c7;border-radius:10px;padding:14px;margin-bottom:20px;}'
+    || '.alert-title{font-size:14px;font-weight:bold;color:#b45309;margin:0 0 4px 0;}'
+    || '.alert-desc{font-size:12px;color:#d97706;margin:0;}'
+    || 'table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;}'
+    || 'th{background-color:#f1f5f9;color:#475569;text-align:left;padding:10px 12px;border:1px solid #cbd5e1;font-weight:600;}'
+    || 'td{padding:10px 12px;border:1px solid #e2e8f0;color:#334155;}'
+    || '.btn-container{text-align:center;margin:28px 0 12px 0;}'
+    || '.btn{background:#0ea5e9;color:#ffffff!important;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:bold;font-size:14px;display:inline-block;}'
+    || '.footer{font-size:11px;color:#94a3b8;text-align:center;margin-top:24px;padding-top:16px;border-top:1px solid #f1f5f9;}'
     || '</style></head><body>'
     || '<div class="container">'
-    || '<div class="header"><h2>SI WAJAH — Daily Pending Approval Digest</h2><p>Pengingat Approval Pukul 19.00 WIT</p></div>'
-    || '<div class="alert"><h4>⚠️ ' || v_total_pending || ' Pengajuan Menunggu Persetujuan Anda</h4>'
-    || '<p>Terdapat ' || v_count_laporan || ' Laporan Terlewat dan ' || v_count_izin || ' Pengajuan Izin yang belum diproses.</p></div>';
+    || '<div class="header"><h1>SI WAJAH</h1><p>Sistem Informasi Web Absensi & Aktifitas Harian — PT PP (Persero) Tbk</p></div>'
+    || '<div class="content">'
+    || '<div class="section-box">'
+    || '<div class="section-title">📋 Ringkasan Pengajuan Menunggu Approval</div>'
+    || '<div class="section-subtitle">PENGINGAT OTOMATIS HARIAN (PUKUL 19.00 WIT)</div>'
+    || '</div>'
+    || '<p class="intro-text">Yth. Bapak/Ibu Pimpinan Proyek & Tim Manajemen,<br><br>Berikut adalah daftar pengajuan presensi karyawan yang <strong>masih belum diproses (status pending)</strong> dan membutuhkan persetujuan Anda:</p>'
+    || '<div class="alert-box">'
+    || '<div class="alert-title">⚠️ Total ' || v_total_pending || ' Item Menunggu Approval</div>'
+    || '<div class="alert-desc">Terdiri dari ' || v_count_laporan || ' Laporan Terlewat dan ' || v_count_izin || ' Pengajuan Izin Pekerja.</div>'
+    || '</div>';
 
   IF v_count_laporan > 0 THEN
-    v_html := v_html || '<h4 style="color:#38bdf8;margin:16px 0 8px 0;">📋 LAPORAN TERLEWAT (' || v_count_laporan || ' Item)</h4>'
+    v_html := v_html || '<h4 style="color:#0284c7;margin:20px 0 8px 0;">📋 LAPORAN TERLEWAT (' || v_count_laporan || ' Item)</h4>'
       || '<table><thead><tr><th>Karyawan</th><th>Tanggal & Slot</th><th>Alasan</th></tr></thead><tbody>';
     FOR v_rec IN
       SELECT l.tanggal, l.alasan, k.nama, k.jabatan, s.label AS slot_label
@@ -140,15 +159,15 @@ BEGIN
       WHERE l.status = 'PENDING'
       ORDER BY l.tanggal DESC
     LOOP
-      v_html := v_html || '<tr><td><strong>' || v_rec.nama || '</strong><br><span style="color:#94a3b8;font-size:10px;">' || COALESCE(v_rec.jabatan,'-') || '</span></td>'
-        || '<td>' || to_char(v_rec.tanggal, 'DD/MM/YYYY') || '<br><span style="color:#38bdf8;font-size:10px;">' || COALESCE(v_rec.slot_label,'-') || '</span></td>'
+      v_html := v_html || '<tr><td><strong>' || v_rec.nama || '</strong><br><span style="color:#64748b;font-size:11px;">' || COALESCE(v_rec.jabatan,'-') || '</span></td>'
+        || '<td>' || to_char(v_rec.tanggal, 'DD/MM/YYYY') || '<br><span style="color:#0284c7;font-size:11px;">' || COALESCE(v_rec.slot_label,'-') || '</span></td>'
         || '<td>' || v_rec.alasan || '</td></tr>';
     END LOOP;
     v_html := v_html || '</tbody></table>';
   END IF;
 
   IF v_count_izin > 0 THEN
-    v_html := v_html || '<h4 style="color:#38bdf8;margin:16px 0 8px 0;">📅 PENGAJUAN IZIN & PEMBATALAN (' || v_count_izin || ' Item)</h4>'
+    v_html := v_html || '<h4 style="color:#0284c7;margin:20px 0 8px 0;">📅 PENGAJUAN IZIN & PEMBATALAN (' || v_count_izin || ' Item)</h4>'
       || '<table><thead><tr><th>Karyawan</th><th>Tipe & Tanggal</th><th>Alasan</th></tr></thead><tbody>';
     FOR v_rec IN
       SELECT i.tanggal_mulai, i.tanggal_selesai, i.jenis, i.alasan, i.status, i.alasan_batal, k.nama, k.jabatan
@@ -157,18 +176,18 @@ BEGIN
       WHERE i.status IN ('PENDING', 'CANCEL_REQUESTED')
       ORDER BY i.created_at DESC
     LOOP
-      v_html := v_html || '<tr><td><strong>' || v_rec.nama || '</strong><br><span style="color:#94a3b8;font-size:10px;">' || COALESCE(v_rec.jabatan,'-') || '</span></td>'
+      v_html := v_html || '<tr><td><strong>' || v_rec.nama || '</strong><br><span style="color:#64748b;font-size:11px;">' || COALESCE(v_rec.jabatan,'-') || '</span></td>'
         || '<td><strong>' || CASE WHEN v_rec.status = 'CANCEL_REQUESTED' THEN 'Batal Izin' ELSE 'Izin Baru' END || '</strong><br>' || to_char(v_rec.tanggal_mulai, 'DD/MM/YYYY') || '</td>'
         || '<td>' || CASE WHEN v_rec.status = 'CANCEL_REQUESTED' THEN COALESCE(v_rec.alasan_batal, v_rec.alasan) ELSE v_rec.alasan END || '</td></tr>';
     END LOOP;
     v_html := v_html || '</tbody></table>';
   END IF;
 
-  v_html := v_html || '<div style="text-align:center;margin-top:24px;"><a href="' || v_app_url || '/laporan-izin" class="btn">Buka Portal Approval Admin ➔</a></div>'
-    || '<div style="text-align:center;margin-top:20px;font-size:11px;color:#64748b;">Email otomatis dikirim oleh SI WAJAH setiap pukul 19.00 WIT.</div>'
-    || '</div></body></html>';
+  v_html := v_html || '<div class="btn-container"><a href="' || v_app_url || '/laporan-izin" class="btn">Buka Portal Approval Admin ➔</a></div>'
+    || '<div class="footer">Email ini dikirim otomatis oleh sistem SI WAJAH — PT PP (Persero) Tbk setiap pukul 19.00 WIT. Mohon tidak membalas email ini.</div>'
+    || '</div></div></body></html>';
 
-  -- 7. Trigger HTTP POST Webhook via pg_net (Payload Kompatibel dengan API Key Brevo di Render)
+  -- 7. Trigger HTTP POST Webhook via pg_net (Payload Kompatibel dengan Sender Brevo SIMONIKA)
   PERFORM net.http_post(
     url := v_webhook_url,
     headers := '{"Content-Type": "application/json"}'::jsonb,

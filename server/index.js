@@ -17,8 +17,8 @@ const supabaseAdmin = (SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_AN
   : null
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY || ''
-const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'kuswibowo.heri@gmail.com'
-const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'SI WAJAH'
+const BREVO_SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'kuswibowo.heri@11843045.brevosend.com'
+const BREVO_SENDER_NAME = process.env.BREVO_SENDER_NAME || 'SI WAJAH — PT PP (Persero) Tbk'
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -120,8 +120,8 @@ app.post('/api/notify-lembur', async (req, res) => {
 
   const { to, subject, tanggal, karyawan, created_by, sender_name, sender_email, app_url, htmlContent, html } = req.body
 
-  // Sanitize sender email and name
-  const finalSenderEmail = (typeof sender_email === 'string' && sender_email.trim().length > 0) ? sender_email.trim() : BREVO_SENDER_EMAIL
+  // Always use official Brevo domain sender address (like SIMONIKA) to pass DMARC/SPF checks
+  const finalSenderEmail = 'kuswibowo.heri@11843045.brevosend.com'
   const finalSenderName = (typeof sender_name === 'string' && sender_name.trim().length > 0) ? sender_name.trim() : BREVO_SENDER_NAME
 
   // Sanitize recipients list
@@ -132,13 +132,9 @@ app.post('/api/notify-lembur', async (req, res) => {
       .filter(item => item && typeof item.email === 'string' && item.email.includes('@'))
   }
 
-  // Fallback to sender email if no valid recipients specified
-  if (validRecipients.length === 0 && finalSenderEmail) {
-    validRecipients.push({ email: finalSenderEmail, name: 'Admin SI WAJAH' })
-  }
-
+  // Fallback to recipient email if list empty
   if (validRecipients.length === 0) {
-    return res.status(400).json({ error: 'Missing valid recipients (to)' })
+    validRecipients.push({ email: 'kuswibowo.heri@gmail.com', name: 'Admin SI WAJAH' })
   }
 
   let finalHtml = htmlContent || html
@@ -164,7 +160,7 @@ app.post('/api/notify-lembur', async (req, res) => {
       <div style="max-width:600px;margin:0 auto;padding:24px;">
         <div style="background:#0f172a;padding:20px 24px;border-radius:12px 12px 0 0;">
           <h1 style="margin:0;color:#67e8f9;font-size:20px;">SI WAJAH</h1>
-          <p style="margin:4px 0 0;color:#94a3b8;font-size:12px;">Sistem Informasi Web Absensi & Aktifitas Harian</p>
+          <p style="margin:4px 0 0;color:#94a3b8;font-size:12px;">Sistem Informasi Web Absensi & Aktifitas Harian — PT PP (Persero) Tbk</p>
         </div>
         <div style="background:#ffffff;padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;">
           <h2 style="margin:0 0 8px;color:#1e293b;font-size:18px;">Pengajuan Lembur Baru</h2>
@@ -194,7 +190,7 @@ app.post('/api/notify-lembur', async (req, res) => {
       email: finalSenderEmail,
     },
     to: validRecipients,
-    subject: subject || `Notifikasi SI WAJAH - ${tanggal || ''}`,
+    subject: subject || `[SI WAJAH] Notifikasi Presensi - ${tanggal || ''}`,
     htmlContent: finalHtml,
   }
 
