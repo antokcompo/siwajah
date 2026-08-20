@@ -175,7 +175,7 @@ export default function Dashboard() {
       supabase.from('absen_konfigurasi').select('key, value'),
       supabase
         .from('absen_scan_wajah')
-        .select('id, karyawan_id, tanggal, slot_id, waktu_scan, gps_lat, gps_lng, lokasi_kerja, foto_url, absen_karyawan(nama, jabatan), absen_jadwal_slot(label, jam)')
+        .select('id, karyawan_id, tanggal, slot_id, waktu_scan, client_tz, gps_lat, gps_lng, lokasi_kerja, foto_url, absen_karyawan(nama, jabatan), absen_jadwal_slot(label, jam)')
         .gte('tanggal', startDate)
         .lte('tanggal', endDate)
         .not('gps_lat', 'is', null)
@@ -386,11 +386,12 @@ export default function Dashboard() {
                   </thead>
                   <tbody className="divide-y text-slate-200" style={{ borderColor: 'var(--card-border)' }}>
                     {offsiteScans.map(item => {
-                      const siteTz = siteConfig.zona_waktu || 'Asia/Jayapura'
-                      const tzShort = siteTz === 'Asia/Jayapura' ? 'WIT' : siteTz === 'Asia/Makassar' ? 'WITA' : 'WIB'
+                      const scanTz = item.client_tz || siteConfig.zona_waktu || 'Asia/Jayapura'
+                      const tzShortMap = { 'Asia/Jayapura': 'WIT', 'Asia/Jakarta': 'WIB', 'Asia/Makassar': 'WITA' }
+                      const tzShort = tzShortMap[scanTz] || (scanTz.split('/').pop().replace(/_/g, ' '))
                       const scanTime = new Date(item.waktu_scan)
-                      const tglStr = scanTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: siteTz })
-                      const jamStr = scanTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: siteTz })
+                      const tglStr = scanTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: scanTz })
+                      const jamStr = scanTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: scanTz })
 
                       return (
                         <tr key={item.id} className="hover:bg-slate-900/60 transition-colors">
