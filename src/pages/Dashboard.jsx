@@ -82,65 +82,80 @@ function TrendChart({ data, chartId, formatValue, renderTooltip, colors, emptyMe
           </linearGradient>
         </defs>
         <path d={areaPath} fill={`url(#${areaGradId})`} />
-        <path d={linePath} fill="none" stroke={`url(#${lineGradId})`} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={areaD} fill={`url(#${gradientId})`} />
+        <path d={pathD} fill="none" stroke={colors.start} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
         {points.map((p, i) => (
-          <g key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} style={{ cursor: 'pointer' }}>
-            <rect x={p.x - 18} y={padT} width={36} height={chartH + padB} fill="transparent" />
-            {hover === i && <line x1={p.x} y1={padT} x2={p.x} y2={padT + chartH} stroke={`${colors.mid}4d`} strokeWidth="0.5" strokeDasharray="3,3" />}
-            <circle cx={p.x} cy={p.y} r={hover === i ? 5 : 3} fill={hover === i ? colors.start : colors.mid} stroke="rgba(6, 11, 24, 0.8)" strokeWidth="2" />
-            {hover === i && <circle cx={p.x} cy={p.y} r="10" fill="none" stroke={`${colors.start}4d`} strokeWidth="1" />}
-            <text x={p.x} y={H - 8} textAnchor="middle" fill="#475569" fontSize="9" fontWeight="500" fontFamily="Inter, sans-serif">
-              {namaBulan[p.bulan]}
+          <g key={i}>
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={hover === i ? 6 : 4}
+              fill={hover === i ? '#ffffff' : colors.start}
+              stroke={colors.start}
+              strokeWidth={hover === i ? 3 : 1.5}
+              className="transition-all duration-150 cursor-pointer"
+              onMouseEnter={() => setHover(i)}
+            />
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={14}
+              fill="transparent"
+              className="cursor-pointer"
+              onMouseEnter={() => setHover(i)}
+            />
+            <text x={p.x} y={H - 6} textAnchor="middle" fill="var(--text-muted)" fontSize="9.5" className="font-medium">
+              {namaBulan[p.bulan] || ''}
             </text>
           </g>
         ))}
       </svg>
-
-      {hover !== null && points[hover] && (
-        <div
-          className="absolute rounded-xl px-3.5 py-2.5 text-xs pointer-events-none z-10"
-          style={{
-            left: `${(points[hover].x / W) * 100}%`,
-            top: `${(points[hover].y / H) * 100 - 14}%`,
-            transform: 'translate(-50%, -100%)',
-            background: 'rgba(6, 11, 24, 0.95)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
-            backdropFilter: 'blur(8px)',
-          }}
-        >
-          <div className="font-semibold text-white mb-1">{namaBulanFull[points[hover].bulan]} {points[hover].tahun || ''}</div>
-          {renderTooltip ? renderTooltip(points[hover]) : (
-            <div className="font-bold tabular-nums" style={{ color: colors.start }}>{fmt(points[hover].value)}</div>
-          )}
+      {hover !== null && (
+        <div className="absolute top-0 right-0 bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg border border-slate-700">
+           {namaBulanFull[points[hover].bulan]}: {points[hover].value}
         </div>
       )}
     </div>
   )
 }
 
-function ChartCard({ icon: Icon, iconColor, iconBg, title, subtitle, summaryLabel, summaryValue, summaryColor, children }) {
+function ChartCard({ icon: Icon, iconColor, iconBg, title, subtitle, summaryLabel, summaryValue, summaryColor, onClickZoom, children }) {
   return (
-    <div className="rounded-2xl transition-all duration-200 hover:border-blue-500/20" style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
+    <div 
+      onClick={onClickZoom}
+      className="group relative rounded-2xl transition-all duration-300 hover:border-cyan-500/40 hover:shadow-xl hover:shadow-cyan-950/20 cursor-pointer overflow-hidden" 
+      style={{ background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}
+      title="Klik untuk perbesar & zoom grafik"
+    >
       <div className="p-4 sm:p-5 border-b flex items-center justify-between" style={{ borderColor: 'var(--card-border)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: iconBg }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-110" style={{ background: iconBg }}>
             <Icon size={16} style={{ color: iconColor }} />
           </div>
           <div>
-            <h2 className="font-semibold text-white text-sm">{title}</h2>
+            <h2 className="font-semibold text-white text-sm group-hover:text-cyan-300 transition-colors flex items-center gap-2">
+              <span>{title}</span>
+              <Maximize2 size={12} className="opacity-0 group-hover:opacity-100 text-cyan-400 transition-opacity" />
+            </h2>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>
           </div>
         </div>
         {summaryValue !== undefined && summaryValue !== null && (
-          <div className="text-right hidden sm:block">
+          <div className="text-right">
             <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{summaryLabel}</div>
             <div className="font-semibold text-sm tabular-nums" style={{ color: summaryColor }}>{summaryValue}</div>
           </div>
         )}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-4 relative">
+        {children}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <span className="px-2 py-1 rounded-md text-[10px] font-bold bg-cyan-950/90 text-cyan-300 border border-cyan-800/80 shadow-lg flex items-center gap-1">
+            <ZoomIn size={10} /> Klik untuk Zoom
+          </span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -158,6 +173,7 @@ export default function Dashboard() {
   const [offsiteScans, setOffsiteScans] = useState([])
   const [siteConfig, setSiteConfig] = useState({ lat: -6.2, lng: 106.816666, radius: 500, nama: 'Site Proyek Utama' })
   const [previewPhoto, setPreviewPhoto] = useState(null)
+  const [zoomChartModal, setZoomChartModal] = useState(null)
   const [loading, setLoading] = useState(true)
   const { profile } = useAuth()
 
@@ -309,7 +325,160 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          {/* KPI Cards */}
+          {/* Trend Charts 2x2 Grid at TOP PANEL */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 mb-6 lg:mb-8">
+            <ChartCard
+              icon={TrendingUp}
+              iconColor="#06b6d4"
+              iconBg="rgba(6, 182, 212, 0.1)"
+              title="Trend Gaji Bulanan"
+              subtitle={`Total pengeluaran gaji — ${tahun}`}
+              summaryLabel={`Total ${tahun}`}
+              summaryValue={salaryTrend.length > 0 ? `Rp ${fmt(salaryTotal)}` : null}
+              summaryColor="#67e8f9"
+              onClickZoom={() => setZoomChartModal({
+                key: 'salary',
+                title: 'Trend Gaji Bulanan',
+                subtitle: `Total pengeluaran gaji karyawan — ${tahun}`,
+                summaryLabel: `Total Pengeluaran ${tahun}`,
+                summaryValue: salaryTrend.length > 0 ? `Rp ${fmt(salaryTotal)}` : null,
+                summaryColor: '#67e8f9',
+                icon: TrendingUp,
+                iconColor: '#06b6d4',
+                iconBg: 'rgba(6, 182, 212, 0.15)',
+                colors: chartColors.salary,
+                data: salaryTrend,
+                unit: 'currency'
+              })}
+            >
+              <TrendChart
+                data={salaryTrend}
+                chartId="salary"
+                colors={chartColors.salary}
+                emptyMessage="Belum ada data gaji"
+                renderTooltip={p => (
+                  <>
+                    <div className="tabular-nums" style={{ color: '#67e8f9' }}>Rp {fmt(p.value)}</div>
+                    <div style={{ color: '#475569' }}>{p.count} karyawan</div>
+                  </>
+                )}
+              />
+            </ChartCard>
+
+            <ChartCard
+              icon={UserCheck}
+              iconColor="#10b981"
+              iconBg="rgba(16, 185, 129, 0.1)"
+              title="Trend Jumlah Pekerja"
+              subtitle={`Pekerja aktif per bulan — ${tahun}`}
+              summaryLabel="Rata-rata"
+              summaryValue={workerTrend.length > 0 ? `${workerAvg} pekerja` : null}
+              summaryColor="#6ee7b7"
+              onClickZoom={() => setZoomChartModal({
+                key: 'workers',
+                title: 'Trend Jumlah Pekerja',
+                subtitle: `Pekerja aktif per bulan — ${tahun}`,
+                summaryLabel: `Rata-rata Pekerja ${tahun}`,
+                summaryValue: workerTrend.length > 0 ? `${workerAvg} pekerja` : null,
+                summaryColor: '#6ee7b7',
+                icon: UserCheck,
+                iconColor: '#10b981',
+                iconBg: 'rgba(16, 185, 129, 0.15)',
+                colors: chartColors.workers,
+                data: workerTrend,
+                unit: 'pekerja'
+              })}
+            >
+              <TrendChart
+                data={workerTrend}
+                chartId="workers"
+                colors={chartColors.workers}
+                formatValue={v => String(Math.round(v))}
+                emptyMessage="Belum ada data pekerja"
+                renderTooltip={p => (
+                  <div className="tabular-nums" style={{ color: '#6ee7b7' }}>{p.value} pekerja</div>
+                )}
+              />
+            </ChartCard>
+
+            <ChartCard
+              icon={BarChart3}
+              iconColor="#3b82f6"
+              iconBg="rgba(59, 130, 246, 0.1)"
+              title="Trend Absensi"
+              subtitle={`Total hari kehadiran — ${tahun}`}
+              summaryLabel={`Total ${tahun}`}
+              summaryValue={attendanceTrend.length > 0 ? `${fmt(attendanceTotal)} hari` : null}
+              summaryColor="#93c5fd"
+              onClickZoom={() => setZoomChartModal({
+                key: 'attendance',
+                title: 'Trend Absensi',
+                subtitle: `Total hari kehadiran pekerja — ${tahun}`,
+                summaryLabel: `Total Kehadiran ${tahun}`,
+                summaryValue: attendanceTrend.length > 0 ? `${fmt(attendanceTotal)} hari` : null,
+                summaryColor: '#93c5fd',
+                icon: BarChart3,
+                iconColor: '#3b82f6',
+                iconBg: 'rgba(59, 130, 246, 0.15)',
+                colors: chartColors.attendance,
+                data: attendanceTrend,
+                unit: 'hari'
+              })}
+            >
+              <TrendChart
+                data={attendanceTrend}
+                chartId="attendance"
+                colors={chartColors.attendance}
+                emptyMessage="Belum ada data absensi"
+                renderTooltip={p => (
+                  <>
+                    <div className="tabular-nums" style={{ color: '#93c5fd' }}>{fmt(p.value)} hari hadir</div>
+                    <div style={{ color: '#475569' }}>{p.workers} pekerja aktif</div>
+                  </>
+                )}
+              />
+            </ChartCard>
+
+            <ChartCard
+              icon={Timer}
+              iconColor="#f97316"
+              iconBg="rgba(249, 115, 22, 0.1)"
+              title="Trend Lembur"
+              subtitle={`Total jam lembur — ${tahun}`}
+              summaryLabel={`Total ${tahun}`}
+              summaryValue={overtimeTrend.length > 0 ? `${fmt(overtimeTotal)} jam` : null}
+              summaryColor="#fdba74"
+              onClickZoom={() => setZoomChartModal({
+                key: 'overtime',
+                title: 'Trend Lembur',
+                subtitle: `Total jam lembur pekerja — ${tahun}`,
+                summaryLabel: `Total Lembur ${tahun}`,
+                summaryValue: overtimeTrend.length > 0 ? `${fmt(overtimeTotal)} jam` : null,
+                summaryColor: '#fdba74',
+                icon: Timer,
+                iconColor: '#f97316',
+                iconBg: 'rgba(249, 115, 22, 0.15)',
+                colors: chartColors.overtime,
+                data: overtimeTrend,
+                unit: 'jam'
+              })}
+            >
+              <TrendChart
+                data={overtimeTrend}
+                chartId="overtime"
+                colors={chartColors.overtime}
+                emptyMessage="Belum ada data lembur"
+                renderTooltip={p => (
+                  <>
+                    <div className="tabular-nums" style={{ color: '#fdba74' }}>{fmt(p.value)} jam lembur</div>
+                    <div style={{ color: '#475569' }}>{p.count} kali lembur</div>
+                  </>
+                )}
+              />
+            </ChartCard>
+          </div>
+
+          {/* KPI Cards Summary Bar */}
           <div className="grid-kpi mb-6 lg:mb-8">
             {cards.map((c, i) => {
               const Icon = c.icon
@@ -492,105 +661,110 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Trend Charts 2x2 Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-            <ChartCard
-              icon={TrendingUp}
-              iconColor="#06b6d4"
-              iconBg="rgba(6, 182, 212, 0.1)"
-              title="Trend Gaji Bulanan"
-              subtitle={`Total pengeluaran gaji — ${tahun}`}
-              summaryLabel={`Total ${tahun}`}
-              summaryValue={salaryTrend.length > 0 ? `Rp ${fmt(salaryTotal)}` : null}
-              summaryColor="#67e8f9"
-            >
-              <TrendChart
-                data={salaryTrend}
-                chartId="salary"
-                colors={chartColors.salary}
-                emptyMessage="Belum ada data gaji"
-                renderTooltip={p => (
-                  <>
-                    <div className="tabular-nums" style={{ color: '#67e8f9' }}>Rp {fmt(p.value)}</div>
-                    <div style={{ color: '#475569' }}>{p.count} karyawan</div>
-                  </>
-                )}
-              />
-            </ChartCard>
-
-            <ChartCard
-              icon={UserCheck}
-              iconColor="#10b981"
-              iconBg="rgba(16, 185, 129, 0.1)"
-              title="Trend Jumlah Pekerja"
-              subtitle={`Pekerja aktif per bulan — ${tahun}`}
-              summaryLabel="Rata-rata"
-              summaryValue={workerTrend.length > 0 ? `${workerAvg} pekerja` : null}
-              summaryColor="#6ee7b7"
-            >
-              <TrendChart
-                data={workerTrend}
-                chartId="workers"
-                colors={chartColors.workers}
-                formatValue={v => String(Math.round(v))}
-                emptyMessage="Belum ada data pekerja"
-                renderTooltip={p => (
-                  <div className="tabular-nums" style={{ color: '#6ee7b7' }}>{p.value} pekerja</div>
-                )}
-              />
-            </ChartCard>
-
-            <ChartCard
-              icon={BarChart3}
-              iconColor="#3b82f6"
-              iconBg="rgba(59, 130, 246, 0.1)"
-              title="Trend Absensi"
-              subtitle={`Total hari kehadiran — ${tahun}`}
-              summaryLabel={`Total ${tahun}`}
-              summaryValue={attendanceTrend.length > 0 ? `${fmt(attendanceTotal)} hari` : null}
-              summaryColor="#93c5fd"
-            >
-              <TrendChart
-                data={attendanceTrend}
-                chartId="attendance"
-                colors={chartColors.attendance}
-                emptyMessage="Belum ada data absensi"
-                renderTooltip={p => (
-                  <>
-                    <div className="tabular-nums" style={{ color: '#93c5fd' }}>{fmt(p.value)} hari hadir</div>
-                    <div style={{ color: '#475569' }}>{p.workers} pekerja aktif</div>
-                  </>
-                )}
-              />
-            </ChartCard>
-
-            <ChartCard
-              icon={Timer}
-              iconColor="#f97316"
-              iconBg="rgba(249, 115, 22, 0.1)"
-              title="Trend Lembur"
-              subtitle={`Total jam lembur — ${tahun}`}
-              summaryLabel={`Total ${tahun}`}
-              summaryValue={overtimeTrend.length > 0 ? `${fmt(overtimeTotal)} jam` : null}
-              summaryColor="#fdba74"
-            >
-              <TrendChart
-                data={overtimeTrend}
-                chartId="overtime"
-                colors={chartColors.overtime}
-                emptyMessage="Belum ada data lembur"
-                renderTooltip={p => (
-                  <>
-                    <div className="tabular-nums" style={{ color: '#fdba74' }}>{fmt(p.value)} jam lembur</div>
-                    <div style={{ color: '#475569' }}>{p.count} kali lembur</div>
-                  </>
-                )}
-              />
-            </ChartCard>
-          </div>
         </>
       )}
       </div>
+
+      {/* Modal Zoom Grafik Interactive */}
+      {zoomChartModal && (() => {
+        const { title, subtitle, summaryLabel, summaryValue, summaryColor, colors, data, unit, icon: ModalIcon, iconBg, iconColor } = zoomChartModal
+        const maxVal = data.length > 0 ? Math.max(...data.map(d => Number(d.total || d.count || d.value || 0))) : 1
+
+        return (
+          <div 
+            className="fixed inset-0 z-[70] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+            onClick={() => setZoomChartModal(null)}
+          >
+            <div 
+              className="relative w-full max-w-4xl rounded-3xl border border-cyan-500/40 bg-slate-900 shadow-2xl shadow-cyan-950/50 overflow-hidden space-y-4 p-6"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header Modal */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border border-white/10" style={{ background: iconBg }}>
+                    <ModalIcon size={22} style={{ color: iconColor }} />
+                  </div>
+                  <div>
+                    <h2 className="font-extrabold text-white text-lg flex items-center gap-2.5">
+                      <span>{title}</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 flex items-center gap-1">
+                        <ZoomIn size={12} /> Mode Perbesar (Zoom)
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  {summaryValue && (
+                    <div className="text-right hidden sm:block">
+                      <div className="text-xs text-slate-400">{summaryLabel}</div>
+                      <div className="font-bold text-base tabular-nums" style={{ color: summaryColor }}>{summaryValue}</div>
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => setZoomChartModal(null)}
+                    className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Large Chart Container */}
+              <div className="bg-slate-950/90 rounded-2xl border border-slate-800 p-5 relative shadow-inner">
+                <TrendChart
+                  data={data}
+                  chartId={`zoom-${zoomChartModal.key}`}
+                  colors={colors}
+                  emptyMessage="Belum ada data grafik"
+                />
+              </div>
+
+              {/* Monthly Breakdown Data Table */}
+              <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/40">
+                <div className="px-5 py-3 bg-slate-950 text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-slate-800 flex items-center justify-between">
+                  <span>Rincian Data Per Bulan ({tahun})</span>
+                  <span className="text-[10px] text-slate-500 font-mono">12 Bulan Efektif</span>
+                </div>
+                <div className="divide-y divide-slate-800/60 max-h-48 overflow-y-auto">
+                  {data.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500">Tidak ada data rincian</div>
+                  ) : data.map((row, idx) => {
+                    const val = Number(row.total || row.count || row.value || 0)
+                    const pct = Math.round((val / maxVal) * 100)
+                    return (
+                      <div key={idx} className="px-5 py-2.5 flex items-center justify-between text-xs hover:bg-slate-800/40 transition-colors">
+                        <span className="font-bold text-white w-32">{namaBulanFull[row.bulan]} {row.tahun || tahun}</span>
+                        <div className="flex-1 mx-4 bg-slate-800/80 rounded-full h-2 overflow-hidden max-w-md">
+                          <div 
+                            className="h-full rounded-full transition-all duration-500" 
+                            style={{ width: `${pct}%`, background: colors.start }}
+                          />
+                        </div>
+                        <span className="font-mono font-bold text-cyan-300 w-36 text-right">
+                          {unit === 'currency' ? `Rp ${fmt(val)}` : `${fmt(val)} ${unit || ''}`}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs text-slate-400">
+                <span>💡 Arahkan kursor pada titik grafik untuk melihat tooltip detail rincian.</span>
+                <button 
+                  onClick={() => setZoomChartModal(null)}
+                  className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold text-white transition-colors"
+                >
+                  Tutup Grafik
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Modal Preview Foto */}
       {previewPhoto && (
