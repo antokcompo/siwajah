@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPin, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle, X, Send } from 'lucide-react'
+import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPin, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle, X, Send, Download, Smartphone } from 'lucide-react'
 import { cacheFaceData } from '../../lib/offlineQueue'
 import PhotoInput from '../../components/PhotoInput'
 
@@ -47,14 +47,41 @@ export default function UserBeranda() {
   const [laporError, setLaporError] = useState('')
   const [laporSuccess, setLaporSuccess] = useState('')
 
-  const userTz = getUserTz()
-  const isOffsite = userTz && userTz !== projectTz
+  const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [isStandalone, setIsStandalone] = useState(false)
 
   useEffect(() => {
     loadData()
     const timer = setInterval(() => setNow(new Date()), 30000)
-    return () => clearInterval(timer)
+
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+      setIsStandalone(true)
+    }
+
+    const handleBeforeInstall = (e) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall)
+
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
+    }
   }, [])
+
+  const userTz = getUserTz()
+  const isOffsite = userTz && userTz !== projectTz
+
+  async function handleInstallClick() {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null)
+    }
+  }
 
   async function loadData() {
     setLoading(true)
@@ -247,6 +274,27 @@ export default function UserBeranda() {
         <div className="mb-4 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-400">
           <CheckCircle size={16} className="shrink-0" />
           <span>{laporSuccess}</span>
+        </div>
+      )}
+
+      {/* PWA Install Banner */}
+      {deferredPrompt && !isStandalone && (
+        <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-cyan-500/30 flex items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0 border border-cyan-500/30">
+              <Download size={20} />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-100">Install Aplikasi SI WAJAH</h4>
+              <p className="text-[10px] text-slate-400">Pasang di Layar Utama HP untuk absen offline</p>
+            </div>
+          </div>
+          <button
+            onClick={handleInstallClick}
+            className="px-3.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold shrink-0 transition-all shadow-md"
+          >
+            Install
+          </button>
         </div>
       )}
 
