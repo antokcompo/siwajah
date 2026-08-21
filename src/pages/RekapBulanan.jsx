@@ -750,7 +750,10 @@ export default function RekapBulanan() {
                       </div>
                       <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
                         {detailModalItem.is_gaji_full ? (
-                          <div className="text-emerald-300">✓ Masuk di seluruh hari kerja bulan ini → Mendapatkan 100% Gaji Bulanan Penuh (Rp {fmt(gajiMasterVal)})</div>
+                          <div className="text-emerald-300 flex items-center gap-1 font-sans">
+                            <CheckCircle size={13} className="shrink-0 text-emerald-400" />
+                            <span>Masuk di seluruh hari kerja bulan ini &rarr; Mendapatkan 100% Gaji Bulanan Penuh (Rp {fmt(gajiMasterVal)})</span>
+                          </div>
                         ) : (
                           <>
                             <div className="text-slate-400">Rumus Pro-Rata Harian (6 Slot Presensi):</div>

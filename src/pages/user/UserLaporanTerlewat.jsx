@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { ChevronLeft, FileWarning, Image as ImageIcon, X, MapPin, MessageSquare } from 'lucide-react'
+import { ChevronLeft, FileWarning, Image as ImageIcon, X, MapPin, MessageSquare, ExternalLink } from 'lucide-react'
 
 const statusColor = {
   PENDING: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
@@ -174,7 +174,8 @@ export default function UserLaporanTerlewat() {
                       className="flex items-center gap-1 text-slate-300 hover:text-cyan-300 font-mono font-bold"
                     >
                       <MapPin size={13} className="text-cyan-400 shrink-0" />
-                      {Number(lap.gps_lat).toFixed(4)}, {Number(lap.gps_lng).toFixed(4)} ↗
+                      <span>{Number(lap.gps_lat).toFixed(4)}, {Number(lap.gps_lng).toFixed(4)}</span>
+                      <ExternalLink size={11} className="shrink-0 text-cyan-400" />
                     </a>
                   )}
                 </div>

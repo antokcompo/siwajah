@@ -117,7 +117,7 @@ export default function UserLayout() {
             }`}
           >
             <Sun size={14} className={outdoorMode ? 'animate-spin text-slate-950' : 'text-amber-400'} />
-            <span>{outdoorMode ? '☀️ Terik Aktif' : 'Mode Outdoor'}</span>
+            <span>{outdoorMode ? 'Terik Aktif' : 'Mode Outdoor'}</span>
           </button>
 
           <button onClick={handleLogout} title="Keluar" className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white">

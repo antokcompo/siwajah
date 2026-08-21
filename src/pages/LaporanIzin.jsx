@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { FileWarning, CalendarDays, CheckCircle, XCircle, X, Image as ImageIcon, Edit3, Eye, MapPin } from 'lucide-react'
+import { FileWarning, CalendarDays, CheckCircle, XCircle, X, Image as ImageIcon, Edit3, Eye, MapPin, ExternalLink } from 'lucide-react'
 
 const tabConfig = [
   { key: 'laporan', label: 'Laporan Terlewat', icon: FileWarning },
@@ -343,9 +343,10 @@ export default function LaporanIzin() {
                       href={`https://www.google.com/maps?q=${laporanDetail.gps_lat},${laporanDetail.gps_lng}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="hover:underline font-mono"
+                      className="hover:underline font-mono inline-flex items-center gap-1"
                     >
-                      GPS: {Number(laporanDetail.gps_lat).toFixed(6)}, {Number(laporanDetail.gps_lng).toFixed(6)} ↗
+                      <span>GPS: {Number(laporanDetail.gps_lat).toFixed(6)}, {Number(laporanDetail.gps_lng).toFixed(6)}</span>
+                      <ExternalLink size={12} className="shrink-0" />
                     </a>
                   </div>
                 ) : (

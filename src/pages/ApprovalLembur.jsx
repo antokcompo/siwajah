@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
-import { Check, X, Clock, Search, Plus, Trash2, Users, ClipboardCheck, CalendarPlus, CheckCircle, XCircle, AlertTriangle, Calendar, Filter } from 'lucide-react'
+import { Check, X, Clock, Search, Plus, Trash2, Users, ClipboardCheck, CalendarPlus, CheckCircle, XCircle, AlertTriangle, Calendar, Filter, Activity, ClipboardList, CheckCircle2 } from 'lucide-react'
 
 const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
@@ -17,7 +17,7 @@ const statusLabel = {
   PENDING: 'Menunggu Approval',
   APPROVED: 'Disetujui',
   REJECTED: 'Ditolak',
-  PROSES: '🟢 Sedang Lembur (Belum Pulang)',
+  PROSES: 'Sedang Lembur (Belum Pulang)',
 }
 
 export default function ApprovalLembur() {
@@ -664,35 +664,35 @@ function ApprovalTab() {
         <div className="flex gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 overflow-x-auto">
           <button
             onClick={() => setSubTab('semua')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 ${
               subTab === 'semua' ? 'bg-cyan-500 text-slate-950 shadow-md font-black' : 'text-slate-300 hover:text-white'
             }`}
           >
-            📋 Rekap Sebulan ({data.length})
+            <ClipboardList size={14} /> Rekap Sebulan ({data.length})
           </button>
           <button
             onClick={() => setSubTab('pending')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 ${
               subTab === 'pending' ? 'bg-amber-400 text-slate-950 shadow-md font-black' : 'text-slate-300 hover:text-white'
             }`}
           >
-            ⏳ Menunggu Approval
+            <Clock size={14} /> Menunggu Approval
           </button>
           <button
             onClick={() => setSubTab('proses')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 ${
               subTab === 'proses' ? 'bg-emerald-400 text-slate-950 shadow-md font-black' : 'text-slate-300 hover:text-white'
             }`}
           >
-            🟢 Sedang Lembur (Belum Pulang)
+            <Activity size={14} className="animate-pulse" /> Sedang Lembur (Belum Pulang)
           </button>
           <button
             onClick={() => setSubTab('riwayat')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 ${
               subTab === 'riwayat' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-300 hover:text-white'
             }`}
           >
-            ✅ Riwayat Selesai
+            <CheckCircle2 size={14} /> Riwayat Selesai
           </button>
         </div>
 
@@ -756,7 +756,11 @@ function ApprovalTab() {
                           {new Date(d.tanggal + 'T00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
                         <td className="px-4 py-3 text-center text-gray-700 font-mono font-bold">
-                          {d.jam_pulang?.slice(0, 5) || (d.displayStatus === 'PROSES' ? '🟢 Belum Pulang' : '-')}
+                          {d.jam_pulang?.slice(0, 5) || (d.displayStatus === 'PROSES' ? (
+                            <span className="inline-flex items-center gap-1 text-cyan-700 font-bold text-xs">
+                              <Activity size={12} className="animate-pulse text-cyan-600" /> Belum Pulang
+                            </span>
+                          ) : '-')}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className="inline-flex items-center gap-1.5 text-orange-600 font-bold">
@@ -780,13 +784,17 @@ function ApprovalTab() {
                               </button>
                             </div>
                           ) : d.displayStatus === 'PROSES' ? (
-                            <span className="badge bg-cyan-100 text-cyan-800 border border-cyan-300 font-bold text-xs">
-                              🟢 Sedang Lembur (Belum Pulang)
+                            <span className="badge bg-cyan-100 text-cyan-800 border border-cyan-300 font-bold text-xs inline-flex items-center gap-1">
+                              <Activity size={12} className="animate-pulse text-cyan-600" /> Sedang Lembur (Belum Pulang)
                             </span>
                           ) : (
                             <div>
-                              <span className={`badge font-bold text-xs ${d.displayStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                {d.displayStatus === 'APPROVED' ? '✅ Approved' : '❌ Rejected'}
+                              <span className={`badge font-bold text-xs inline-flex items-center gap-1 ${d.displayStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                {d.displayStatus === 'APPROVED' ? (
+                                  <><CheckCircle2 size={12} className="text-emerald-600" /> Approved</>
+                                ) : (
+                                  <><XCircle size={12} className="text-rose-600" /> Rejected</>
+                                )}
                               </span>
                               {d.catatan && <div className="text-xs text-gray-500 mt-1 font-medium">{d.catatan}</div>}
                             </div>
