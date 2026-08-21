@@ -74,10 +74,10 @@ export default function App() {
   return (
     <Routes>
       {/* Root route: Direct URL entry redirects to /login (Login Admin SI WAJAH) */}
-      <Route path="/" element={<Navigate to={user ? "/portal" : "/login"} replace />} />
+      <Route path="/" element={<Navigate to={user ? "/siwajah" : "/login"} replace />} />
 
       {/* Halaman Login Admin SI WAJAH */}
-      <Route path="/login" element={user ? <Navigate to="/portal" replace /> : <Login />} />
+      <Route path="/login" element={user ? <Navigate to="/siwajah" replace /> : <Login />} />
 
       {/* Central Portal Launcher (accessed via Portal Prisma) */}
       <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/login" replace />} />
@@ -104,7 +104,7 @@ export default function App() {
       </Route>
 
       {/* Fallback route */}
-      <Route path="*" element={<Navigate to={user ? "/portal" : "/login"} replace />} />
+      <Route path="*" element={<Navigate to={user ? "/siwajah" : "/login"} replace />} />
     </Routes>
   )
 }
