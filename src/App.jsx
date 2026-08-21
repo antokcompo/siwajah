@@ -40,7 +40,7 @@ function UserProtected() {
 function AdminProtected() {
   const { user, hasAppAccess, loading } = useAuth()
   if (loading) return <div className="flex items-center justify-center h-screen bg-[#0a0e1a]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" /></div>
-  if (!user) return <Navigate to="/login" />
+  if (!user) return <Navigate to="/portal/login" replace />
   if (!hasAppAccess('siwajah')) return <Navigate to="/portal" replace />
   return <Layout />
 }
@@ -73,17 +73,18 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Root route: When user opens https://siwajah.pages.dev directly in browser, redirect directly to SI WAJAH Login (/user/login) */}
+      {/* Root & /login routes: Always redirect to SI WAJAH Login (/user/login) */}
       <Route path="/" element={<Navigate to={user ? "/portal" : "/user/login"} replace />} />
+      <Route path="/login" element={<Navigate to="/user/login" replace />} />
+
+      {/* Portal SSO Login */}
+      <Route path="/portal/login" element={user ? <Navigate to="/portal" replace /> : <Login />} />
 
       {/* Central Portal Launcher (accessed via Portal Prisma) */}
-      <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/login" replace />} />
+      <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/portal/login" replace />} />
 
-      {/* User app (Absensi Pekerja) */}
+      {/* User app (Absensi Pekerja SI WAJAH) */}
       <Route path="/user/*" element={<UserRoutes />} />
-
-      {/* Admin login */}
-      <Route path="/login" element={user ? <Navigate to="/portal" replace /> : <Login />} />
 
       {/* Admin protected routes for SI WAJAH */}
       <Route element={<AdminProtected />}>
