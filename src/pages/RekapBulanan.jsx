@@ -220,7 +220,7 @@ export default function RekapBulanan() {
 
       if (distinctCount > 0 && item.status === 'draft') {
         const gajiBulanan = Number(item.absen_karyawan?.gaji_bulanan || 0)
-        const isFull = totalWeight >= hariKerjaKalender || distinctCount >= hariKerjaKalender
+        const isFull = totalWeight >= hariKerjaKalender
         const gajiHarian = gajiBulanan / hariKerjaKalender
         const gajiPokok = isFull ? gajiBulanan : Math.round((gajiHarian * totalWeight) / 100) * 100
         const totalGaji = gajiPokok + Number(item.gaji_lembur || 0) + Number(item.tunjangan || 0)

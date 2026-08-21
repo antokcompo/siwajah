@@ -4,8 +4,9 @@
 -- Rules:
 -- 1. HARI KERJA = Count of distinct calendar dates attended (e.g. 19, 20, 21 Aug = 3 Hari).
 -- 2. GAJI SEHARI = Gaji Master / Total Hari Kerja pada Kalender Kerja bulan itu (contoh: 28 hari kerja).
--- 3. GAJI POKOK PRO-RATA = SUM( (verified_slots_on_date / 6.0) * Gaji Sehari )
---    Abdul Ghofur: (3/6 * Gaji Sehari) + (4/6 * Gaji Sehari) + (1/6 * Gaji Sehari) = 8/6 * Gaji Sehari.
+-- 3. FULL SALARY RULE: Jika pekerja masuk di semua tanggal kerja DAN absen 6-slot lengkap (total_bobot_slot >= hari_kerja_bulan),
+--    maka Gaji Pokok = Gaji Master Bulanan (100% Penuh tanpa potongan).
+-- 4. PRO-RATA RULE: Jika absen/slot tidak lengkap, Gaji Pokok = ROUND((Gaji Master / Hari Kerja Kalender) * Total Bobot Slot, -2).
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION absen_hitung_gaji(p_bulan integer, p_tahun integer)
@@ -123,8 +124,8 @@ BEGIN
   LOOP
     v_upah_lembur_perjam := v_rec.gaji_bulanan::numeric / v_hari_kerja_bulan / 8;
 
-    -- Full salary: total bobot slot >= v_hari_kerja_bulan → gaji bulanan penuh
-    v_is_full := (v_rec.total_bobot_slot >= v_hari_kerja_bulan OR v_rec.total_hari_kerja >= v_hari_kerja_bulan);
+    -- Full salary: total bobot slot >= v_hari_kerja_bulan → gaji bulanan penuh (100% Master Salary)
+    v_is_full := (v_rec.total_bobot_slot >= v_hari_kerja_bulan);
 
     IF v_is_full THEN
       v_gaji_pokok := v_rec.gaji_bulanan;
