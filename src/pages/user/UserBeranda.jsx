@@ -97,7 +97,11 @@ export default function UserBeranda() {
 
     const [slotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
       supabase.rpc('absen_get_jadwal_slot'),
-      supabase.rpc('absen_scan_hari_ini', { p_karyawan_id: karyawan.id }),
+      supabase
+        .from('absen_scan_wajah')
+        .select('*, absen_jadwal_slot(*)')
+        .eq('karyawan_id', karyawan.id)
+        .eq('tanggal', todayStr),
       supabase.from('absen_face_data').select('id').eq('karyawan_id', karyawan.id).maybeSingle(),
       supabase.rpc('absen_cek_lembur_hari_ini', { p_karyawan_id: karyawan.id }),
       supabase.from('absen_laporan_terlewat').select('*').eq('karyawan_id', karyawan.id).eq('tanggal', todayStr),
