@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, Fragment } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Plus, Pencil, Search, Upload, FileSpreadsheet, CheckCircle, AlertTriangle, X, Users, Eye, EyeOff, Building2, HardHat } from 'lucide-react'
 import * as XLSX from 'xlsx'
@@ -14,10 +15,16 @@ function parseRupiah(formatted) {
 }
 
 export default function MasterKaryawan() {
+  const [searchParams] = useSearchParams()
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [showModal, setShowModal] = useState(false)
+
+  useEffect(() => {
+    const s = searchParams.get('search')
+    if (s) setSearch(s)
+  }, [searchParams])
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ nama: '', jabatan: '', uid_mesin: '', gaji_bulanan: '', tunjangan: '0', tgl_masuk: '', status_aktif: true, atasan_id: '', no_hp: '', pin: '' })
   const [showPin, setShowPin] = useState(false)
@@ -185,11 +192,16 @@ export default function MasterKaryawan() {
     setImporting(false)
   }
 
-  const filtered = data.filter(d =>
-    d.nama.toLowerCase().includes(search.toLowerCase()) ||
-    (d.uid_mesin || []).some(u => u.toLowerCase().includes(search.toLowerCase())) ||
-    (d.jabatan || '').toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = data.filter(d => {
+    const q = search.toLowerCase()
+    const atasanNama = (mandorMap[d.atasan_id] || '').toLowerCase()
+    return (
+      d.nama.toLowerCase().includes(q) ||
+      (d.uid_mesin || []).some(u => u.toLowerCase().includes(q)) ||
+      (d.jabatan || '').toLowerCase().includes(q) ||
+      atasanNama.includes(q)
+    )
+  })
 
   const groupedData = useMemo(() => {
     const groups = {}
