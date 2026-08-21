@@ -73,8 +73,8 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Root route: If opened directly in browser without Portal session, redirect directly to User Login (/user/login) */}
-      <Route path="/" element={<Navigate to={user ? "/portal" : "/user/login"} replace />} />
+      {/* Root route: When user opens https://siwajah.pages.dev directly in browser, redirect to /login */}
+      <Route path="/" element={<Navigate to={user ? "/portal" : "/login"} replace />} />
 
       {/* Central Portal Launcher (accessed via Portal Prisma) */}
       <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/login" replace />} />
@@ -104,7 +104,7 @@ export default function App() {
       </Route>
 
       {/* Fallback route */}
-      <Route path="*" element={<Navigate to={user ? "/portal" : "/user/login"} replace />} />
+      <Route path="*" element={<Navigate to={user ? "/portal" : "/login"} replace />} />
     </Routes>
   )
 }
