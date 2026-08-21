@@ -6,7 +6,8 @@ import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 
 const statusColor = {
-  LENGKAP: 'bg-emerald-100 text-emerald-700',
+  LENGKAP: 'bg-emerald-100 text-emerald-700 font-semibold',
+  TIDAK_LENGKAP: 'bg-amber-100 text-amber-700 font-semibold',
   TANPA_PULANG: 'bg-amber-100 text-amber-700',
   TANPA_MASUK: 'bg-amber-100 text-amber-700',
   HANYA_SCAN_TENGAH: 'bg-orange-100 text-orange-700',
@@ -19,6 +20,7 @@ const statusColor = {
 
 const statusLabel = {
   LENGKAP: 'Lengkap',
+  TIDAK_LENGKAP: 'Tidak Lengkap',
   TANPA_PULANG: 'Tanpa Pulang',
   TANPA_MASUK: 'Tanpa Masuk',
   HANYA_SCAN_TENGAH: 'Scan Tengah',
@@ -154,21 +156,71 @@ export default function RekapHarian() {
   async function loadDetail(date) {
     const params = { p_tanggal: date }
     if (filter !== 'semua') params.p_status = filter
-    const { data, error } = await supabase.rpc('absen_detail_harian', params)
-    if (error) {
+
+    const [rpcRes, scanRes, laporanRes] = await Promise.all([
+      supabase.rpc('absen_detail_harian', params),
+      supabase
+        .from('absen_scan_wajah')
+        .select('karyawan_id, slot_id, absen_jadwal_slot(jenis)')
+        .eq('tanggal', date),
+      supabase
+        .from('absen_laporan_terlewat')
+        .select('karyawan_id, slot_id, status, absen_jadwal_slot(jenis)')
+        .eq('tanggal', date)
+        .eq('status', 'APPROVED')
+    ])
+
+    const slotCounts = {}
+    ;(scanRes.data || []).forEach(s => {
+      const j = s.absen_jadwal_slot?.jenis || ''
+      if (j !== 'LEMBUR' && j !== 'pulang_lembur') {
+        if (!slotCounts[s.karyawan_id]) slotCounts[s.karyawan_id] = new Set()
+        slotCounts[s.karyawan_id].add(s.slot_id)
+      }
+    })
+    ;(laporanRes.data || []).forEach(l => {
+      const j = l.absen_jadwal_slot?.jenis || ''
+      if (j !== 'LEMBUR' && j !== 'pulang_lembur') {
+        if (!slotCounts[l.karyawan_id]) slotCounts[l.karyawan_id] = new Set()
+        slotCounts[l.karyawan_id].add(l.slot_id)
+      }
+    })
+
+    let rawList = []
+    if (rpcRes.error) {
       let q = supabase
         .from('absen_harian')
         .select('*, absen_karyawan(nama, jabatan, atasan_id)')
         .eq('tanggal', date)
       if (filter !== 'semua') q = q.eq('status', filter)
       const { data: fallback } = await q
-      setDetail(fallback || [])
+      rawList = fallback || []
     } else {
-      setDetail((data || []).map(d => ({
+      rawList = (rpcRes.data || []).map(d => ({
         ...d,
         absen_karyawan: { nama: d.karyawan_nama, jabatan: d.karyawan_jabatan, atasan_id: d.atasan_id }
-      })))
+      }))
     }
+
+    const enriched = rawList.map(item => {
+      const kid = item.karyawan_id || item.absen_karyawan?.id
+      const vSlots = slotCounts[kid] ? slotCounts[kid].size : 0
+      let computedStatus = item.status
+      if (item.jam_masuk && item.jam_pulang) {
+        if (vSlots < 6) {
+          computedStatus = 'TIDAK_LENGKAP'
+        } else {
+          computedStatus = 'LENGKAP'
+        }
+      }
+      return {
+        ...item,
+        verifiedSlots: vSlots,
+        computedStatus
+      }
+    })
+
+    setDetail(enriched)
   }
 
   async function loadScanWajah(date) {
@@ -321,6 +373,12 @@ export default function RekapHarian() {
             <>
               {/* Fingerprint table */}
               <div className="card">
+                <div className="px-5 py-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                  <div className="flex items-center gap-2 font-bold text-cyan-400">
+                    <Calendar size={14} />
+                    <span>📋 Ringkasan Presensi Harian (Jam Masuk, Pulang & Status 6 Slot)</span>
+                  </div>
+                </div>
                 <div className="px-5 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <span className="font-bold text-gray-900 shrink-0">{format(new Date(selectedDate + 'T00:00'), 'EEEE, d MMMM yyyy', { locale: localeId })}</span>
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 max-w-lg">
@@ -352,7 +410,7 @@ export default function RekapHarian() {
                         <th className="text-left px-5 py-3">Nama</th>
                         <th className="text-center px-4 py-3">Masuk</th>
                         <th className="text-center px-4 py-3">Pulang</th>
-                        <th className="text-center px-4 py-3">Status</th>
+                        <th className="text-center px-4 py-3">Status Presensi</th>
                         <th className="text-center px-4 py-3">Lembur</th>
                       </tr>
                     </thead>
@@ -367,21 +425,27 @@ export default function RekapHarian() {
                               </div>
                             </td>
                           </tr>
-                          {items.map(d => (
-                            <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
-                              <td className="px-5 py-3 font-medium text-gray-900">{d.absen_karyawan?.nama}</td>
-                              <td className="px-4 py-3 text-center text-gray-600">{d.jam_masuk?.slice(0, 5) || '-'}</td>
-                              <td className="px-4 py-3 text-center text-gray-600">{d.jam_pulang?.slice(0, 5) || '-'}</td>
-                              <td className="px-4 py-3 text-center">
-                                <span className={`badge ${statusColor[d.status]}`}>{statusLabel[d.status]}</span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                {d.jam_lembur > 0 ? (
-                                  <span className="text-orange-600 font-medium">{d.jam_lembur}j</span>
-                                ) : <span className="text-gray-300">-</span>}
-                              </td>
-                            </tr>
-                          ))}
+                          {items.map(d => {
+                            const stKey = d.computedStatus || d.status
+                            return (
+                              <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-5 py-3 font-medium text-gray-900">{d.absen_karyawan?.nama}</td>
+                                <td className="px-4 py-3 text-center text-gray-600">{d.jam_masuk?.slice(0, 5) || '-'}</td>
+                                <td className="px-4 py-3 text-center text-gray-600">{d.jam_pulang?.slice(0, 5) || '-'}</td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`badge ${statusColor[stKey] || 'bg-gray-100 text-gray-700'}`}>
+                                    {statusLabel[stKey] || stKey}
+                                    {d.verifiedSlots !== undefined && (stKey === 'LENGKAP' || stKey === 'TIDAK_LENGKAP') ? ` (${d.verifiedSlots}/6)` : ''}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {d.jam_lembur > 0 ? (
+                                    <span className="text-orange-600 font-medium">{d.jam_lembur}j</span>
+                                  ) : <span className="text-gray-300">-</span>}
+                                </td>
+                              </tr>
+                            )
+                          })}
                         </Fragment>
                       ))}
                       {detail.length === 0 && <tr><td colSpan={5} className="px-5 py-12 text-center text-gray-400">Tidak ada data</td></tr>}
@@ -392,11 +456,13 @@ export default function RekapHarian() {
 
               {/* Face scan timeline */}
               <div className="card">
-                <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                  <ScanFace size={18} className="text-cyan-500" />
-                  <span className="font-semibold text-gray-900">Scan Wajah</span>
+                <div className="px-5 py-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                  <div className="flex items-center gap-2 font-bold text-cyan-400">
+                    <ScanFace size={14} />
+                    <span>📷 Log Face Scan (Bukti Foto, Waktu & GPS per Slot)</span>
+                  </div>
                   {scanData.length > 0 && (
-                    <span className="text-xs text-gray-400 ml-auto">{scanData.length} scan</span>
+                    <span className="text-xs text-slate-400 font-mono">{scanData.length} scan terverifikasi</span>
                   )}
                 </div>
 
