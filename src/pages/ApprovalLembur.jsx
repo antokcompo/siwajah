@@ -534,6 +534,8 @@ function ApprovalTab() {
       daftarMapByKey[`${d.karyawan_id}_${d.tanggal}`] = d
     })
 
+    const lemburMulai = (cfgMap.lembur_mulai_hitung || '19:00').slice(0, 5)
+
     const mapByKey = {}
 
     // 1. Process harian records ONLY IF they have overtime activity or are registered/scanned for overtime
@@ -557,9 +559,24 @@ function ApprovalTab() {
       // Only include if worker has overtime activity/registration
       if (displayStatus !== 'NONE') {
         const regInfo = daftarMapByKey[key]
+
+        // Determine valid overtime clock-out time (must be > lemburMulai e.g. > 19:00)
+        const scanPulangLembur = scans.find(s => {
+          const jam = s.waktu_scan?.slice(11, 16)
+          return jam && jam >= lemburMulai
+        })
+
+        let jamPulangLembur = null
+        if (h.jam_pulang && h.jam_pulang.slice(0, 5) > lemburMulai) {
+          jamPulangLembur = h.jam_pulang.slice(0, 5)
+        } else if (scanPulangLembur) {
+          jamPulangLembur = scanPulangLembur.waktu_scan.slice(11, 16)
+        }
+
         mapByKey[key] = {
           ...h,
           displayStatus,
+          jamPulangLembur,
           catatan: h.catatan || regInfo?.catatan || null,
           scans,
           isOffsite: !!offsiteScan,
@@ -574,6 +591,10 @@ function ApprovalTab() {
       if (!mapByKey[key]) {
         const scans = scanMap[key] || []
         const offsiteScan = scans.find(s => s.isOffsite)
+        const scanPulangLembur = scans.find(s => {
+          const jam = s.waktu_scan?.slice(11, 16)
+          return jam && jam >= lemburMulai
+        })
 
         mapByKey[key] = {
           id: `virtual_${d.id}`,
@@ -581,6 +602,7 @@ function ApprovalTab() {
           tanggal: d.tanggal,
           jam_masuk: scans.find(s => s.absen_jadwal_slot?.jenis === 'masuk')?.waktu_scan?.slice(11, 16) || null,
           jam_pulang: null,
+          jamPulangLembur: scanPulangLembur ? scanPulangLembur.waktu_scan.slice(11, 16) : null,
           jam_lembur: 0,
           status_lembur: 'PROSES',
           displayStatus: 'PROSES',
@@ -620,7 +642,7 @@ function ApprovalTab() {
       id: d.id,
       nama: d.absen_karyawan?.nama || 'Pekerja',
       tglFormatted,
-      jam_pulang: d.jam_pulang?.slice(0, 5) || '-',
+      jam_pulang: d.jamPulangLembur || 'Belum Scan Pulang Lembur',
       originalJamLembur: d.jam_lembur || 0,
       jamLembur: d.jam_lembur || 0,
       catatan: d.catatan || '',
@@ -772,11 +794,13 @@ function ApprovalTab() {
                           {new Date(d.tanggal + 'T00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
                         <td className="px-4 py-3 text-center text-gray-700 font-mono font-bold">
-                          {d.jam_pulang?.slice(0, 5) || (d.displayStatus === 'PROSES' ? (
+                          {d.jamPulangLembur ? (
+                            <span className="text-emerald-700 font-mono font-bold">{d.jamPulangLembur}</span>
+                          ) : (
                             <span className="inline-flex items-center gap-1 text-cyan-700 font-bold text-xs">
                               <Activity size={12} className="animate-pulse text-cyan-600" /> Belum Pulang
                             </span>
-                          ) : '-')}
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className="inline-flex items-center gap-1.5 text-orange-600 font-bold">
