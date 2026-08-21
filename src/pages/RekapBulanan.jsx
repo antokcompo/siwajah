@@ -134,7 +134,7 @@ export default function RekapBulanan() {
     const lastDay = new Date(tahun, bulan, 0).getDate()
     const endDate = `${tahun}-${padBulan}-${String(lastDay).padStart(2, '0')}`
 
-    const [gajiRes, periodeRes, mandorRes, scanRes, harianRes, laporanRes, daftarLemburRes] = await Promise.all([
+    const [gajiRes, periodeRes, mandorRes, scanRes, harianRes, laporanRes, daftarLemburRes, slotRes] = await Promise.all([
       supabase.from('absen_gaji_bulanan')
         .select('*, absen_karyawan(nama, jabatan, atasan_id, gaji_bulanan, tunjangan)')
         .eq('bulan', bulan).eq('tahun', tahun)
@@ -146,18 +146,21 @@ export default function RekapBulanan() {
         .ilike('jabatan', '%mandor%')
         .eq('status_aktif', true),
       supabase.from('absen_scan_wajah')
-        .select('karyawan_id, tanggal')
+        .select('karyawan_id, tanggal, slot_id, absen_jadwal_slot(jenis)')
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_harian')
         .select('karyawan_id, tanggal, status, jam_masuk, jam_pulang')
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_laporan_terlewat')
-        .select('karyawan_id, tanggal')
+        .select('karyawan_id, tanggal, slot_id, absen_jadwal_slot(jenis)')
         .eq('status', 'APPROVED')
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_daftar_lembur')
         .select('karyawan_id, tanggal')
-        .gte('tanggal', startDate).lte('tanggal', endDate)
+        .gte('tanggal', startDate).lte('tanggal', endDate),
+      supabase.from('absen_jadwal_slot')
+        .select('id, jenis, aktif')
+        .eq('aktif', true)
     ])
 
     const empAttendedDates = {}
@@ -167,14 +170,41 @@ export default function RekapBulanan() {
       empAttendedDates[kid].add(tgl)
     }
 
-    ;(scanRes.data || []).forEach(s => addDate(s.karyawan_id, s.tanggal))
+    const empDailySlots = {}
+    const addSlot = (kid, tgl, slotId, jenis) => {
+      const j = (jenis || '').toLowerCase()
+      if (j.includes('lembur')) return
+      if (!kid || !tgl || !slotId) return
+      if (!empDailySlots[kid]) empDailySlots[kid] = {}
+      if (!empDailySlots[kid][tgl]) empDailySlots[kid][tgl] = new Set()
+      empDailySlots[kid][tgl].add(slotId)
+    }
+
+    ;(scanRes.data || []).forEach(s => {
+      addDate(s.karyawan_id, s.tanggal)
+      addSlot(s.karyawan_id, s.tanggal, s.slot_id, s.absen_jadwal_slot?.jenis)
+    })
     ;(harianRes.data || []).forEach(h => {
       if (h.status !== 'TIDAK_ADA_SCAN' || h.jam_masuk || h.jam_pulang) {
         addDate(h.karyawan_id, h.tanggal)
       }
     })
-    ;(laporanRes.data || []).forEach(l => addDate(l.karyawan_id, l.tanggal))
+    ;(laporanRes.data || []).forEach(l => {
+      addDate(l.karyawan_id, l.tanggal)
+      addSlot(l.karyawan_id, l.tanggal, l.slot_id, l.absen_jadwal_slot?.jenis)
+    })
     ;(daftarLemburRes.data || []).forEach(dl => addDate(dl.karyawan_id, dl.tanggal))
+
+    const regSlotCount = (slotRes.data || []).filter(s => !(s.jenis || '').toLowerCase().includes('lembur')).length || 6
+
+    const empTotalWeight = {}
+    Object.entries(empDailySlots).forEach(([kid, datesObj]) => {
+      let sumWeight = 0
+      Object.values(datesObj).forEach(slotSet => {
+        sumWeight += Math.min(1.0, slotSet.size / Number(regSlotCount))
+      })
+      empTotalWeight[kid] = sumWeight
+    })
 
     const rawGajiList = gajiRes.data || []
     const hariKalender = lastDay
@@ -182,15 +212,16 @@ export default function RekapBulanan() {
     const enrichedGajiList = rawGajiList.map(item => {
       const kid = item.karyawan_id
       const distinctCount = empAttendedDates[kid] ? empAttendedDates[kid].size : 0
-      
+      const totalWeight = empTotalWeight[kid] !== undefined ? empTotalWeight[kid] : distinctCount
+
       if (distinctCount > 0 && item.status === 'draft') {
         const gajiBulanan = Number(item.absen_karyawan?.gaji_bulanan || 0)
-        const isFull = distinctCount >= 26
+        const isFull = totalWeight >= 26 || distinctCount >= 26
         const gajiHarian = gajiBulanan / hariKalender
-        const gajiPokok = isFull ? gajiBulanan : Math.round((gajiHarian * distinctCount) / 100) * 100
+        const gajiPokok = isFull ? gajiBulanan : Math.round((gajiHarian * totalWeight) / 100) * 100
         const totalGaji = gajiPokok + Number(item.gaji_lembur || 0) + Number(item.tunjangan || 0)
 
-        if (item.hari_kerja !== distinctCount) {
+        if (item.hari_kerja !== distinctCount || item.gaji_pokok !== gajiPokok) {
           supabase
             .from('absen_gaji_bulanan')
             .update({
