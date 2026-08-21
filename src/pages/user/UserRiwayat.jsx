@@ -499,15 +499,10 @@ export default function UserRiwayat() {
                 const slotDateObj = new Date(selectedDateDetail.tanggal + 'T00:00')
                 const diffDays = Math.round((todayObj - slotDateObj) / (1000 * 60 * 60 * 24))
 
-                const isLemburSlotItem = item.slot.jenis === 'LEMBUR' || item.slot.label?.toLowerCase().includes('lembur')
+                const isLemburSlotItem = (item.slot.jenis || '').toUpperCase().includes('LEMBUR') || (item.slot.label || '').toLowerCase().includes('lembur')
                 
-                // Allow Lapor Terlewat:
-                // - Regular slots: Same day (diffDays === 0)
-                // - Overtime slots: Same day OR H+1 (diffDays === 0 || diffDays === 1)
-                const canLapor = item.status === 'MISSED' && (
-                  (!isLemburSlotItem && diffDays === 0) ||
-                  (isLemburSlotItem && (diffDays === 0 || diffDays === 1))
-                )
+                // Allow Lapor Terlewat ONLY for Pulang Lembur slot (H+1 or same day)
+                const canLapor = item.status === 'MISSED' && isLemburSlotItem && (diffDays === 0 || diffDays === 1)
 
                 return (
                   <div 

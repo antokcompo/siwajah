@@ -191,6 +191,11 @@ export default function UserBeranda() {
 
   async function handleLaporSubmit(e) {
     e.preventDefault()
+    const isPulangLembur = (modalSlot?.jenis || '').toUpperCase().includes('LEMBUR') || (modalSlot?.label || '').toLowerCase().includes('lembur')
+    if (!isPulangLembur) {
+      setLaporError('Pengajuan Lapor Terlewat (H+1) hanya diperbolehkan untuk slot Pulang Lembur.')
+      return
+    }
     if (!laporAlasan.trim()) {
       setLaporError('Alasan terlewat wajib diisi.')
       return
@@ -483,7 +488,7 @@ export default function UserBeranda() {
                 }`}
                 onClick={() => {
                   if (st === 'active') navigate('/user/scan', { state: { slot } })
-                  else if (st === 'missed') handleOpenLapor(slot)
+                  else if (st === 'missed' && isLemburSlot) handleOpenLapor(slot)
                 }}
               >
                 {/* Status Dot */}
@@ -528,13 +533,15 @@ export default function UserBeranda() {
                         <FileWarning size={13} className="shrink-0" />
                         Terlewat
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleOpenLapor(slot) }}
-                        className="text-xs bg-rose-500 hover:bg-rose-400 text-white font-extrabold px-2.5 py-1 rounded-xl transition-colors shadow-sm"
-                      >
-                        Lapor Terlewat
-                      </button>
+                      {isLemburSlot && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleOpenLapor(slot) }}
+                          className="text-xs bg-rose-500 hover:bg-rose-400 text-white font-extrabold px-2.5 py-1 rounded-xl transition-colors shadow-sm"
+                        >
+                          Lapor (H+1)
+                        </button>
+                      )}
                     </div>
                   ) : st === 'holiday' ? (
                     <div className="flex items-center gap-1 text-xs text-slate-300 font-bold">

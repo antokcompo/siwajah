@@ -37,6 +37,11 @@ export default function UserLaporan() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    const isPulangLembur = (slot?.jenis || '').toUpperCase().includes('LEMBUR') || (slot?.label || '').toLowerCase().includes('lembur')
+    if (!isPulangLembur) {
+      setError('Pengajuan Lapor Terlewat (H+1) hanya diperbolehkan untuk slot Pulang Lembur.')
+      return
+    }
     if (alasan.trim().length < 5) {
       setError('Alasan harus minimal 5 karakter')
       return
