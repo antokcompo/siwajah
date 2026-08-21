@@ -3,7 +3,7 @@
 --
 -- Rules:
 -- 1. HARI KERJA = Count of distinct calendar dates attended (e.g. 19, 20, 21 Aug = 3 Hari).
-2. GAJI POKOK PRO-RATA = SUM( (verified_slots_on_date / 6.0) * Gaji Sehari )
+-- 2. GAJI POKOK PRO-RATA = SUM( (verified_slots_on_date / 6.0) * Gaji Sehari )
 --    Where Gaji Sehari = Gaji Master / Total Hari Kalender Bulan Ini.
 --    Abdul Ghofur: (3/6 * Gaji Sehari) + (4/6 * Gaji Sehari) + (1/6 * Gaji Sehari) = 8/6 * Gaji Sehari.
 -- ============================================================
