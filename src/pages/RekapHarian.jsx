@@ -93,6 +93,8 @@ export default function RekapHarian() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('semua')
   const [searchQuery, setSearchQuery] = useState('')
+  const [slotMaster, setSlotMaster] = useState([])
+  const [laporanData, setLaporanData] = useState([])
   const [selectedScan, setSelectedScan] = useState(null)
   const [zoomPhoto, setZoomPhoto] = useState(null)
   const [projectTz, setProjectTz] = useState('Asia/Jayapura')
@@ -103,6 +105,7 @@ export default function RekapHarian() {
 
   useEffect(() => {
     loadTimezone()
+    loadSlots()
   }, [])
 
   useEffect(() => { loadMonth() }, [bulan, tahun])
@@ -112,6 +115,15 @@ export default function RekapHarian() {
       loadScanWajah(selectedDate)
     }
   }, [selectedDate, filter])
+
+  async function loadSlots() {
+    const { data } = await supabase
+      .from('absen_jadwal_slot')
+      .select('*')
+      .eq('aktif', true)
+      .order('urutan', { ascending: true })
+    setSlotMaster(data || [])
+  }
 
   async function loadTimezone() {
     const { data: configData } = await supabase
@@ -224,16 +236,20 @@ export default function RekapHarian() {
   }
 
   async function loadScanWajah(date) {
-    const { data, error } = await supabase
-      .from('absen_scan_wajah')
-      .select('*, absen_karyawan(nama, jabatan, atasan_id), absen_jadwal_slot(label, jam, jenis)')
-      .eq('tanggal', date)
-      .order('waktu_scan', { ascending: true })
-    if (error) {
-      setScanData([])
-    } else {
-      setScanData(data || [])
-    }
+    const [scanRes, laporanRes] = await Promise.all([
+      supabase
+        .from('absen_scan_wajah')
+        .select('*, absen_karyawan(id, nama, jabatan, atasan_id), absen_jadwal_slot(label, jam, jenis)')
+        .eq('tanggal', date)
+        .order('waktu_scan', { ascending: true }),
+      supabase
+        .from('absen_laporan_terlewat')
+        .select('*, absen_karyawan(id, nama, jabatan, atasan_id), absen_jadwal_slot(label, jam, jenis)')
+        .eq('tanggal', date)
+        .eq('status', 'APPROVED')
+    ])
+    setScanData(scanRes.data || [])
+    setLaporanData(laporanRes.data || [])
   }
 
   function prevMonth() { setCurrentDate(new Date(tahun, bulan - 2, 1)); setSelectedDate(null); setScanData([]) }
@@ -281,13 +297,51 @@ export default function RekapHarian() {
 
   const groupedScans = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    const mandorGroups = {}
-    scanData.forEach(s => {
-      const atasanId = s.absen_karyawan?.atasan_id
+    const regSlots = slotMaster.filter(s => (s.jenis || '').toUpperCase() !== 'LEMBUR')
+
+    const workerMap = {}
+
+    detail.forEach(d => {
+      const k = d.absen_karyawan
+      if (!k) return
+      const kid = d.karyawan_id || k.id
+      const atasanId = k.atasan_id
       const groupName = atasanId && mandorMap[atasanId] ? mandorMap[atasanId] : 'Harian Kantor'
-      const nama = s.absen_karyawan?.nama || 'Unknown'
+      if (!workerMap[kid]) {
+        workerMap[kid] = { karyawan: k, groupName, scans: [], lapors: [], computedStatus: d.computedStatus || d.status, verifiedSlots: d.verifiedSlots || 0 }
+      }
+    })
+
+    scanData.forEach(s => {
+      const k = s.absen_karyawan
+      if (!k) return
+      const kid = s.karyawan_id || k.id
+      const atasanId = k.atasan_id
+      const groupName = atasanId && mandorMap[atasanId] ? mandorMap[atasanId] : 'Harian Kantor'
+      if (!workerMap[kid]) {
+        workerMap[kid] = { karyawan: k, groupName, scans: [], lapors: [], computedStatus: 'PRO_RATA', verifiedSlots: 0 }
+      }
+      workerMap[kid].scans.push(s)
+    })
+
+    laporanData.forEach(l => {
+      const k = l.absen_karyawan
+      if (!k) return
+      const kid = l.karyawan_id || k.id
+      const atasanId = k.atasan_id
+      const groupName = atasanId && mandorMap[atasanId] ? mandorMap[atasanId] : 'Harian Kantor'
+      if (!workerMap[kid]) {
+        workerMap[kid] = { karyawan: k, groupName, scans: [], lapors: [], computedStatus: 'PRO_RATA', verifiedSlots: 0 }
+      }
+      workerMap[kid].lapors.push(l)
+    })
+
+    const mandorGroups = {}
+    Object.values(workerMap).forEach(w => {
+      const nama = w.karyawan.nama || 'Unknown'
       const namaLow = nama.toLowerCase()
-      const jabatanLow = (s.absen_karyawan?.jabatan || '').toLowerCase()
+      const jabatanLow = (w.karyawan.jabatan || '').toLowerCase()
+      const groupName = w.groupName
       const mandorLow = groupName.toLowerCase()
 
       if (q) {
@@ -297,10 +351,48 @@ export default function RekapHarian() {
         if (!matchNama && !matchJabatan && !matchMandor) return
       }
 
-      if (!mandorGroups[groupName]) mandorGroups[groupName] = {}
-      if (!mandorGroups[groupName][nama]) mandorGroups[groupName][nama] = { karyawan: s.absen_karyawan, scans: [] }
-      mandorGroups[groupName][nama].scans.push(s)
+      if (filter !== 'semua') {
+        const st = w.computedStatus
+        if (filter === 'LENGKAP' && st !== 'LENGKAP') return
+        if (filter === 'TIDAK_LENGKAP' && st !== 'TIDAK_LENGKAP') return
+      }
+
+      if (!mandorGroups[groupName]) mandorGroups[groupName] = []
+
+      const scannedSlotIds = new Set(w.scans.map(s => s.slot_id))
+      const laporSlotIds = new Set(w.lapors.map(l => l.slot_id))
+
+      const timelineItems = []
+
+      regSlots.forEach(slot => {
+        const matchingScans = w.scans.filter(s => s.slot_id === slot.id)
+        if (matchingScans.length > 0) {
+          matchingScans.forEach(s => timelineItems.push({ type: 'scan', data: s, slot }))
+        } else if (laporSlotIds.has(slot.id)) {
+          const laporObj = w.lapors.find(l => l.slot_id === slot.id)
+          timelineItems.push({ type: 'lapor', data: laporObj, slot })
+        } else {
+          timelineItems.push({ type: 'terlewat', slot })
+        }
+      })
+
+      w.scans.forEach(s => {
+        const j = (s.absen_jadwal_slot?.jenis || '').toUpperCase()
+        if (j === 'LEMBUR' || j === 'PULANG_LEMBUR') {
+          timelineItems.push({ type: 'scan', data: s, slot: s.absen_jadwal_slot })
+        }
+      })
+
+      mandorGroups[groupName].push({
+        id: w.karyawan.id,
+        nama,
+        karyawan: w.karyawan,
+        timelineItems,
+        computedStatus: w.computedStatus,
+        verifiedCount: scannedSlotIds.size + laporSlotIds.size
+      })
     })
+
     return Object.entries(mandorGroups)
       .sort(([a], [b]) => {
         if (a === 'Harian Kantor') return 1
@@ -309,9 +401,9 @@ export default function RekapHarian() {
       })
       .map(([groupName, workers]) => ({
         groupName,
-        workers: Object.entries(workers).sort(([a], [b]) => a.localeCompare(b)),
+        workers: workers.sort((a, b) => a.nama.localeCompare(b.nama)),
       }))
-  }, [scanData, mandorMap, searchQuery])
+  }, [detail, scanData, laporanData, slotMaster, mandorMap, searchQuery, filter])
 
   const namaBulan = format(currentDate, 'MMMM yyyy', { locale: localeId })
   const projectTzLabel = tzShortName[projectTz] || projectTz
@@ -370,156 +462,130 @@ export default function RekapHarian() {
         {/* Detail */}
         <div className="lg:col-span-2 space-y-6">
           {selectedDate ? (
-            <>
-              {/* Fingerprint table */}
-              <div className="card">
-                <div className="px-5 py-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300">
-                  <div className="flex items-center gap-2 font-bold text-cyan-400">
-                    <Calendar size={14} />
-                    <span>📋 Ringkasan Presensi Harian (Jam Masuk, Pulang & Status 6 Slot)</span>
-                  </div>
+            <div className="card overflow-hidden border border-slate-800">
+              {/* Single Unified Header */}
+              <div className="px-5 py-4 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/90">
+                <div className="flex items-center gap-2 font-bold text-white text-base shrink-0">
+                  <ScanFace size={20} className="text-cyan-400 animate-pulse" />
+                  <span>{format(new Date(selectedDate + 'T00:00'), 'EEEE, d MMMM yyyy', { locale: localeId })}</span>
                 </div>
-                <div className="px-5 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <span className="font-bold text-gray-900 shrink-0">{format(new Date(selectedDate + 'T00:00'), 'EEEE, d MMMM yyyy', { locale: localeId })}</span>
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 max-w-lg">
-                    <div className="relative flex-1">
-                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500" />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        placeholder="Cari nama pekerja / mandor..."
-                        className="input-field pl-9 text-xs py-1.5 font-medium"
-                      />
-                      {searchQuery && (
-                        <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600">
-                          <X size={13} />
-                        </button>
-                      )}
-                    </div>
-                    <select value={filter} onChange={e => setFilter(e.target.value)} className="select-field text-xs py-1.5 font-semibold">
-                      <option value="semua">Semua Status</option>
-                      {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 max-w-lg">
+                  <div className="relative flex-1">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Cari nama pekerja / mandor..."
+                      className="input-field pl-9 text-xs py-1.5 font-medium bg-slate-950 border-slate-800 text-white placeholder-slate-500"
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white">
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
-                </div>
-                <div className="table-scroll">
-                  <table className="w-full text-sm">
-                    <thead className="table-header">
-                      <tr>
-                        <th className="text-left px-5 py-3">Nama</th>
-                        <th className="text-center px-4 py-3">Masuk</th>
-                        <th className="text-center px-4 py-3">Pulang</th>
-                        <th className="text-center px-4 py-3">Status Presensi</th>
-                        <th className="text-center px-4 py-3">Lembur</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {groupedDetail.map(([groupName, items]) => (
-                        <Fragment key={groupName}>
-                          <tr className="bg-slate-50 border-t-2 border-slate-200">
-                            <td colSpan={5} className="px-5 py-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{groupName}</span>
-                                <span className="text-xs text-slate-400">{items.length} orang</span>
-                              </div>
-                            </td>
-                          </tr>
-                          {items.map(d => {
-                            const stKey = d.computedStatus || d.status
-                            return (
-                              <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
-                                <td className="px-5 py-3 font-medium text-gray-900">{d.absen_karyawan?.nama}</td>
-                                <td className="px-4 py-3 text-center text-gray-600">{d.jam_masuk?.slice(0, 5) || '-'}</td>
-                                <td className="px-4 py-3 text-center text-gray-600">{d.jam_pulang?.slice(0, 5) || '-'}</td>
-                                <td className="px-4 py-3 text-center">
-                                  <span className={`badge ${statusColor[stKey] || 'bg-gray-100 text-gray-700'}`}>
-                                    {statusLabel[stKey] || stKey}
-                                    {d.verifiedSlots !== undefined && (stKey === 'LENGKAP' || stKey === 'TIDAK_LENGKAP') ? ` (${d.verifiedSlots}/6)` : ''}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  {d.jam_lembur > 0 ? (
-                                    <span className="text-orange-600 font-medium">{d.jam_lembur}j</span>
-                                  ) : <span className="text-gray-300">-</span>}
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </Fragment>
-                      ))}
-                      {detail.length === 0 && <tr><td colSpan={5} className="px-5 py-12 text-center text-gray-400">Tidak ada data</td></tr>}
-                    </tbody>
-                  </table>
+                  <select value={filter} onChange={e => setFilter(e.target.value)} className="select-field text-xs py-1.5 font-semibold bg-slate-950 border-slate-800 text-slate-200">
+                    <option value="semua">Semua Status</option>
+                    <option value="LENGKAP">Lengkap (6/6 Slot)</option>
+                    <option value="TIDAK_LENGKAP">Tidak Lengkap (&lt; 6 Slot)</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Face scan timeline */}
-              <div className="card">
-                <div className="px-5 py-2.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-xs text-slate-300">
-                  <div className="flex items-center gap-2 font-bold text-cyan-400">
-                    <ScanFace size={14} />
-                    <span>📷 Log Face Scan (Bukti Foto, Waktu & GPS per Slot)</span>
-                  </div>
-                  {scanData.length > 0 && (
-                    <span className="text-xs text-slate-400 font-mono">{scanData.length} scan terverifikasi</span>
-                  )}
-                </div>
-
-                {groupedScans.length > 0 ? (
-                  <div className="divide-y divide-gray-100">
-                    {groupedScans.map(({ groupName, workers }) => (
-                      <Fragment key={groupName}>
-                        <div className="px-5 py-2 bg-slate-50 border-t-2 border-slate-200">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{groupName}</span>
-                            <span className="text-xs text-slate-400">{workers.length} orang</span>
-                          </div>
-                        </div>
-                        {workers.map(([nama, group]) => (
-                          <div key={nama} className="px-5 py-3">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-sm font-medium text-gray-900">{nama}</span>
-                              <span className="text-[10px] text-gray-400">{group.karyawan?.jabatan}</span>
+              {groupedScans.length > 0 ? (
+                <div className="divide-y divide-slate-800/60">
+                  {groupedScans.map(({ groupName, workers }) => (
+                    <Fragment key={groupName}>
+                      <div className="px-5 py-2.5 bg-slate-950/80 border-t border-b border-slate-800/80 flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-400 uppercase tracking-wider">{groupName}</span>
+                        <span className="text-xs font-mono text-slate-500">{workers.length} orang</span>
+                      </div>
+                      {workers.map(w => {
+                        const stKey = w.computedStatus || 'PRO_RATA'
+                        const isLengkap = stKey === 'LENGKAP'
+                        return (
+                          <div key={w.id || w.nama} className="px-5 py-3.5 hover:bg-slate-800/30 transition-colors">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-extrabold text-white">{w.nama}</span>
+                                {w.karyawan?.jabatan && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-cyan-300 border border-slate-700">
+                                    {w.karyawan.jabatan}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
+                                isLengkap ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                              }`}>
+                                {isLengkap ? 'Lengkap (6/6 Slot)' : `Tidak Lengkap (${w.verifiedCount}/6)`}
+                              </span>
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                              {group.scans.map(scan => {
-                                const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
-                                const slotLabel = scan.absen_jadwal_slot?.label || ''
-                                const jenis = scan.absen_jadwal_slot?.jenis || ''
-                                const hasPhoto = !!scan.foto_url
-                                const hasGps = scan.gps_lat && scan.gps_lng
 
-                                return (
-                                  <button
-                                    key={scan.id}
-                                    onClick={() => setSelectedScan(scan)}
-                                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-gray-200 hover:border-cyan-400 hover:bg-cyan-50/50 transition-all text-xs group"
-                                  >
-                                    <div className={`w-2 h-2 rounded-full shrink-0 ${slotColor[jenis] || 'bg-gray-400'}`} />
-                                    <span className="font-medium text-gray-700">{scanTime}</span>
-                                    {scan.lokasi_kerja && <span className="font-bold text-gray-900">• {scan.lokasi_kerja}</span>}
-                                    <span className="text-gray-400">{slotLabel}</span>
-                                    {hasPhoto && <ImageIcon size={10} className="text-blue-400" />}
-                                    {hasGps && <MapPin size={10} className="text-emerald-500" />}
-                                    {scan.di_luar_lokasi && <MapPinOff size={10} className="text-amber-400" />}
-                                  </button>
-                                )
+                            {/* Timeline Slot Buttons & Red Badges for Missed Slots */}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {w.timelineItems.map((item, idx) => {
+                                if (item.type === 'scan') {
+                                  const scan = item.data
+                                  const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
+                                  const slotLabel = scan.absen_jadwal_slot?.label || item.slot?.label || ''
+                                  const jenis = scan.absen_jadwal_slot?.jenis || ''
+                                  const hasPhoto = !!scan.foto_url
+                                  const hasGps = scan.gps_lat && scan.gps_lng
+
+                                  return (
+                                    <button
+                                      key={scan.id || `s-${idx}`}
+                                      onClick={() => setSelectedScan(scan)}
+                                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-cyan-400 hover:bg-cyan-500/10 transition-all text-xs group shadow-sm"
+                                    >
+                                      <div className={`w-2 h-2 rounded-full shrink-0 ${slotColor[jenis] || 'bg-gray-400'}`} />
+                                      <span className="font-bold text-slate-200">{scanTime}</span>
+                                      {scan.lokasi_kerja && <span className="font-extrabold text-white">• {scan.lokasi_kerja}</span>}
+                                      <span className="text-slate-400 font-medium">{slotLabel}</span>
+                                      {hasPhoto && <ImageIcon size={11} className="text-cyan-400" />}
+                                      {hasGps && <MapPin size={11} className="text-emerald-400" />}
+                                      {scan.di_luar_lokasi && <MapPinOff size={11} className="text-amber-400" />}
+                                    </button>
+                                  )
+                                } else if (item.type === 'lapor') {
+                                  return (
+                                    <div
+                                      key={`l-${idx}`}
+                                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-500/15 border border-blue-500/40 text-blue-300 text-xs font-bold"
+                                    >
+                                      <CheckCircle size={12} className="text-blue-400" />
+                                      <span>Lapor Terlewat ({item.slot?.label || 'Approved'})</span>
+                                    </div>
+                                  )
+                                } else {
+                                  // TERLEWAT (MISSED SLOT) -> RED BADGE!
+                                  return (
+                                    <div
+                                      key={`t-${idx}`}
+                                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-400 text-xs font-bold shadow-sm"
+                                      title={`Slot ${item.slot?.label || ''} terlewat (tidak ada scan)`}
+                                    >
+                                      <X size={12} className="text-red-400 stroke-[3]" />
+                                      <span>Terlewat ({item.slot?.label || ''})</span>
+                                    </div>
+                                  )
+                                }
                               })}
                             </div>
                           </div>
-                        ))}
-                      </Fragment>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 text-center">
-                    <ScanFace size={32} className="mx-auto text-gray-300 mb-2" />
-                    <p className="text-gray-400 text-sm">Tidak ada data scan wajah</p>
-                  </div>
-                )}
-              </div>
-            </>
+                        )
+                      })}
+                    </Fragment>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-12 text-center">
+                  <ScanFace size={36} className="mx-auto text-slate-600 mb-2" />
+                  <p className="text-slate-400 text-sm font-medium">Tidak ada data presensi / scan wajah</p>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="card p-16 text-center">
               <Calendar size={40} className="mx-auto text-gray-300 mb-3" />
