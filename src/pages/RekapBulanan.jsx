@@ -134,7 +134,7 @@ export default function RekapBulanan() {
     const lastDay = new Date(tahun, bulan, 0).getDate()
     const endDate = `${tahun}-${padBulan}-${String(lastDay).padStart(2, '0')}`
 
-    const [gajiRes, periodeRes, mandorRes, scanRes, harianRes, laporanRes, daftarLemburRes, slotRes] = await Promise.all([
+    const [gajiRes, periodeRes, mandorRes, scanRes, harianRes, laporanRes, daftarLemburRes, slotRes, kalenderRes] = await Promise.all([
       supabase.from('absen_gaji_bulanan')
         .select('*, absen_karyawan(nama, jabatan, atasan_id, gaji_bulanan, tunjangan)')
         .eq('bulan', bulan).eq('tahun', tahun)
@@ -160,7 +160,11 @@ export default function RekapBulanan() {
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_jadwal_slot')
         .select('id, jenis, aktif')
-        .eq('aktif', true)
+        .eq('aktif', true),
+      supabase.from('absen_kalender')
+        .select('tanggal')
+        .eq('jenis_hari', 'kerja')
+        .gte('tanggal', startDate).lte('tanggal', endDate)
     ])
 
     const empAttendedDates = {}
@@ -196,6 +200,7 @@ export default function RekapBulanan() {
     ;(daftarLemburRes.data || []).forEach(dl => addDate(dl.karyawan_id, dl.tanggal))
 
     const regSlotCount = (slotRes.data || []).filter(s => !(s.jenis || '').toLowerCase().includes('lembur')).length || 6
+    const hariKerjaKalender = (kalenderRes.data || []).length || 26
 
     const empTotalWeight = {}
     Object.entries(empDailySlots).forEach(([kid, datesObj]) => {
@@ -207,7 +212,6 @@ export default function RekapBulanan() {
     })
 
     const rawGajiList = gajiRes.data || []
-    const hariKalender = lastDay
 
     const enrichedGajiList = rawGajiList.map(item => {
       const kid = item.karyawan_id
@@ -216,8 +220,8 @@ export default function RekapBulanan() {
 
       if (distinctCount > 0 && item.status === 'draft') {
         const gajiBulanan = Number(item.absen_karyawan?.gaji_bulanan || 0)
-        const isFull = totalWeight >= 26 || distinctCount >= 26
-        const gajiHarian = gajiBulanan / hariKalender
+        const isFull = totalWeight >= hariKerjaKalender || distinctCount >= hariKerjaKalender
+        const gajiHarian = gajiBulanan / hariKerjaKalender
         const gajiPokok = isFull ? gajiBulanan : Math.round((gajiHarian * totalWeight) / 100) * 100
         const totalGaji = gajiPokok + Number(item.gaji_lembur || 0) + Number(item.tunjangan || 0)
 

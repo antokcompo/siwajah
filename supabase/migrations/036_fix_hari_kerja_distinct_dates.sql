@@ -3,8 +3,8 @@
 --
 -- Rules:
 -- 1. HARI KERJA = Count of distinct calendar dates attended (e.g. 19, 20, 21 Aug = 3 Hari).
--- 2. GAJI POKOK PRO-RATA = SUM( (verified_slots_on_date / 6.0) * Gaji Sehari )
---    Where Gaji Sehari = Gaji Master / Total Hari Kalender Bulan Ini.
+-- 2. GAJI SEHARI = Gaji Master / Total Hari Kerja pada Kalender Kerja bulan itu (contoh: 28 hari kerja).
+-- 3. GAJI POKOK PRO-RATA = SUM( (verified_slots_on_date / 6.0) * Gaji Sehari )
 --    Abdul Ghofur: (3/6 * Gaji Sehari) + (4/6 * Gaji Sehari) + (1/6 * Gaji Sehari) = 8/6 * Gaji Sehari.
 -- ============================================================
 
@@ -12,7 +12,6 @@ CREATE OR REPLACE FUNCTION absen_hitung_gaji(p_bulan integer, p_tahun integer)
 RETURNS jsonb AS $$
 DECLARE
   v_hari_kerja_bulan integer;
-  v_hari_kalender integer;
   v_rec record;
   v_gaji_harian numeric;
   v_upah_lembur_perjam numeric;
@@ -22,7 +21,7 @@ DECLARE
   v_total integer := 0;
   v_slot_reguler_count numeric := 6;
 BEGIN
-  -- 1. Jumlah hari kerja dari kalender (untuk cek full attendance)
+  -- 1. Jumlah hari kerja dari kalender kerja bulan ini (sebagai pembagi harian gaji)
   SELECT COUNT(*) INTO v_hari_kerja_bulan
   FROM absen_kalender
   WHERE EXTRACT(MONTH FROM tanggal) = p_bulan
@@ -33,12 +32,7 @@ BEGIN
     v_hari_kerja_bulan := 26;
   END IF;
 
-  -- 2. Jumlah hari kalender bulan ini (untuk pro-rata)
-  v_hari_kalender := EXTRACT(DAY FROM
-    (make_date(p_tahun, p_bulan, 1) + INTERVAL '1 month' - INTERVAL '1 day')
-  )::integer;
-
-  -- 3. Total slot reguler per hari (default 6)
+  -- 2. Total slot reguler per hari (default 6)
   SELECT COALESCE(NULLIF(COUNT(*), 0), 6) INTO v_slot_reguler_count
   FROM absen_jadwal_slot
   WHERE (jenis != 'LEMBUR' OR jenis IS NULL) AND (aktif = true OR aktif IS NULL);
@@ -135,8 +129,8 @@ BEGIN
     IF v_is_full THEN
       v_gaji_pokok := v_rec.gaji_bulanan;
     ELSE
-      -- Pro-rata: ROUND((gaji_bulanan / hari_kalender) * total_bobot_slot, -2)
-      v_gaji_harian := v_rec.gaji_bulanan::numeric / v_hari_kalender;
+      -- Pro-rata: ROUND((gaji_bulanan / hari_kerja_kalender) * total_bobot_slot, -2)
+      v_gaji_harian := v_rec.gaji_bulanan::numeric / v_hari_kerja_bulan;
       v_gaji_pokok := ROUND(v_gaji_harian * v_rec.total_bobot_slot, -2);
     END IF;
 
