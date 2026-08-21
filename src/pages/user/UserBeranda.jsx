@@ -25,6 +25,13 @@ function getUserTz() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return null }
 }
 
+function getLocalDateString(d = new Date()) {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function UserBeranda() {
   const { karyawan, projectTz, outdoorMode } = useUserAuth()
   const navigate = useNavigate()
@@ -86,7 +93,7 @@ export default function UserBeranda() {
 
   async function loadData() {
     setLoading(true)
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = getLocalDateString(new Date())
 
     const [slotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
       supabase.rpc('absen_get_jadwal_slot'),
@@ -132,7 +139,7 @@ export default function UserBeranda() {
       if (laporan.status === 'APPROVED') return 'done'
     }
 
-    const todayStr = now.toISOString().split('T')[0]
+    const todayStr = getLocalDateString(now)
     const [h, m] = slot.jam.split(':').map(Number)
     const slotTime = new Date(now)
     slotTime.setHours(h, m, 0, 0)
@@ -447,7 +454,10 @@ export default function UserBeranda() {
           {slots.map(slot => {
             const st = getSlotStatus(slot)
             const scan = todayScans.find(s => s.slot_id === slot.id)
-            const scanTime = scan?.waktu_scan ? new Date(scan.waktu_scan).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null
+            const approvedLaporan = todayLaporan.find(l => l.slot_id === slot.id && l.status === 'APPROVED')
+            const scanTime = scan?.waktu_scan
+              ? new Date(scan.waktu_scan).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+              : (approvedLaporan ? 'Lapor Disetujui' : null)
 
             return (
               <div
@@ -498,7 +508,9 @@ export default function UserBeranda() {
                   {st === 'done' ? (
                     <div className="flex items-center gap-1.5">
                       <CheckCircle size={14} className="text-emerald-400 shrink-0" />
-                      <span className="text-xs font-extrabold text-emerald-300">Berhasil ({scanTime})</span>
+                      <span className="text-xs font-extrabold text-emerald-300">
+                        Berhasil {scanTime ? `(${scanTime})` : ''}
+                      </span>
                       {scan?.lokasi_kerja && (
                         <span className="text-[11px] text-slate-300 truncate font-medium">• {scan.lokasi_kerja}</span>
                       )}

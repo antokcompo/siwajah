@@ -130,14 +130,33 @@ export default function UserRiwayat() {
       }
     })
 
-    const enriched = harian.map(h => {
-      const st = statsByDate[h.tanggal] || { verifiedRegular: new Set(), verifiedLembur: new Set(), pendingCount: 0, scansMap: {}, laporansMap: {} }
+    // Build map of harian entries by date
+    const harianMap = {}
+    harian.forEach(h => { harianMap[h.tanggal] = h })
+
+    // Gather all distinct dates from harian, scans, laporans, and daftarLembur
+    const allDateStrings = Array.from(new Set([
+      ...harian.map(h => h.tanggal),
+      ...scans.map(s => s.tanggal),
+      ...laporans.map(l => l.tanggal),
+      ...daftarLembur.map(d => d.tanggal),
+    ])).sort((a, b) => b.localeCompare(a))
+
+    const enriched = allDateStrings.map(dateStr => {
+      const h = harianMap[dateStr] || {
+        tanggal: dateStr,
+        jam_masuk: null,
+        jam_pulang: null,
+        status: 'tidak_absen'
+      }
+
+      const st = statsByDate[dateStr] || { verifiedRegular: new Set(), verifiedLembur: new Set(), pendingCount: 0, scansMap: {}, laporansMap: {} }
       const verifiedRegCount = st.verifiedRegular.size
       const verifiedLemburCount = st.verifiedLembur.size
       const pendingCount = st.pendingCount
 
       // Employee has overtime if registered in daftar_lembur or has overtime scans/reports
-      const isRegisteredLembur = datesWithRegisteredLembur.has(h.tanggal)
+      const isRegisteredLembur = datesWithRegisteredLembur.has(dateStr)
       const hasLemburActivity = verifiedLemburCount > 0 || (st.laporansMap && lemburSlots.some(s => st.laporansMap[s.id]))
       const showLemburOnDate = isRegisteredLembur || hasLemburActivity
 
