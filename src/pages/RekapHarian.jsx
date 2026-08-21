@@ -184,15 +184,17 @@ export default function RekapHarian() {
 
     const slotCounts = {}
     ;(scanRes.data || []).forEach(s => {
-      const j = s.absen_jadwal_slot?.jenis || ''
-      if (j !== 'LEMBUR' && j !== 'pulang_lembur') {
+      const j = (s.absen_jadwal_slot?.jenis || '').toLowerCase()
+      const l = (s.absen_jadwal_slot?.label || '').toLowerCase()
+      if (!j.includes('lembur') && !l.includes('lembur')) {
         if (!slotCounts[s.karyawan_id]) slotCounts[s.karyawan_id] = new Set()
         slotCounts[s.karyawan_id].add(s.slot_id)
       }
     })
     ;(laporanRes.data || []).forEach(l => {
-      const j = l.absen_jadwal_slot?.jenis || ''
-      if (j !== 'LEMBUR' && j !== 'pulang_lembur') {
+      const j = (l.absen_jadwal_slot?.jenis || '').toLowerCase()
+      const lbl = (l.absen_jadwal_slot?.label || '').toLowerCase()
+      if (!j.includes('lembur') && !lbl.includes('lembur')) {
         if (!slotCounts[l.karyawan_id]) slotCounts[l.karyawan_id] = new Set()
         slotCounts[l.karyawan_id].add(l.slot_id)
       }
@@ -297,7 +299,11 @@ export default function RekapHarian() {
 
   const groupedScans = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    const regSlots = slotMaster.filter(s => (s.jenis || '').toUpperCase() !== 'LEMBUR')
+    const regSlots = slotMaster.filter(s => {
+      const j = (s.jenis || '').toLowerCase()
+      const l = (s.label || '').toLowerCase()
+      return !j.includes('lembur') && !l.includes('lembur')
+    })
 
     const workerMap = {}
 
