@@ -128,7 +128,13 @@ export default function RekapBulanan() {
     setLoading(true)
     setError('')
     setSelected(new Set())
-    const [gajiRes, periodeRes, mandorRes] = await Promise.all([
+
+    const padBulan = String(bulan).padStart(2, '0')
+    const startDate = `${tahun}-${padBulan}-01`
+    const lastDay = new Date(tahun, bulan, 0).getDate()
+    const endDate = `${tahun}-${padBulan}-${String(lastDay).padStart(2, '0')}`
+
+    const [gajiRes, periodeRes, mandorRes, scanRes, harianRes, laporanRes, daftarLemburRes] = await Promise.all([
       supabase.from('absen_gaji_bulanan')
         .select('*, absen_karyawan(nama, jabatan, atasan_id, gaji_bulanan, tunjangan)')
         .eq('bulan', bulan).eq('tahun', tahun)
@@ -139,8 +145,74 @@ export default function RekapBulanan() {
         .select('id, nama')
         .ilike('jabatan', '%mandor%')
         .eq('status_aktif', true),
+      supabase.from('absen_scan_wajah')
+        .select('karyawan_id, tanggal')
+        .gte('tanggal', startDate).lte('tanggal', endDate),
+      supabase.from('absen_harian')
+        .select('karyawan_id, tanggal, status, jam_masuk, jam_pulang')
+        .gte('tanggal', startDate).lte('tanggal', endDate),
+      supabase.from('absen_laporan_terlewat')
+        .select('karyawan_id, tanggal')
+        .eq('status', 'APPROVED')
+        .gte('tanggal', startDate).lte('tanggal', endDate),
+      supabase.from('absen_daftar_lembur')
+        .select('karyawan_id, tanggal')
+        .gte('tanggal', startDate).lte('tanggal', endDate)
     ])
-    setData(gajiRes.data || [])
+
+    const empAttendedDates = {}
+    const addDate = (kid, tgl) => {
+      if (!kid || !tgl) return
+      if (!empAttendedDates[kid]) empAttendedDates[kid] = new Set()
+      empAttendedDates[kid].add(tgl)
+    }
+
+    ;(scanRes.data || []).forEach(s => addDate(s.karyawan_id, s.tanggal))
+    ;(harianRes.data || []).forEach(h => {
+      if (h.status !== 'TIDAK_ADA_SCAN' || h.jam_masuk || h.jam_pulang) {
+        addDate(h.karyawan_id, h.tanggal)
+      }
+    })
+    ;(laporanRes.data || []).forEach(l => addDate(l.karyawan_id, l.tanggal))
+    ;(daftarLemburRes.data || []).forEach(dl => addDate(dl.karyawan_id, dl.tanggal))
+
+    const rawGajiList = gajiRes.data || []
+    const hariKalender = lastDay
+
+    const enrichedGajiList = rawGajiList.map(item => {
+      const kid = item.karyawan_id
+      const distinctCount = empAttendedDates[kid] ? empAttendedDates[kid].size : 0
+      
+      if (distinctCount > 0 && item.status === 'draft') {
+        const gajiBulanan = Number(item.absen_karyawan?.gaji_bulanan || 0)
+        const isFull = distinctCount >= 26
+        const gajiHarian = gajiBulanan / hariKalender
+        const gajiPokok = isFull ? gajiBulanan : Math.round((gajiHarian * distinctCount) / 100) * 100
+        const totalGaji = gajiPokok + Number(item.gaji_lembur || 0) + Number(item.tunjangan || 0)
+
+        if (item.hari_kerja !== distinctCount) {
+          supabase
+            .from('absen_gaji_bulanan')
+            .update({
+              hari_kerja: distinctCount,
+              gaji_pokok: gajiPokok,
+              total_gaji: totalGaji
+            })
+            .eq('id', item.id)
+            .then(() => {})
+        }
+
+        return {
+          ...item,
+          hari_kerja: distinctCount,
+          gaji_pokok: gajiPokok,
+          total_gaji: totalGaji
+        }
+      }
+      return item
+    })
+
+    setData(enrichedGajiList)
     setPeriode(periodeRes.data)
 
     const mMap = {}
