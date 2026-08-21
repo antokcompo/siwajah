@@ -18,6 +18,7 @@ import ManajemenUser from './pages/ManajemenUser'
 import JadwalSlot from './pages/JadwalSlot'
 import LaporanIzin from './pages/LaporanIzin'
 import TutupAbsen from './pages/TutupAbsen'
+import PortalLauncher from './portal/pages/PortalLauncher'
 
 import UserLayout from './pages/user/UserLayout'
 import UserIzin from './pages/user/UserIzin'
@@ -34,6 +35,14 @@ function UserProtected() {
   if (loading) return <div className="flex items-center justify-center h-screen bg-[#0a0e1a]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" /></div>
   if (!karyawan) return <Navigate to="/user/login" />
   return <Outlet />
+}
+
+function AdminProtected() {
+  const { user, hasAppAccess, loading } = useAuth()
+  if (loading) return <div className="flex items-center justify-center h-screen bg-[#0a0e1a]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" /></div>
+  if (!user) return <Navigate to="/login" />
+  if (!hasAppAccess('siwajah')) return <Navigate to="/portal" replace />
+  return <Layout />
 }
 
 function UserRoutes() {
@@ -60,19 +69,23 @@ function UserRoutes() {
 export default function App() {
   const { user, loading } = useAuth()
 
-  if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+  if (loading) return <div className="flex items-center justify-center h-screen bg-[#0a0e1a]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" /></div>
 
   return (
     <Routes>
+      {/* Root & Central Portal Launcher */}
+      <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to={user ? "/portal" : "/login"} replace />} />
+
       {/* User app (separate from admin) */}
       <Route path="/user/*" element={<UserRoutes />} />
 
       {/* Admin login */}
-      <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
+      <Route path="/login" element={user ? <Navigate to="/portal" replace /> : <Login />} />
 
-      {/* Admin protected routes with layout outlet */}
-      <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
+      {/* Admin protected routes for SI WAJAH */}
+      <Route element={<AdminProtected />}>
+        <Route path="/siwajah" element={<Dashboard />} />
         <Route path="/import" element={<ImportAbsensi />} />
         <Route path="/rekap-harian" element={<RekapHarian />} />
         <Route path="/koreksi" element={<Koreksi />} />
@@ -89,7 +102,7 @@ export default function App() {
       </Route>
 
       {/* Fallback route */}
-      <Route path="*" element={<Navigate to="/user" replace />} />
+      <Route path="*" element={<Navigate to={user ? "/portal" : "/user"} replace />} />
     </Routes>
   )
 }

@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import {
   LayoutDashboard, Upload, CalendarDays, FileEdit, Clock,
   Users, Settings, CalendarCheck, FileSpreadsheet, Shield, UserCog,
   Menu, X, LogOut, KeyRound, Eye, EyeOff, CheckCircle, AlertTriangle,
-  Timer, FileWarning, Lock
+  Timer, FileWarning, Lock, Layers
 } from 'lucide-react'
 import GlobalDynamicSearch from './GlobalDynamicSearch'
 
@@ -14,7 +14,7 @@ const menuGroups = [
   {
     label: 'UTAMA',
     items: [
-      { path: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin','atasan','hrd','manajemen'] },
+      { path: '/siwajah', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin','atasan','hrd','manajemen'] },
       { path: '/import', label: 'Import Absensi', icon: Upload, roles: ['admin','atasan','hrd'] },
       { path: '/rekap-harian', label: 'Rekap Harian', icon: CalendarDays, roles: ['admin','atasan','hrd','manajemen'] },
     ],
@@ -95,8 +95,12 @@ export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
 
+  useEffect(() => {
+    document.title = 'SI Wajah — Sistem Informasi Web Absensi dan Aktifitas Harian'
+  }, [])
+
   if (loading) return <div className="flex items-center justify-center h-screen bg-[#0a0e1a]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" /></div>
-  if (!user) return <Navigate to="/user" replace />
+  if (!user) return <Navigate to="/login" replace />
 
   const role = profile?.role
 

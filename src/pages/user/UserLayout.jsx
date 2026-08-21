@@ -14,6 +14,7 @@ export default function UserLayout() {
   const [syncResult, setSyncResult] = useState(null)
 
   useEffect(() => {
+    document.title = 'SI Wajah — Absensi & Aktifitas Harian'
     startAutoSync()
     refreshCount()
 
