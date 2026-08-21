@@ -114,7 +114,7 @@ export default function RekapBulanan() {
         jam_pulang: jamPulang,
         verifiedSlots,
         pendingCount,
-        bobot: Math.min(1.0, verifiedSlots / 6.0)
+        bobot: 1.0
       }
     })
 
