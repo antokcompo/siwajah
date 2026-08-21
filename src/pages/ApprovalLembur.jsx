@@ -2,19 +2,22 @@ import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
-import { Check, X, Clock, Search, Plus, Trash2, Users, ClipboardCheck, CalendarPlus, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
+import { Check, X, Clock, Search, Plus, Trash2, Users, ClipboardCheck, CalendarPlus, CheckCircle, XCircle, AlertTriangle, Calendar, Filter } from 'lucide-react'
 
 const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
 const statusColor = {
-  PENDING: 'bg-amber-100 text-amber-700',
-  APPROVED: 'bg-emerald-100 text-emerald-700',
-  REJECTED: 'bg-red-100 text-red-700',
+  PENDING: 'bg-amber-100 text-amber-700 border-amber-300',
+  APPROVED: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+  REJECTED: 'bg-rose-100 text-rose-700 border-rose-300',
+  PROSES: 'bg-cyan-100 text-cyan-800 border-cyan-300',
 }
+
 const statusLabel = {
   PENDING: 'Menunggu Approval',
   APPROVED: 'Disetujui',
   REJECTED: 'Ditolak',
+  PROSES: '🟢 Sedang Lembur (Belum Pulang)',
 }
 
 export default function ApprovalLembur() {
@@ -24,7 +27,7 @@ export default function ApprovalLembur() {
     <div>
       <div className="page-header">
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="page-title">Lembur</h1>
+          <h1 className="page-title">Rekap & Management Lembur</h1>
           <div className="bg-slate-950/90 p-1.5 rounded-2xl border border-slate-800 shadow-inner inline-flex items-center gap-1.5 backdrop-blur-md">
             <button
               onClick={() => setMainTab('daftar')}
@@ -35,7 +38,7 @@ export default function ApprovalLembur() {
               }`}
             >
               <CalendarPlus size={14} className={mainTab === 'daftar' ? 'text-cyan-400' : 'text-slate-400'} />
-              <span className="!text-white font-extrabold tracking-wide">Daftar Lembur</span>
+              <span className="!text-white font-extrabold tracking-wide">Pendaftaran Lembur</span>
             </button>
             <button
               onClick={() => setMainTab('approval')}
@@ -46,7 +49,7 @@ export default function ApprovalLembur() {
               }`}
             >
               <ClipboardCheck size={14} className={mainTab === 'approval' ? 'text-cyan-400' : 'text-slate-400'} />
-              <span className="!text-white font-extrabold tracking-wide">Approval Jam</span>
+              <span className="!text-white font-extrabold tracking-wide">Rekap & Approval Jam</span>
             </button>
           </div>
         </div>
@@ -63,10 +66,14 @@ function DaftarLemburTab() {
   const role = profile?.role
   const canApprove = role === 'admin' || role === 'manajemen'
 
+  const now = new Date()
+  const [viewMode, setViewMode] = useState('date') // 'date' | 'month'
   const [tanggal, setTanggal] = useState(() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   })
+  const [bulan, setBulan] = useState(now.getMonth() + 1)
+  const [tahun, setTahun] = useState(now.getFullYear())
+
   const [daftar, setDaftar] = useState([])
   const [allKaryawan, setAllKaryawan] = useState([])
   const [loading, setLoading] = useState(true)
@@ -78,15 +85,25 @@ function DaftarLemburTab() {
   const [processing, setProcessing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
 
-  useEffect(() => { loadDaftar() }, [tanggal])
+  useEffect(() => { loadDaftar() }, [viewMode, tanggal, bulan, tahun])
 
   async function loadDaftar() {
     setLoading(true)
-    const { data } = await supabase
+    let q = supabase
       .from('absen_daftar_lembur')
       .select('*, absen_karyawan(nama, jabatan, atasan_id)')
-      .eq('tanggal', tanggal)
+      .order('tanggal', { ascending: false })
       .order('created_at', { ascending: true })
+
+    if (viewMode === 'date') {
+      q = q.eq('tanggal', tanggal)
+    } else {
+      const startDate = `${tahun}-${String(bulan).padStart(2, '0')}-01`
+      const endDate = bulan === 12 ? `${tahun + 1}-01-01` : `${tahun}-${String(bulan + 1).padStart(2, '0')}-01`
+      q = q.gte('tanggal', startDate).lt('tanggal', endDate)
+    }
+
+    const { data } = await q
     setDaftar(data || [])
     setLoading(false)
   }
@@ -104,7 +121,7 @@ function DaftarLemburTab() {
     setShowAdd(true)
   }
 
-  const registeredIds = daftar.map(d => d.karyawan_id)
+  const registeredIds = daftar.filter(d => d.tanggal === tanggal).map(d => d.karyawan_id)
   const availableKaryawan = allKaryawan.filter(k => !registeredIds.includes(k.id))
   const filteredAdd = searchAdd.trim()
     ? availableKaryawan.filter(k => k.nama.toLowerCase().includes(searchAdd.toLowerCase()) || (k.jabatan || '').toLowerCase().includes(searchAdd.toLowerCase()))
@@ -204,16 +221,51 @@ function DaftarLemburTab() {
 
   return (
     <>
+      {/* Top Filter Bar */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <input
-            type="date"
-            value={tanggal}
-            onChange={e => setTanggal(e.target.value)}
-            className="input-field text-sm py-1.5"
-          />
-          <span className="text-sm text-slate-400">{tglLabel}</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Mode Switcher */}
+          <div className="flex gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+            <button
+              onClick={() => setViewMode('date')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'date' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Per Tanggal
+            </button>
+            <button
+              onClick={() => setViewMode('month')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'month' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Rekap Sebulan ({namaBulan[bulan]} {tahun})
+            </button>
+          </div>
+
+          {viewMode === 'date' ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={tanggal}
+                onChange={e => setTanggal(e.target.value)}
+                className="input-field text-sm py-1.5"
+              />
+              <span className="text-sm font-semibold text-slate-300">{tglLabel}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <select value={bulan} onChange={e => setBulan(+e.target.value)} className="select-field text-sm py-1.5">
+                {namaBulan.slice(1).map((n, i) => <option key={i+1} value={i+1}>{n}</option>)}
+              </select>
+              <select value={tahun} onChange={e => setTahun(+e.target.value)} className="select-field text-sm py-1.5">
+                {Array.from({ length: new Date().getFullYear() - 2024 + 3 }, (_, i) => 2024 + i).map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+          )}
         </div>
+
         <div className="flex items-center gap-2">
           {canApprove && pendingCount > 0 && (
             <button
@@ -224,22 +276,25 @@ function DaftarLemburTab() {
               <CheckCircle size={14} /> Approve Semua ({pendingCount})
             </button>
           )}
-          <button onClick={openAddModal} className="btn-primary flex items-center gap-2 text-sm">
-            <Plus size={16} /> Tambah Karyawan
+          <button onClick={openAddModal} className="btn-primary flex items-center gap-2 text-sm font-bold">
+            <Plus size={16} /> Tambah Karyawan Lembur
           </button>
         </div>
       </div>
 
+      {/* Main Table */}
       <div className="card">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Users size={16} className="text-cyan-500" />
-            <span className="text-sm font-semibold text-gray-900">Daftar Lembur</span>
+            <span className="text-sm font-bold text-gray-900">
+              Daftar Karyawan Lembur {viewMode === 'date' ? `(${tanggal})` : `(${namaBulan[bulan]} ${tahun})`}
+            </span>
           </div>
-          <div className="flex items-center gap-3 text-xs">
-            {pendingCount > 0 && <span className="text-amber-600">{pendingCount} pending</span>}
-            {approvedCount > 0 && <span className="text-emerald-600">{approvedCount} approved</span>}
-            <span className="text-gray-400">{daftar.length} total</span>
+          <div className="flex items-center gap-3 text-xs font-bold">
+            {pendingCount > 0 && <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">{pendingCount} pending</span>}
+            {approvedCount > 0 && <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{approvedCount} approved</span>}
+            <span className="text-gray-500">{daftar.length} total</span>
           </div>
         </div>
 
@@ -249,16 +304,22 @@ function DaftarLemburTab() {
           </div>
         ) : daftar.length === 0 ? (
           <div className="px-5 py-12 text-center text-gray-400">
-            <Users size={32} className="mx-auto text-gray-300 mb-2" />
-            <p className="text-sm">Belum ada karyawan terdaftar lembur</p>
-            <p className="text-xs mt-1">Klik "Tambah Karyawan" untuk mendaftarkan</p>
+            <Users size={36} className="mx-auto text-gray-300 mb-2" />
+            <p className="text-sm font-bold text-gray-700">Belum Ada Karyawan Terdaftar Lembur</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {viewMode === 'date' ? `Tidak ada pendaftaran lembur pada tanggal ${tanggal}` : `Tidak ada pendaftaran lembur pada bulan ${namaBulan[bulan]} ${tahun}`}
+            </p>
+            <button onClick={openAddModal} className="mt-3 px-4 py-2 bg-cyan-600 text-white font-bold text-xs rounded-xl shadow-md">
+              + Tambah Karyawan Lembur
+            </button>
           </div>
         ) : (
           <div className="table-scroll">
             <table className="w-full text-sm">
               <thead className="table-header">
                 <tr>
-                  <th className="text-left px-5 py-3">Nama</th>
+                  <th className="text-left px-5 py-3">Nama Karyawan</th>
+                  {viewMode === 'month' && <th className="text-center px-4 py-3">Tanggal</th>}
                   <th className="text-left px-4 py-3">Jabatan</th>
                   <th className="text-left px-4 py-3">Catatan</th>
                   <th className="text-center px-4 py-3">Status</th>
@@ -268,45 +329,48 @@ function DaftarLemburTab() {
               <tbody className="divide-y divide-gray-100">
                 {daftar.map(d => (
                   <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-gray-900">{d.absen_karyawan?.nama}</td>
+                    <td className="px-5 py-3 font-semibold text-gray-900">{d.absen_karyawan?.nama}</td>
+                    {viewMode === 'month' && (
+                      <td className="px-4 py-3 text-center text-gray-700 font-mono font-bold whitespace-nowrap">
+                        {d.tanggal}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-gray-600">{d.absen_karyawan?.jabatan || '-'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{d.catatan || '-'}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`badge text-xs ${statusColor[d.status] || ''}`}>
+                      <span className={`badge text-xs font-bold ${statusColor[d.status] || ''}`}>
                         {statusLabel[d.status] || d.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center justify-center gap-1.5">
                         {canApprove && d.status === 'PENDING' && (
                           <>
                             <button
                               onClick={() => handleApproveOne(d.id, 'APPROVED')}
                               disabled={processing === d.id}
-                              className="p-1.5 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                              className="p-1.5 text-emerald-600 hover:bg-emerald-500/10 rounded-lg transition-colors font-bold text-xs flex items-center gap-1"
                               title="Approve"
                             >
-                              <CheckCircle size={16} />
+                              <CheckCircle size={15} /> Approve
                             </button>
                             <button
                               onClick={() => handleApproveOne(d.id, 'REJECTED')}
                               disabled={processing === d.id}
-                              className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              className="p-1.5 text-rose-600 hover:bg-rose-500/10 rounded-lg transition-colors font-bold text-xs flex items-center gap-1"
                               title="Reject"
                             >
-                              <XCircle size={16} />
+                              <XCircle size={15} /> Reject
                             </button>
                           </>
                         )}
-                        {(d.status === 'PENDING' || role === 'admin') && (
-                          <button
-                            onClick={() => handleRemove(d)}
-                            className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                            title="Hapus"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleRemove(d)}
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="Hapus"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -317,107 +381,77 @@ function DaftarLemburTab() {
         )}
       </div>
 
-      {/* Confirm delete approved */}
-      {confirmDelete && (
-        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
-          <div className="modal-content max-w-sm" onClick={e => e.stopPropagation()}>
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
-                <AlertTriangle size={24} className="text-red-500" />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Hapus Data Approved?</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Data lembur ini sudah diapprove. Menghapus akan membatalkan akses lembur karyawan ini.
-              </p>
-              <div className="flex gap-2 justify-center">
-                <button onClick={() => setConfirmDelete(null)} className="btn-secondary">Batal</button>
-                <button onClick={() => doRemove(confirmDelete)} className="btn-danger">Hapus</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add employees modal */}
+      {/* Modal Tambah Karyawan */}
       {showAdd && (
-        <div className="modal-overlay" onClick={() => setShowAdd(false)}>
-          <div className="modal-content max-w-lg" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <span className="font-semibold text-gray-900">Tambah Karyawan Lembur</span>
-              <button onClick={() => setShowAdd(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
-                <X size={16} className="text-gray-400" />
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-bold text-gray-900 text-base">Mendaftarkan Karyawan Lembur ({tanggal})</h3>
+              <button onClick={() => setShowAdd(false)} className="p-1 text-gray-400 hover:text-gray-600">
+                <X size={18} />
               </button>
             </div>
-            <div className="p-4 space-y-3">
-              <p className="text-xs text-gray-500">Tanggal: {tglLabel}</p>
 
+            <div className="space-y-3">
               <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
+                  type="text"
                   value={searchAdd}
                   onChange={e => setSearchAdd(e.target.value)}
-                  placeholder="Cari nama..."
-                  className="input-field pl-9"
+                  placeholder="Cari nama karyawan..."
+                  className="input-field pl-10"
                 />
               </div>
 
-              <div className="flex items-center justify-between">
-                <button onClick={selectAll} className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors">
-                  {selected.length === filteredAdd.length && filteredAdd.length > 0 ? 'Batal Pilih Semua' : 'Pilih Semua'}
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>{selected.length} karyawan dipilih</span>
+                <button onClick={selectAll} className="text-cyan-600 font-bold hover:underline">
+                  {selected.length === filteredAdd.length ? 'Batal Pilih Semua' : 'Pilih Semua'}
                 </button>
-                <span className="text-xs text-gray-400">{selected.length} dipilih</span>
               </div>
 
-              <div className="max-h-64 overflow-y-auto space-y-1 border border-gray-100 rounded-xl p-2">
-                {filteredAdd.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-4">
-                    {availableKaryawan.length === 0 ? 'Semua karyawan sudah terdaftar' : 'Tidak ditemukan'}
-                  </p>
-                ) : filteredAdd.map(k => (
+              <div className="max-h-60 overflow-y-auto space-y-1 border rounded-2xl p-2 bg-gray-50">
+                {filteredAdd.map(k => (
                   <button
                     key={k.id}
                     onClick={() => toggleSelect(k.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-all ${
-                      selected.includes(k.id)
-                        ? 'bg-cyan-500/15 border border-cyan-500/30'
-                        : 'hover:bg-white/5 border border-transparent'
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all ${
+                      selected.includes(k.id) ? 'bg-cyan-50 border border-cyan-300' : 'hover:bg-white'
                     }`}
                   >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                      selected.includes(k.id) ? 'bg-cyan-500 border-cyan-500' : 'border-gray-300'
-                    }`}>
-                      {selected.includes(k.id) && <Check size={12} className="text-white" />}
-                    </div>
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{k.nama}</div>
-                      <div className="text-[10px] text-gray-400">{k.jabatan || '-'}</div>
+                      <div className="text-xs font-bold text-gray-900">{k.nama}</div>
+                      <div className="text-[10px] text-gray-500">{k.jabatan || '-'}</div>
                     </div>
+                    {selected.includes(k.id) && <CheckCircle size={16} className="text-cyan-600 shrink-0" />}
                   </button>
                 ))}
               </div>
 
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Catatan (opsional)</label>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Catatan Lembur (Opsional)</label>
                 <input
                   value={catatan}
                   onChange={e => setCatatan(e.target.value)}
-                  placeholder="Contoh: proyek mengejar deadline..."
+                  placeholder="Contoh: Pekerjaan Cor Beton / Pemasangan Bekisting..."
                   className="input-field text-sm"
                 />
               </div>
 
-              <button
-                onClick={handleAdd}
-                disabled={selected.length === 0 || submitting}
-                className="btn-primary w-full flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <Plus size={16} />
-                )}
-                {submitting ? 'Mendaftarkan...' : `Daftarkan ${selected.length} Karyawan`}
-              </button>
+              <div className="flex gap-2 pt-2 border-t">
+                <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-2.5 bg-gray-100 text-gray-700 font-bold text-xs rounded-xl">
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAdd}
+                  disabled={selected.length === 0 || submitting}
+                  className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-xl shadow-md"
+                >
+                  {submitting ? 'Mendaftarkan...' : `Daftarkan ${selected.length} Karyawan`}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -433,35 +467,44 @@ function ApprovalTab() {
   const [data, setData] = useState([])
   const [mandorMap, setMandorMap] = useState({})
   const [loading, setLoading] = useState(true)
-  const [processing, setProcessing] = useState(null)
-  const [catatan, setCatatan] = useState('')
   const [search, setSearch] = useState('')
-  const [tab, setTab] = useState('pending')
+  const [subTab, setSubTab] = useState('semua') // 'semua' | 'pending' | 'proses' | 'riwayat'
+
   const [editModalItem, setEditModalItem] = useState(null)
   const [editSubmitting, setEditSubmitting] = useState(false)
 
-  useEffect(() => { load() }, [tab, bulan, tahun])
+  useEffect(() => { load() }, [subTab, bulan, tahun])
 
   async function load() {
     setLoading(true)
     const startDate = `${tahun}-${String(bulan).padStart(2, '0')}-01`
     const endDate = bulan === 12 ? `${tahun + 1}-01-01` : `${tahun}-${String(bulan + 1).padStart(2, '0')}-01`
 
-    let q = supabase
-      .from('absen_harian')
-      .select('*, absen_karyawan(nama, jabatan, atasan_id)')
-      .gte('tanggal', startDate)
-      .lt('tanggal', endDate)
-      .order('tanggal', { ascending: false })
-
-    if (tab === 'pending') q = q.eq('status_lembur', 'PENDING_APPROVAL')
-    else q = q.in('status_lembur', ['APPROVED','REJECTED'])
-
-    const [harianRes, mandorRes, configRes, scanRes] = await Promise.all([
-      q,
-      supabase.from('absen_karyawan').select('id, nama').ilike('jabatan', '%mandor%').eq('status_aktif', true),
-      supabase.from('absen_konfigurasi').select('key, value'),
-      supabase.from('absen_scan_wajah').select('karyawan_id, tanggal, slot_id, gps_lat, gps_lng, lokasi_kerja').gte('tanggal', startDate).lt('tanggal', endDate)
+    // Fetch 1) Harian records for month, 2) Daftar lembur for month, 3) Scan lembur for month, 4) Mandor map
+    const [harianRes, daftarRes, scanRes, mandorRes, configRes] = await Promise.all([
+      supabase
+        .from('absen_harian')
+        .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+        .gte('tanggal', startDate)
+        .lt('tanggal', endDate)
+        .order('tanggal', { ascending: false }),
+      supabase
+        .from('absen_daftar_lembur')
+        .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+        .gte('tanggal', startDate)
+        .lt('tanggal', endDate)
+        .order('tanggal', { ascending: false }),
+      supabase
+        .from('absen_scan_wajah')
+        .select('karyawan_id, tanggal, slot_id, waktu_scan, gps_lat, gps_lng, lokasi_kerja, absen_jadwal_slot(jenis, label)')
+        .gte('tanggal', startDate)
+        .lt('tanggal', endDate),
+      supabase
+        .from('absen_karyawan')
+        .select('id, nama')
+        .ilike('jabatan', '%mandor%')
+        .eq('status_aktif', true),
+      supabase.from('absen_konfigurasi').select('key, value')
     ])
 
     const cfgMap = {}
@@ -482,19 +525,71 @@ function ApprovalTab() {
       scanMap[key].push(s)
     })
 
-    const enriched = (harianRes.data || []).map(h => {
+    const harianList = harianRes.data || []
+    const daftarList = daftarRes.data || []
+
+    const mapByKey = {}
+
+    // First, add all harian records
+    harianList.forEach(h => {
       const key = `${h.karyawan_id}_${h.tanggal}`
       const scans = scanMap[key] || []
       const offsiteScan = scans.find(s => s.isOffsite)
-      return {
+
+      let displayStatus = 'NONE'
+      if (h.status_lembur === 'PENDING_APPROVAL') displayStatus = 'PENDING'
+      else if (h.status_lembur === 'APPROVED') displayStatus = 'APPROVED'
+      else if (h.status_lembur === 'REJECTED') displayStatus = 'REJECTED'
+      else if (h.jam_masuk && !h.jam_pulang) displayStatus = 'PROSES'
+
+      mapByKey[key] = {
         ...h,
+        displayStatus,
         scans,
         isOffsite: !!offsiteScan,
         offsiteDist: offsiteScan?.distanceMeters || 0
       }
     })
 
-    setData(enriched)
+    // Next, check daftar_lembur and scan_wajah to include workers working overtime who haven't clocked out yet
+    daftarList.forEach(d => {
+      const key = `${d.karyawan_id}_${d.tanggal}`
+      if (!mapByKey[key]) {
+        const scans = scanMap[key] || []
+        const hasLemburScan = scans.some(s => s.absen_jadwal_slot?.jenis === 'lembur' || s.absen_jadwal_slot?.jenis === 'pulang_lembur' || s.absen_jadwal_slot?.label?.toLowerCase().includes('lembur'))
+        const offsiteScan = scans.find(s => s.isOffsite)
+
+        mapByKey[key] = {
+          id: `virtual_${d.id}`,
+          karyawan_id: d.karyawan_id,
+          tanggal: d.tanggal,
+          jam_masuk: scans.find(s => s.absen_jadwal_slot?.jenis === 'masuk')?.waktu_scan?.slice(11, 16) || null,
+          jam_pulang: null,
+          jam_lembur: 0,
+          status_lembur: 'PROSES',
+          displayStatus: 'PROSES',
+          catatan: d.catatan || 'Terdaftar Lembur',
+          absen_karyawan: d.absen_karyawan,
+          scans,
+          isOffsite: !!offsiteScan,
+          offsiteDist: offsiteScan?.distanceMeters || 0
+        }
+      }
+    })
+
+    // Filter by subTab
+    let allItems = Object.values(mapByKey).sort((a, b) => b.tanggal.localeCompare(a.tanggal))
+
+    if (subTab === 'pending') {
+      allItems = allItems.filter(item => item.displayStatus === 'PENDING')
+    } else if (subTab === 'proses') {
+      allItems = allItems.filter(item => item.displayStatus === 'PROSES')
+    } else if (subTab === 'riwayat') {
+      allItems = allItems.filter(item => item.displayStatus === 'APPROVED' || item.displayStatus === 'REJECTED')
+    }
+    // subTab === 'semua' includes all
+
+    setData(allItems)
     const mMap = {}
     ;(mandorRes.data || []).forEach(m => { mMap[m.id] = m.nama })
     setMandorMap(mMap)
@@ -565,20 +660,47 @@ function ApprovalTab() {
 
   return (
     <>
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="flex gap-1 bg-white/10 p-0.5 rounded-lg">
-          <button onClick={() => setTab('pending')} className={`px-4 py-1.5 rounded-md text-sm transition-all duration-150 ${tab === 'pending' ? 'bg-blue-500 text-white font-semibold shadow-md' : 'text-slate-300 font-medium hover:text-white'}`}>
-            Pending
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex gap-1.5 bg-slate-900 p-1.5 rounded-2xl border border-slate-800 overflow-x-auto">
+          <button
+            onClick={() => setSubTab('semua')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              subTab === 'semua' ? 'bg-cyan-500 text-slate-950 shadow-md font-black' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            📋 Rekap Sebulan ({data.length})
           </button>
-          <button onClick={() => setTab('history')} className={`px-4 py-1.5 rounded-md text-sm transition-all duration-150 ${tab === 'history' ? 'bg-blue-500 text-white font-semibold shadow-md' : 'text-slate-300 font-medium hover:text-white'}`}>
-            Riwayat
+          <button
+            onClick={() => setSubTab('pending')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              subTab === 'pending' ? 'bg-amber-400 text-slate-950 shadow-md font-black' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            ⏳ Menunggu Approval
+          </button>
+          <button
+            onClick={() => setSubTab('proses')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              subTab === 'proses' ? 'bg-emerald-400 text-slate-950 shadow-md font-black' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            🟢 Sedang Lembur (Belum Pulang)
+          </button>
+          <button
+            onClick={() => setSubTab('riwayat')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+              subTab === 'riwayat' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            ✅ Riwayat Selesai
           </button>
         </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <select value={bulan} onChange={e => setBulan(+e.target.value)} className="select-field text-sm py-1.5">
+
+        <div className="flex items-center gap-2">
+          <select value={bulan} onChange={e => setBulan(+e.target.value)} className="select-field text-sm py-1.5 font-bold">
             {namaBulan.slice(1).map((n, i) => <option key={i+1} value={i+1}>{n}</option>)}
           </select>
-          <select value={tahun} onChange={e => setTahun(+e.target.value)} className="select-field text-sm py-1.5">
+          <select value={tahun} onChange={e => setTahun(+e.target.value)} className="select-field text-sm py-1.5 font-bold">
             {Array.from({ length: new Date().getFullYear() - 2024 + 3 }, (_, i) => 2024 + i).map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
@@ -588,7 +710,7 @@ function ApprovalTab() {
         <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama atau jabatan..." className="input-field pl-10" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama karyawan..." className="input-field pl-10" />
           </div>
         </div>
         {loading ? (
@@ -600,15 +722,11 @@ function ApprovalTab() {
             <table className="w-full text-sm">
               <thead className="table-header">
                 <tr>
-                  <th className="text-left px-5 py-3">Nama</th>
+                  <th className="text-left px-5 py-3">Nama Pekerja</th>
                   <th className="text-center px-4 py-3">Tanggal</th>
-                  <th className="text-center px-4 py-3">Pulang</th>
+                  <th className="text-center px-4 py-3">Jam Pulang</th>
                   <th className="text-center px-4 py-3">Jam Lembur</th>
-                  {tab === 'pending' ? (
-                    <th className="text-center px-4 py-3">Aksi Approval</th>
-                  ) : (
-                    <th className="text-center px-4 py-3">Status & Catatan</th>
-                  )}
+                  <th className="text-center px-4 py-3">Status & Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -617,65 +735,71 @@ function ApprovalTab() {
                     <tr className="table-group-header">
                       <td colSpan={5} className="px-5 py-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{groupName}</span>
-                          <span className="text-xs text-slate-400">{items.length} data</span>
+                          <span className="text-xs font-black text-slate-700 uppercase tracking-wide">{groupName}</span>
+                          <span className="text-xs font-bold text-slate-500">{items.length} data</span>
                         </div>
                       </td>
                     </tr>
                     {items.map(d => (
                       <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-5 py-3 font-medium text-gray-900">
+                        <td className="px-5 py-3 font-semibold text-gray-900">
                           <div>{d.absen_karyawan?.nama}</div>
                           {d.isOffsite && (
                             <div className="mt-1">
-                              <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold text-[10px] border border-rose-500/30 inline-flex items-center gap-1">
+                              <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-700 font-bold text-[10px] border border-rose-400 inline-flex items-center gap-1">
                                 <AlertTriangle size={11} /> Off-Site ({formatDistance(d.offsiteDist)})
                               </span>
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-center text-gray-600 whitespace-nowrap">{new Date(d.tanggal + 'T00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                        <td className="px-4 py-3 text-center text-gray-600 font-mono">{d.jam_pulang?.slice(0, 5) || '-'}</td>
+                        <td className="px-4 py-3 text-center text-gray-700 font-mono font-bold whitespace-nowrap">
+                          {new Date(d.tanggal + 'T00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-700 font-mono font-bold">
+                          {d.jam_pulang?.slice(0, 5) || (d.displayStatus === 'PROSES' ? '🟢 Belum Pulang' : '-')}
+                        </td>
                         <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center gap-1.5 text-orange-600 font-medium">
-                            <Clock size={14} /> {d.jam_lembur} jam
+                          <span className="inline-flex items-center gap-1.5 text-orange-600 font-bold">
+                            <Clock size={14} /> {d.jam_lembur || 0} jam
                           </span>
                         </td>
-                        {tab === 'pending' ? (
-                          <td className="px-4 py-3 text-center">
+                        <td className="px-4 py-3 text-center">
+                          {d.displayStatus === 'PENDING' ? (
                             <div className="flex items-center justify-center gap-1.5">
                               <button
                                 onClick={() => handleOpenModal(d, false)}
-                                className="btn-success py-1 px-2.5 text-xs flex items-center gap-1"
-                                title="Approve atau koreksi jam lembur"
+                                className="btn-success py-1 px-2.5 text-xs flex items-center gap-1 font-bold"
                               >
                                 <Check size={13} /> Approve / Koreksi
                               </button>
                               <button
                                 onClick={() => handleOpenModal(d, true)}
-                                className="btn-danger py-1 px-2.5 text-xs flex items-center gap-1"
-                                title="Tolak lembur"
+                                className="btn-danger py-1 px-2.5 text-xs flex items-center gap-1 font-bold"
                               >
                                 <X size={13} /> Reject
                               </button>
                             </div>
-                          </td>
-                        ) : (
-                          <td className="px-4 py-3 text-center">
-                            <span className={`badge ${d.status_lembur === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                              {d.status_lembur}
+                          ) : d.displayStatus === 'PROSES' ? (
+                            <span className="badge bg-cyan-100 text-cyan-800 border border-cyan-300 font-bold text-xs">
+                              🟢 Sedang Lembur (Belum Pulang)
                             </span>
-                            {d.catatan && <div className="text-xs text-gray-400 mt-1">{d.catatan}</div>}
-                          </td>
-                        )}
+                          ) : (
+                            <div>
+                              <span className={`badge font-bold text-xs ${d.displayStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                {d.displayStatus === 'APPROVED' ? '✅ Approved' : '❌ Rejected'}
+                              </span>
+                              {d.catatan && <div className="text-xs text-gray-500 mt-1 font-medium">{d.catatan}</div>}
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </Fragment>
                 ))}
                 {filtered.length === 0 && (
                   <tr><td colSpan={5} className="px-5 py-12 text-center text-gray-400">
-                    <Clock size={32} className="mx-auto text-gray-300 mb-2" />
-                    {search.trim() ? 'Tidak ditemukan' : tab === 'pending' ? 'Tidak ada lembur pending' : 'Belum ada riwayat'}
+                    <Clock size={36} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-sm font-bold text-gray-700">Tidak ada data lembur untuk kategori ini</p>
                   </td></tr>
                 )}
               </tbody>
