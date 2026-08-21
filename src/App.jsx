@@ -18,7 +18,6 @@ import ManajemenUser from './pages/ManajemenUser'
 import JadwalSlot from './pages/JadwalSlot'
 import LaporanIzin from './pages/LaporanIzin'
 import TutupAbsen from './pages/TutupAbsen'
-import PortalLauncher from './portal/pages/PortalLauncher'
 
 import UserLayout from './pages/user/UserLayout'
 import UserIzin from './pages/user/UserIzin'
@@ -38,10 +37,9 @@ function UserProtected() {
 }
 
 function AdminProtected() {
-  const { user, hasAppAccess, loading } = useAuth()
+  const { user, loading } = useAuth()
   if (loading) return <div className="flex items-center justify-center h-screen bg-[#0a0e1a]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" /></div>
   if (!user) return <Navigate to="/login" replace />
-  if (!hasAppAccess('siwajah')) return <Navigate to="/portal" replace />
   return <Layout />
 }
 
@@ -73,16 +71,13 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Root route: Direct URL entry redirects to /login (Login Admin SI WAJAH) */}
+      {/* Root route: Direct URL entry redirects to SI WAJAH Dashboard or Login */}
       <Route path="/" element={<Navigate to={user ? "/siwajah" : "/login"} replace />} />
 
-      {/* Halaman Login Admin SI WAJAH */}
+      {/* Admin Login for SI WAJAH */}
       <Route path="/login" element={user ? <Navigate to="/siwajah" replace /> : <Login />} />
 
-      {/* Central Portal Launcher (accessed via Portal Prisma) */}
-      <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/login" replace />} />
-
-      {/* Halaman Login User Absensi Pekerja SI WAJAH */}
+      {/* Mobile User App */}
       <Route path="/user/*" element={<UserRoutes />} />
 
       {/* Admin protected routes for SI WAJAH */}
