@@ -73,11 +73,13 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Root & Central Portal Launcher */}
-      <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/login" replace />} />
-      <Route path="/" element={<Navigate to={user ? "/portal" : "/login"} replace />} />
+      {/* Root route: If opened directly in browser without Portal session, redirect directly to User Login (/user/login) */}
+      <Route path="/" element={<Navigate to={user ? "/portal" : "/user/login"} replace />} />
 
-      {/* User app (separate from admin) */}
+      {/* Central Portal Launcher (accessed via Portal Prisma) */}
+      <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/login" replace />} />
+
+      {/* User app (Absensi Pekerja) */}
       <Route path="/user/*" element={<UserRoutes />} />
 
       {/* Admin login */}
@@ -102,7 +104,7 @@ export default function App() {
       </Route>
 
       {/* Fallback route */}
-      <Route path="*" element={<Navigate to={user ? "/portal" : "/user"} replace />} />
+      <Route path="*" element={<Navigate to={user ? "/portal" : "/user/login"} replace />} />
     </Routes>
   )
 }
