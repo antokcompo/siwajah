@@ -528,35 +528,51 @@ function ApprovalTab() {
     const harianList = harianRes.data || []
     const daftarList = daftarRes.data || []
 
+    const daftarSet = new Set(daftarList.map(d => `${d.karyawan_id}_${d.tanggal}`))
+    const daftarMapByKey = {}
+    daftarList.forEach(d => {
+      daftarMapByKey[`${d.karyawan_id}_${d.tanggal}`] = d
+    })
+
     const mapByKey = {}
 
-    // First, add all harian records
+    // 1. Process harian records ONLY IF they have overtime activity or are registered/scanned for overtime
     harianList.forEach(h => {
       const key = `${h.karyawan_id}_${h.tanggal}`
       const scans = scanMap[key] || []
       const offsiteScan = scans.find(s => s.isOffsite)
+      const isRegistered = daftarSet.has(key)
+      const hasOvertimeScan = scans.some(s =>
+        s.absen_jadwal_slot?.jenis === 'lembur' ||
+        s.absen_jadwal_slot?.jenis === 'pulang_lembur' ||
+        (s.absen_jadwal_slot?.label || '').toLowerCase().includes('lembur')
+      )
 
       let displayStatus = 'NONE'
       if (h.status_lembur === 'PENDING_APPROVAL') displayStatus = 'PENDING'
       else if (h.status_lembur === 'APPROVED') displayStatus = 'APPROVED'
       else if (h.status_lembur === 'REJECTED') displayStatus = 'REJECTED'
-      else if (h.jam_masuk && !h.jam_pulang) displayStatus = 'PROSES'
+      else if (isRegistered || hasOvertimeScan) displayStatus = 'PROSES'
 
-      mapByKey[key] = {
-        ...h,
-        displayStatus,
-        scans,
-        isOffsite: !!offsiteScan,
-        offsiteDist: offsiteScan?.distanceMeters || 0
+      // Only include if worker has overtime activity/registration
+      if (displayStatus !== 'NONE') {
+        const regInfo = daftarMapByKey[key]
+        mapByKey[key] = {
+          ...h,
+          displayStatus,
+          catatan: h.catatan || regInfo?.catatan || null,
+          scans,
+          isOffsite: !!offsiteScan,
+          offsiteDist: offsiteScan?.distanceMeters || 0
+        }
       }
     })
 
-    // Next, check daftar_lembur and scan_wajah to include workers working overtime who haven't clocked out yet
+    // 2. Also include registered workers from daftarList who don't have a harian record yet
     daftarList.forEach(d => {
       const key = `${d.karyawan_id}_${d.tanggal}`
       if (!mapByKey[key]) {
         const scans = scanMap[key] || []
-        const hasLemburScan = scans.some(s => s.absen_jadwal_slot?.jenis === 'lembur' || s.absen_jadwal_slot?.jenis === 'pulang_lembur' || s.absen_jadwal_slot?.label?.toLowerCase().includes('lembur'))
         const offsiteScan = scans.find(s => s.isOffsite)
 
         mapByKey[key] = {
