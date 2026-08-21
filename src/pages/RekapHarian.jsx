@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle, Search } from 'lucide-react'
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 
 const statusColor = {
@@ -90,6 +90,7 @@ export default function RekapHarian() {
   const [mandorMap, setMandorMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('semua')
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedScan, setSelectedScan] = useState(null)
   const [zoomPhoto, setZoomPhoto] = useState(null)
   const [projectTz, setProjectTz] = useState('Asia/Jayapura')
@@ -200,10 +201,22 @@ export default function RekapHarian() {
   const dayStatusColor = { ok: 'bg-emerald-500', koreksi: 'bg-amber-500', insiden: 'bg-red-500', empty: 'bg-gray-200' }
 
   const groupedDetail = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
     const groups = {}
     detail.forEach(d => {
       const atasanId = d.absen_karyawan?.atasan_id
       const groupName = atasanId && mandorMap[atasanId] ? mandorMap[atasanId] : 'Harian Kantor'
+      const nama = (d.absen_karyawan?.nama || '').toLowerCase()
+      const jabatan = (d.absen_karyawan?.jabatan || '').toLowerCase()
+      const mandorLow = groupName.toLowerCase()
+
+      if (q) {
+        const matchNama = nama.includes(q)
+        const matchJabatan = jabatan.includes(q)
+        const matchMandor = mandorLow.includes(q)
+        if (!matchNama && !matchJabatan && !matchMandor) return
+      }
+
       if (!groups[groupName]) groups[groupName] = []
       groups[groupName].push(d)
     })
@@ -212,15 +225,27 @@ export default function RekapHarian() {
       if (b === 'Harian Kantor') return -1
       return a.localeCompare(b)
     })
-  }, [detail, mandorMap])
+  }, [detail, mandorMap, searchQuery])
 
   const groupedScans = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
     const mandorGroups = {}
     scanData.forEach(s => {
       const atasanId = s.absen_karyawan?.atasan_id
       const groupName = atasanId && mandorMap[atasanId] ? mandorMap[atasanId] : 'Harian Kantor'
-      if (!mandorGroups[groupName]) mandorGroups[groupName] = {}
       const nama = s.absen_karyawan?.nama || 'Unknown'
+      const namaLow = nama.toLowerCase()
+      const jabatanLow = (s.absen_karyawan?.jabatan || '').toLowerCase()
+      const mandorLow = groupName.toLowerCase()
+
+      if (q) {
+        const matchNama = namaLow.includes(q)
+        const matchJabatan = jabatanLow.includes(q)
+        const matchMandor = mandorLow.includes(q)
+        if (!matchNama && !matchJabatan && !matchMandor) return
+      }
+
+      if (!mandorGroups[groupName]) mandorGroups[groupName] = {}
       if (!mandorGroups[groupName][nama]) mandorGroups[groupName][nama] = { karyawan: s.absen_karyawan, scans: [] }
       mandorGroups[groupName][nama].scans.push(s)
     })
@@ -234,7 +259,7 @@ export default function RekapHarian() {
         groupName,
         workers: Object.entries(workers).sort(([a], [b]) => a.localeCompare(b)),
       }))
-  }, [scanData, mandorMap])
+  }, [scanData, mandorMap, searchQuery])
 
   const namaBulan = format(currentDate, 'MMMM yyyy', { locale: localeId })
   const projectTzLabel = tzShortName[projectTz] || projectTz
@@ -296,12 +321,29 @@ export default function RekapHarian() {
             <>
               {/* Fingerprint table */}
               <div className="card">
-                <div className="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <span className="font-semibold text-gray-900">{format(new Date(selectedDate + 'T00:00'), 'EEEE, d MMMM yyyy', { locale: localeId })}</span>
-                  <select value={filter} onChange={e => setFilter(e.target.value)} className="select-field text-sm">
-                    <option value="semua">Semua Status</option>
-                    {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
+                <div className="px-5 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <span className="font-bold text-gray-900 shrink-0">{format(new Date(selectedDate + 'T00:00'), 'EEEE, d MMMM yyyy', { locale: localeId })}</span>
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 max-w-lg">
+                    <div className="relative flex-1">
+                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-500" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Cari nama pekerja / mandor..."
+                        className="input-field pl-9 text-xs py-1.5 font-medium"
+                      />
+                      {searchQuery && (
+                        <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600">
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
+                    <select value={filter} onChange={e => setFilter(e.target.value)} className="select-field text-xs py-1.5 font-semibold">
+                      <option value="semua">Semua Status</option>
+                      {Object.entries(statusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
                 </div>
                 <div className="table-scroll">
                   <table className="w-full text-sm">
