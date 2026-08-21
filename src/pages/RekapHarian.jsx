@@ -40,15 +40,25 @@ const slotColor = {
 
 const tzShortName = {
   'Asia/Jakarta': 'WIB',
+  'Asia/Pontianak': 'WIB',
+  'Asia/Bangkok': 'WIB',
+  'Asia/Phnom_Penh': 'WIB',
+  'Asia/Ho_Chi_Minh': 'WIB',
   'Asia/Makassar': 'WITA',
+  'Asia/Denpasar': 'WITA',
+  'Asia/Singapore': 'WITA',
+  'Asia/Kuala_Lumpur': 'WITA',
   'Asia/Jayapura': 'WIT',
+  'Asia/Ambon': 'WIT',
 }
 
 function getTzLabel(tz) {
-  if (!tz) return ''
+  if (!tz) return 'WIB'
   if (tzShortName[tz]) return tzShortName[tz]
-  const parts = tz.split('/')
-  return parts[parts.length - 1].replace(/_/g, ' ')
+  if (tz.includes('Bangkok') || tz.includes('Jakarta') || tz.includes('Pontianak') || tz.includes('WIB') || tz.includes('+07') || tz.includes('-7')) return 'WIB'
+  if (tz.includes('Makassar') || tz.includes('Denpasar') || tz.includes('Singapore') || tz.includes('WITA') || tz.includes('+08') || tz.includes('-8')) return 'WITA'
+  if (tz.includes('Jayapura') || tz.includes('Ambon') || tz.includes('WIT') || tz.includes('+09') || tz.includes('-9')) return 'WIT'
+  return 'WIB'
 }
 
 function confidenceLevel(c) {
@@ -380,6 +390,7 @@ export default function RekapHarian() {
                                   >
                                     <div className={`w-2 h-2 rounded-full shrink-0 ${slotColor[jenis] || 'bg-gray-400'}`} />
                                     <span className="font-medium text-gray-700">{scanTime}</span>
+                                    {scan.lokasi_kerja && <span className="font-bold text-gray-900">• {scan.lokasi_kerja}</span>}
                                     <span className="text-gray-400">{slotLabel}</span>
                                     {hasPhoto && <ImageIcon size={10} className="text-blue-400" />}
                                     {hasGps && <MapPin size={10} className="text-emerald-500" />}
