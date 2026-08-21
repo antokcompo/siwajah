@@ -40,7 +40,7 @@ function UserProtected() {
 function AdminProtected() {
   const { user, hasAppAccess, loading } = useAuth()
   if (loading) return <div className="flex items-center justify-center h-screen bg-[#0a0e1a]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400" /></div>
-  if (!user) return <Navigate to="/portal/login" replace />
+  if (!user) return <Navigate to="/login" replace />
   if (!hasAppAccess('siwajah')) return <Navigate to="/portal" replace />
   return <Layout />
 }
@@ -73,17 +73,16 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Root & /login routes: Always redirect to SI WAJAH Login (/user/login) */}
-      <Route path="/" element={<Navigate to={user ? "/portal" : "/user/login"} replace />} />
-      <Route path="/login" element={<Navigate to="/user/login" replace />} />
+      {/* Root route: Direct URL entry redirects to /login (Login Admin SI WAJAH) */}
+      <Route path="/" element={<Navigate to={user ? "/portal" : "/login"} replace />} />
 
-      {/* Portal SSO Login */}
-      <Route path="/portal/login" element={user ? <Navigate to="/portal" replace /> : <Login />} />
+      {/* Halaman Login Admin SI WAJAH */}
+      <Route path="/login" element={user ? <Navigate to="/portal" replace /> : <Login />} />
 
       {/* Central Portal Launcher (accessed via Portal Prisma) */}
-      <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/portal/login" replace />} />
+      <Route path="/portal" element={user ? <PortalLauncher /> : <Navigate to="/login" replace />} />
 
-      {/* User app (Absensi Pekerja SI WAJAH) */}
+      {/* Halaman Login User Absensi Pekerja SI WAJAH */}
       <Route path="/user/*" element={<UserRoutes />} />
 
       {/* Admin protected routes for SI WAJAH */}
@@ -105,7 +104,7 @@ export default function App() {
       </Route>
 
       {/* Fallback route */}
-      <Route path="*" element={<Navigate to={user ? "/portal" : "/user/login"} replace />} />
+      <Route path="*" element={<Navigate to={user ? "/portal" : "/login"} replace />} />
     </Routes>
   )
 }
