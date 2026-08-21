@@ -210,23 +210,24 @@ export default function UserRiwayat() {
       let status = 'MISSED' // Terlewat
       let scanTime = null
 
-      if (sc) {
+      if (lap && lap.status === 'PENDING') {
+        status = 'PENDING'
+        scanTime = 'Pending Approval'
+      } else if (sc) {
         status = 'VERIFIED'
         const wObj = new Date(sc.waktu_scan)
         scanTime = !isNaN(wObj.getTime())
           ? wObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
           : s.jam.slice(0, 5)
-      } else if (lap) {
-        if (lap.status === 'APPROVED') {
-          status = 'VERIFIED'
-          scanTime = 'Laporan Disetujui'
-        } else if (lap.status === 'PENDING') {
-          status = 'PENDING'
-          scanTime = 'Menunggu Approval'
-        } else if (lap.status === 'REJECTED') {
-          status = 'MISSED'
-          scanTime = 'Laporan Ditolak'
-        }
+      } else if (lap && lap.status === 'APPROVED') {
+        status = 'VERIFIED'
+        scanTime = 'Laporan Disetujui'
+      } else if (lap && lap.status === 'REJECTED') {
+        status = 'MISSED'
+        scanTime = 'Laporan Ditolak'
+      } else {
+        status = 'MISSED'
+        scanTime = null
       }
 
       return {
