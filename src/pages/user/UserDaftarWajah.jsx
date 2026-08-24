@@ -16,7 +16,7 @@ const STEPS = [
 ]
 
 export default function UserDaftarWajah() {
-  const { karyawan } = useUserAuth()
+  const { karyawan, outdoorMode } = useUserAuth()
   const navigate = useNavigate()
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -126,6 +126,15 @@ export default function UserDaftarWajah() {
     setDescriptors([])
     setStatus('ready')
     setError('')
+  }
+
+  if (!karyawan) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-300 text-xs gap-2">
+        <div className="w-6 h-6 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+        <span>Memuat profil karyawan...</span>
+      </div>
+    )
   }
 
   return (
