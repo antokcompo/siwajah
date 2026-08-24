@@ -33,20 +33,23 @@ export default function UserDaftarWajah() {
     async function startCamera() {
       try {
         setStatus('loading')
+        await loadModels().catch(err => console.warn('loadModels warning:', err))
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
         })
         if (stopped) { stream.getTracks().forEach(t => t.stop()); return }
 
         streamRef.current = stream
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          try { await videoRef.current.play() } catch {}
+        }
 
-        await loadModels()
         if (!stopped) setStatus('ready')
       } catch (err) {
         if (!stopped) {
-          setError('Gagal mengakses kamera: ' + err.message)
+          setError('Gagal mengakses kamera: ' + (err.message || err))
           setStatus('error')
         }
       }
@@ -148,7 +151,13 @@ export default function UserDaftarWajah() {
       {/* Camera viewfinder */}
       <div className="relative w-56 h-56 rounded-full overflow-hidden border-4 border-slate-700 mb-4">
         <video
-          ref={videoRef}
+          ref={(el) => {
+            videoRef.current = el
+            if (el && streamRef.current && el.srcObject !== streamRef.current) {
+              el.srcObject = streamRef.current
+              el.play().catch(() => {})
+            }
+          }}
           autoPlay
           playsInline
           muted

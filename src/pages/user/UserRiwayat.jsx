@@ -502,8 +502,8 @@ export default function UserRiwayat() {
 
                 const isLemburSlotItem = (item.slot.jenis || '').toUpperCase().includes('LEMBUR') || (item.slot.label || '').toLowerCase().includes('lembur')
                 
-                // Allow Lapor Terlewat ONLY for Pulang Lembur slot (H+1 or same day)
-                const canLapor = item.status === 'MISSED' && isLemburSlotItem && (diffDays === 0 || diffDays === 1)
+                // Allow Lapor Terlewat for normal slots on same day (diffDays === 0) and for Pulang Lembur slot on H+1 (diffDays === 1)
+                const canLapor = item.status === 'MISSED' && (diffDays === 0 || (diffDays === 1 && isLemburSlotItem))
 
                 return (
                   <div 
@@ -523,9 +523,9 @@ export default function UserRiwayat() {
                     <div className="flex items-center gap-2">
                       {item.status === 'VERIFIED' ? (
                         <span className="px-2.5 py-1 rounded-full font-black text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400 inline-flex items-center gap-1">
-                          <CheckCircle2 size={12} /> {item.scanTime || 'Hadir'}
+                          <CheckCircle2 size={12} /> {item.scanTime ? item.scanTime.slice(0, 5) : 'Verifikasi'}
                         </span>
-                      ) : item.status === 'PENDING' ? (
+                      ) : item.status === 'PENDING_APPROVAL' ? (
                         <span className="px-2.5 py-1 rounded-full font-black text-[10px] bg-amber-500/20 text-amber-300 border border-amber-400 inline-flex items-center gap-1">
                           <Clock size={12} /> Pending Approval
                         </span>
@@ -542,7 +542,7 @@ export default function UserRiwayat() {
                               }}
                               className="px-2 py-0.5 rounded-full font-black text-[10px] bg-amber-400 text-slate-950 border border-amber-300 hover:bg-amber-300 transition-colors inline-flex items-center gap-1 shadow-sm"
                             >
-                              <FileWarning size={11} /> Lapor (H+1)
+                              <FileWarning size={11} /> {isLemburSlotItem ? 'Lapor (H+1)' : 'Lapor Terlewat'}
                             </button>
                           )}
                         </div>
