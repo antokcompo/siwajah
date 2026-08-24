@@ -4,6 +4,7 @@ import { UserAuthProvider, useUserAuth } from './contexts/UserAuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import PilihProyek from './pages/PilihProyek'
 import Dashboard from './pages/Dashboard'
 import ImportAbsensi from './pages/ImportAbsensi'
 import RekapHarian from './pages/RekapHarian'
@@ -71,11 +72,14 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Root route: Direct URL entry redirects to SI WAJAH Dashboard or Login */}
-      <Route path="/" element={<Navigate to={user ? "/siwajah" : "/login"} replace />} />
+      {/* Root route: Direct URL entry redirects to /pilih-proyek or /login */}
+      <Route path="/" element={<Navigate to={user ? "/pilih-proyek" : "/login"} replace />} />
 
       {/* Admin Login for SI WAJAH */}
-      <Route path="/login" element={user ? <Navigate to="/siwajah" replace /> : <Login />} />
+      <Route path="/login" element={user ? <Navigate to="/pilih-proyek" replace /> : <Login />} />
+
+      {/* Halaman Pilih Proyek (Admin Multi-Project Selector) */}
+      <Route path="/pilih-proyek" element={user ? <PilihProyek /> : <Navigate to="/login" replace />} />
 
       {/* Mobile User App */}
       <Route path="/user/*" element={<UserRoutes />} />
@@ -99,7 +103,7 @@ export default function App() {
       </Route>
 
       {/* Fallback route */}
-      <Route path="*" element={<Navigate to={user ? "/siwajah" : "/login"} replace />} />
+      <Route path="*" element={<Navigate to={user ? "/pilih-proyek" : "/login"} replace />} />
     </Routes>
   )
 }

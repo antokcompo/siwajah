@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { getActiveProject } from '../pages/PilihProyek'
 import {
   LayoutDashboard, Upload, CalendarDays, FileEdit, Clock,
   Users, Settings, CalendarCheck, FileSpreadsheet, Shield, UserCog,
   Menu, X, LogOut, KeyRound, Eye, EyeOff, CheckCircle, AlertTriangle,
-  Timer, FileWarning, Lock, Layers
+  Timer, FileWarning, Lock, Layers, Building2, FolderSync
 } from 'lucide-react'
 import GlobalDynamicSearch from './GlobalDynamicSearch'
 
@@ -152,6 +153,8 @@ export default function Layout({ children }) {
 }
 
 function SidebarContent({ role, location, profile, onSignOut, onClose, onChangePassword }) {
+  const activeProj = getActiveProject()
+
   return (
     <div className="sidebar-inner">
       {/* Brand */}
@@ -168,6 +171,25 @@ function SidebarContent({ role, location, profile, onSignOut, onClose, onChangeP
             <X size={20} style={{ color: 'var(--text-muted)' }} />
           </button>
         )}
+      </div>
+
+      {/* Active Project Banner */}
+      <div className="px-3.5 py-2.5 mx-3 my-2 rounded-2xl bg-gradient-to-r from-cyan-950/60 to-slate-900 border border-cyan-500/30 flex items-center justify-between shadow-md">
+        <div className="flex items-center gap-2 min-w-0">
+          <Building2 size={16} className="text-cyan-400 shrink-0" />
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Proyek Aktif</div>
+            <div className="text-xs font-black text-cyan-200 truncate">{activeProj?.nama_singkat || activeProj?.nama || 'Proyek Utama'}</div>
+          </div>
+        </div>
+        <Link
+          to="/pilih-proyek"
+          className="p-1.5 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40 transition-colors shrink-0 text-[10px] font-bold flex items-center gap-1 border border-cyan-500/40"
+          title="Ganti Proyek"
+        >
+          <FolderSync size={13} />
+          <span>Ganti</span>
+        </Link>
       </div>
 
       {/* Global Dynamic Search */}

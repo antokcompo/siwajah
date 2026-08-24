@@ -22,7 +22,7 @@ export default function Login() {
     setLoading(true)
     try {
       await signIn(email, password)
-      navigate('/siwajah')
+      navigate('/pilih-proyek')
     } catch (err) {
       console.error('Login error:', err)
       setError(err.message || 'Gagal login. Periksa email dan password Anda.')
