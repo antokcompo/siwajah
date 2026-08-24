@@ -85,7 +85,6 @@ function CameraModal({ onClose, onCapture }) {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop())
       }
-      setReady(false)
       setError('')
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -96,8 +95,8 @@ function CameraModal({ onClose, onCapture }) {
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         try { await videoRef.current.play() } catch {}
-        setReady(true)
       }
+      setReady(true)
     } catch (err) {
       console.warn('Camera failed:', err)
       setError('Kamera tidak tersedia: ' + (err.message || err))
@@ -122,17 +121,25 @@ function CameraModal({ onClose, onCapture }) {
   async function handleCapture(e) {
     e?.preventDefault()
     e?.stopPropagation()
-    if (!videoRef.current || capturing) return
+    if (capturing) return
+
+    const video = videoRef.current
+    if (!video) {
+      console.warn('Video element not found')
+      return
+    }
+
     setCapturing(true)
     try {
-      const video = videoRef.current
       const canvas = canvasRef.current || document.createElement('canvas')
       canvas.width = video.videoWidth || 800
       canvas.height = video.videoHeight || 600
       const ctx = canvas.getContext('2d')
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8))
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85))
+      if (!blob) throw new Error('Gagal mengambil gambar dari kamera')
+
       const file = new File([blob], `evidence_${Date.now()}.jpg`, { type: 'image/jpeg' })
       const url = URL.createObjectURL(blob)
       onCapture(file, url)
@@ -161,12 +168,14 @@ function CameraModal({ onClose, onCapture }) {
               videoRef.current = el
               if (el && streamRef.current && el.srcObject !== streamRef.current) {
                 el.srcObject = streamRef.current
-                el.play().then(() => setReady(true)).catch(() => {})
+                el.play().catch(() => {})
               }
             }}
             autoPlay
             playsInline
             muted
+            onLoadedMetadata={() => setReady(true)}
+            onCanPlay={() => setReady(true)}
             className="w-full h-full object-cover"
           />
         )}
@@ -183,8 +192,8 @@ function CameraModal({ onClose, onCapture }) {
         <button
           type="button"
           onClick={handleCapture}
-          disabled={!ready || capturing}
-          className="p-4 bg-cyan-400 hover:bg-cyan-300 text-slate-950 rounded-full font-black shadow-xl shadow-cyan-400/50 disabled:opacity-40"
+          disabled={capturing}
+          className="p-4 bg-cyan-400 hover:bg-cyan-300 active:scale-95 text-slate-950 rounded-full font-black shadow-xl shadow-cyan-400/50 disabled:opacity-40 transition-all"
         >
           <Camera size={24} />
         </button>
