@@ -95,11 +95,12 @@ function CameraModal({ onClose, onCapture }) {
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        videoRef.current.onloadedmetadata = () => setReady(true)
+        try { await videoRef.current.play() } catch {}
+        setReady(true)
       }
     } catch (err) {
       console.warn('Camera failed:', err)
-      setError('Kamera tidak tersedia')
+      setError('Kamera tidak tersedia: ' + (err.message || err))
     }
   }, [])
 
@@ -112,11 +113,15 @@ function CameraModal({ onClose, onCapture }) {
     }
   }, [facingMode, startCamera])
 
-  function toggleCamera() {
+  function toggleCamera(e) {
+    e?.preventDefault()
+    e?.stopPropagation()
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')
   }
 
-  async function handleCapture() {
+  async function handleCapture(e) {
+    e?.preventDefault()
+    e?.stopPropagation()
     if (!videoRef.current || capturing) return
     setCapturing(true)
     try {
@@ -142,7 +147,7 @@ function CameraModal({ onClose, onCapture }) {
     <div className="fixed inset-0 z-[70] bg-black/95 flex flex-col items-center justify-between p-4 backdrop-blur-md">
       <div className="w-full flex items-center justify-between py-2">
         <h4 className="text-sm font-black text-white">Ambil Foto Evidence</h4>
-        <button onClick={onClose} className="p-2 bg-slate-900 border border-slate-700 rounded-full text-white">
+        <button type="button" onClick={onClose} className="p-2 bg-slate-900 border border-slate-700 rounded-full text-white">
           <X size={20} />
         </button>
       </div>
@@ -152,7 +157,13 @@ function CameraModal({ onClose, onCapture }) {
           <div className="text-center p-4 text-xs font-bold text-rose-300">{error}</div>
         ) : (
           <video
-            ref={videoRef}
+            ref={(el) => {
+              videoRef.current = el
+              if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                el.srcObject = streamRef.current
+                el.play().then(() => setReady(true)).catch(() => {})
+              }
+            }}
             autoPlay
             playsInline
             muted
@@ -163,12 +174,14 @@ function CameraModal({ onClose, onCapture }) {
 
       <div className="w-full max-w-sm flex items-center justify-around py-4">
         <button
+          type="button"
           onClick={toggleCamera}
           className="p-3.5 bg-slate-900 border border-slate-700 rounded-2xl text-cyan-300 font-extrabold text-xs flex items-center gap-1.5"
         >
           <SwitchCamera size={18} /> Putar Kamera
         </button>
         <button
+          type="button"
           onClick={handleCapture}
           disabled={!ready || capturing}
           className="p-4 bg-cyan-400 hover:bg-cyan-300 text-slate-950 rounded-full font-black shadow-xl shadow-cyan-400/50 disabled:opacity-40"
