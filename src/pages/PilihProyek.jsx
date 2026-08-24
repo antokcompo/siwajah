@@ -5,23 +5,23 @@ import { Building2, MapPin, Users, ArrowRight, Search, Sparkles, Layers, ShieldC
 
 export const DEFAULT_PROJECTS = [
   {
-    id: 'prj-001',
-    kode: 'PRJ-PP-001',
-    nama: 'Proyek Pembangunan Gedung Presisi PT PP (Persero) Tbk',
-    nama_singkat: 'Gedung Presisi Jayapura',
+    id: 'prj-524006',
+    kode: '524006',
+    nama: 'Proyek Pembangunan Gedung Presisi (524006)',
+    nama_singkat: 'Proyek 524006',
     lokasi: 'Jayapura, Papua',
     zona_waktu: 'Asia/Jayapura',
     tz_label: 'WIT (UTC+9)',
     status: 'AKTIF',
     total_karyawan: 120,
-    deskripsi: 'Sistem presensi & aktifitas harian pekerja proyek gedung presisi.',
+    deskripsi: 'Proyek Utama Aktif SI WAJAH, SIMONTOK & SIMONIKA. Data presensi & aktifitas harian terintegrasi.',
     is_default: true,
   },
   {
-    id: 'prj-002',
-    kode: 'PRJ-PP-002',
-    nama: 'Proyek Gedung Kantor Terpadu IKN (Tahap II)',
-    nama_singkat: 'Gedung Terpadu IKN',
+    id: 'prj-524007',
+    kode: '524007',
+    nama: 'Proyek Gedung Kantor Terpadu IKN (524007)',
+    nama_singkat: 'Proyek 524007',
     lokasi: 'Nusantara, Kaltim',
     zona_waktu: 'Asia/Makassar',
     tz_label: 'WITA (UTC+8)',
@@ -31,10 +31,10 @@ export const DEFAULT_PROJECTS = [
     is_default: false,
   },
   {
-    id: 'prj-003',
-    kode: 'PRJ-PP-003',
-    nama: 'Proyek Kawasan Komersial & Perkantoran Jakarta',
-    nama_singkat: 'Kawasan Komersial Jakarta',
+    id: 'prj-524008',
+    kode: '524008',
+    nama: 'Proyek Kawasan Komersial & Perkantoran (524008)',
+    nama_singkat: 'Proyek 524008',
     lokasi: 'Jakarta Selatan, DKI',
     zona_waktu: 'Asia/Jakarta',
     tz_label: 'WIB (UTC+7)',
@@ -47,14 +47,21 @@ export const DEFAULT_PROJECTS = [
 
 export function getActiveProject() {
   try {
-    const saved = localStorage.getItem('siwajah_active_project')
+    const saved = localStorage.getItem('siwajah_active_project') ||
+                  localStorage.getItem('prisma_active_project') ||
+                  localStorage.getItem('simontok_active_project') ||
+                  localStorage.getItem('simonika_active_project')
     if (saved) return JSON.parse(saved)
   } catch (e) {}
   return DEFAULT_PROJECTS[0]
 }
 
 export function setActiveProject(project) {
-  localStorage.setItem('siwajah_active_project', JSON.stringify(project))
+  const str = JSON.stringify(project)
+  localStorage.setItem('siwajah_active_project', str)
+  localStorage.setItem('prisma_active_project', str)
+  localStorage.setItem('simontok_active_project', str)
+  localStorage.setItem('simonika_active_project', str)
 }
 
 export default function PilihProyek() {
