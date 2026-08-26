@@ -2,10 +2,22 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { Camera, FolderOpen, X, SwitchCamera } from 'lucide-react'
 import { compressImage } from '../lib/imageCompressor'
 
-export default function PhotoInput({ preview, onCapture, onRemove, label = 'Foto Evidence' }) {
+export default function PhotoInput({
+  preview,
+  previewUrl,
+  onCapture,
+  onPhotoCaptured,
+  onRemove,
+  onClear,
+  label = 'Foto Evidence'
+}) {
   const fileRef = useRef(null)
   const [showCamera, setShowCamera] = useState(false)
   const [compressing, setCompressing] = useState(false)
+
+  const activePreview = preview || previewUrl
+  const handleCaptured = onCapture || onPhotoCaptured || (() => {})
+  const handleRemoved = onRemove || onClear || (() => {})
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
@@ -13,10 +25,10 @@ export default function PhotoInput({ preview, onCapture, onRemove, label = 'Foto
     setCompressing(true)
     try {
       const result = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.7 })
-      onCapture(result.file, result.url)
+      handleCaptured(result.file, result.url)
     } catch (err) {
       console.warn('Compress failed, using original file:', err)
-      onCapture(file, URL.createObjectURL(file))
+      handleCaptured(file, URL.createObjectURL(file))
     } finally {
       setCompressing(false)
       e.target.value = ''
@@ -26,10 +38,10 @@ export default function PhotoInput({ preview, onCapture, onRemove, label = 'Foto
   return (
     <div>
       <label className="text-xs font-black text-white block mb-2">{label}</label>
-      {preview ? (
+      {activePreview ? (
         <div className="relative inline-block">
-          <img src={preview} alt="Foto" className="w-36 h-36 rounded-2xl object-cover border-2 border-cyan-400 shadow-xl" />
-          <button type="button" onClick={onRemove} className="absolute -top-2 -right-2 w-7 h-7 bg-rose-500 hover:bg-rose-400 rounded-full flex items-center justify-center text-white shadow-md">
+          <img src={activePreview} alt="Foto" className="w-36 h-36 rounded-2xl object-cover border-2 border-cyan-400 shadow-xl" />
+          <button type="button" onClick={handleRemoved} className="absolute -top-2 -right-2 w-7 h-7 bg-rose-500 hover:bg-rose-400 rounded-full flex items-center justify-center text-white shadow-md">
             <X size={14} />
           </button>
         </div>
@@ -64,7 +76,7 @@ export default function PhotoInput({ preview, onCapture, onRemove, label = 'Foto
       {showCamera && (
         <CameraModal
           onClose={() => setShowCamera(false)}
-          onCapture={(file, url) => { onCapture(file, url); setShowCamera(false) }}
+          onCapture={(file, url) => { handleCaptured(file, url); setShowCamera(false) }}
         />
       )}
     </div>

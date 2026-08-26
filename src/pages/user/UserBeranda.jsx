@@ -674,12 +674,12 @@ export default function UserBeranda() {
               <div>
                 <label className="block text-xs font-bold text-slate-200 mb-1">Foto Bukti (Opsional)</label>
                 <PhotoInput
-                  onPhotoCaptured={(file, preview) => {
+                  preview={laporFotoPreview}
+                  onCapture={(file, preview) => {
                     setLaporFotoFile(file)
                     setLaporFotoPreview(preview)
                   }}
-                  previewUrl={laporFotoPreview}
-                  onClear={() => {
+                  onRemove={() => {
                     setLaporFotoFile(null)
                     setLaporFotoPreview(null)
                   }}
