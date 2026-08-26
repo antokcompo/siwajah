@@ -255,8 +255,24 @@ export default function UserBeranda() {
     }
   }
 
-  const nextSlot = slots.find(s => getSlotStatus(s) === 'active')
-    || slots.find(s => getSlotStatus(s) === 'upcoming' && !(isLemburSlot(s) && !lemburRegistered))
+  const hasScannedLembur = todayScans.some(s => {
+    const slotObj = slots.find(item => item.id === s.slot_id)
+    return slotObj?.jenis === 'lembur' || (slotObj?.label || '').toLowerCase().includes('masuk lembur') || (slotObj?.label || '').toLowerCase() === 'lembur'
+  })
+
+  const displaySlots = slots.filter(slot => {
+    // 1. Exclude 12:00 and 23:00 static slots
+    if (slot.jam?.startsWith('12:00') || slot.jam?.startsWith('23:00')) return false
+
+    // 2. Dynamic Pulang Lembur: Only show IF worker has completed their Lembur (clock-in) scan!
+    if (slot.jenis === 'pulang_lembur' || (slot.label || '').toLowerCase().includes('pulang lembur')) {
+      return hasScannedLembur
+    }
+    return true
+  })
+
+  const nextSlot = displaySlots.find(s => getSlotStatus(s) === 'active')
+    || displaySlots.find(s => getSlotStatus(s) === 'upcoming' && !(isLemburSlot(s) && !lemburRegistered))
 
   const greeting = now.getHours() < 12 ? 'Selamat Pagi' : now.getHours() < 15 ? 'Selamat Siang' : now.getHours() < 18 ? 'Selamat Sore' : 'Selamat Malam'
 
@@ -404,7 +420,7 @@ export default function UserBeranda() {
         </div>
       )}
 
-      {!nextSlot && slots.length > 0 && (
+      {!nextSlot && displaySlots.length > 0 && (
         <div className={`rounded-2xl p-5 mb-5 text-center shadow-md ${outdoorMode ? 'bg-black border-2 border-slate-800' : 'bg-slate-900/60 border border-slate-800'}`}>
           <p className="text-sm font-extrabold text-white">Semua absen hari ini sudah selesai</p>
           <p className="text-xs text-slate-400 mt-1 font-medium">Sampai jumpa besok!</p>
@@ -451,11 +467,11 @@ export default function UserBeranda() {
       <div className="mb-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-black text-slate-300 uppercase tracking-wider">Jadwal Absen Hari Ini</h3>
-          <span className="text-[11px] text-slate-400 font-medium">{slots.length} Slot Hari Ini</span>
+          <span className="text-[11px] text-slate-400 font-medium">{displaySlots.length} Slot Hari Ini</span>
         </div>
 
         <div className="space-y-2">
-          {slots.map(slot => {
+          {displaySlots.map(slot => {
             const st = getSlotStatus(slot)
             const scan = todayScans.find(s => s.slot_id === slot.id)
             const approvedLaporan = todayLaporan.find(l => l.slot_id === slot.id && l.status === 'APPROVED')
