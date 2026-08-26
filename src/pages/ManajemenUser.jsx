@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { Search, UserPlus, Pencil, Trash2, X, Users, Shield, CheckCircle, AlertTriangle, Eye, EyeOff, KeyRound, Plus } from 'lucide-react'
+import { Search, UserPlus, Pencil, Trash2, X, Users, Shield, CheckCircle, AlertTriangle, Eye, EyeOff, KeyRound, Plus, Building2, Check } from 'lucide-react'
 
 const roleOptions = [
   { value: 'admin', label: 'Admin', desc: 'Akses penuh ke semua fitur' },
@@ -85,14 +85,14 @@ export default function ManajemenUser() {
   const [filter, setFilter] = useState('all')
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ user_id: '', nama: '', role: 'atasan' })
+  const [form, setForm] = useState({ user_id: '', nama: '', role: 'atasan', kode_proyek: '524006', proyek_akses: ['524006'] })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
 
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createForm, setCreateForm] = useState({ email: '', password: '', confirmPassword: '', nama: '', role: 'atasan' })
+  const [createForm, setCreateForm] = useState({ email: '', password: '', confirmPassword: '', nama: '', role: 'atasan', kode_proyek: '524006', proyek_akses: ['524006'] })
   const [creating, setCreating] = useState(false)
 
   const [showResetModal, setShowResetModal] = useState(false)
@@ -100,7 +100,33 @@ export default function ManajemenUser() {
   const [resetForm, setResetForm] = useState({ password: '', confirmPassword: '' })
   const [resetting, setResetting] = useState(false)
 
-  useEffect(() => { load() }, [])
+  const [proyekList, setProyekList] = useState([])
+  const [showQuickAddProyek, setShowQuickAddProyek] = useState(false)
+  const [quickProyekForm, setQuickProyekForm] = useState({ kode_proyek: '', nama_proyek: '', nama_singkat: '', lokasi: '', zona_waktu: 'Asia/Jayapura' })
+  const [savingQuickProyek, setSavingQuickProyek] = useState(false)
+  const [quickProyekError, setQuickProyekError] = useState('')
+
+  useEffect(() => {
+    load()
+    fetchProyekList()
+  }, [])
+
+  async function fetchProyekList() {
+    try {
+      const { data: dbData } = await supabase.from('absen_proyek').select('*').order('created_at', { ascending: true })
+      if (dbData && dbData.length > 0) {
+        setProyekList(dbData)
+      } else {
+        setProyekList([
+          { kode_proyek: '524006', nama_proyek: 'Proyek Portsite Accommodation Complex (524006)', nama_singkat: 'Portsite Accommodation Complex' }
+        ])
+      }
+    } catch {
+      setProyekList([
+        { kode_proyek: '524006', nama_proyek: 'Proyek Portsite Accommodation Complex (524006)', nama_singkat: 'Portsite Accommodation Complex' }
+      ])
+    }
+  }
 
   async function load() {
     setLoading(true)
@@ -132,13 +158,21 @@ export default function ManajemenUser() {
       user_id: authUser?.id || '',
       nama: authUser?.email?.split('@')[0] || '',
       role: 'atasan',
+      kode_proyek: '524006',
+      proyek_akses: ['524006']
     })
     setShowModal(true)
   }
 
   function openEdit(u) {
     setEditing(u)
-    setForm({ user_id: u.id, nama: u.nama, role: u.role })
+    setForm({
+      user_id: u.id,
+      nama: u.nama,
+      role: u.role,
+      kode_proyek: u.kode_proyek || '524006',
+      proyek_akses: u.proyek_akses && u.proyek_akses.length > 0 ? u.proyek_akses : [u.kode_proyek || '524006']
+    })
     setShowModal(true)
   }
 
@@ -151,6 +185,8 @@ export default function ManajemenUser() {
       p_user_id: form.user_id,
       p_nama: form.nama,
       p_role: form.role,
+      p_kode_proyek: form.kode_proyek,
+      p_proyek_akses: form.proyek_akses
     })
 
     if (err) {
@@ -210,7 +246,15 @@ export default function ManajemenUser() {
   }
 
   function openCreateUser() {
-    setCreateForm({ email: '', password: '', confirmPassword: '', nama: '', role: 'atasan' })
+    setCreateForm({
+      email: '',
+      password: '',
+      confirmPassword: '',
+      nama: '',
+      role: 'atasan',
+      kode_proyek: '524006',
+      proyek_akses: ['524006']
+    })
     setShowCreateModal(true)
   }
 
@@ -242,6 +286,8 @@ export default function ManajemenUser() {
             password: createForm.password,
             nama: createForm.nama,
             role: createForm.role,
+            kode_proyek: createForm.kode_proyek,
+            proyek_akses: createForm.proyek_akses,
           })
         })
         const resData = await res.json()
@@ -267,6 +313,8 @@ export default function ManajemenUser() {
       p_password: createForm.password,
       p_nama: createForm.nama,
       p_role: createForm.role,
+      p_kode_proyek: createForm.kode_proyek,
+      p_proyek_akses: createForm.proyek_akses,
     })
 
     if (err) {
@@ -286,6 +334,51 @@ export default function ManajemenUser() {
     setSuccess(`User ${cleanEmail} berhasil dibuat! User dapat langsung login di SI Wajah.`)
     setTimeout(() => setSuccess(''), 4000)
     load()
+  }
+
+  async function handleSaveQuickProyek(e) {
+    e.preventDefault()
+    if (!quickProyekForm.kode_proyek.trim() || !quickProyekForm.nama_proyek.trim()) {
+      setQuickProyekError('Kode Proyek & Nama Proyek wajib diisi.')
+      return
+    }
+
+    setSavingQuickProyek(true)
+    setQuickProyekError('')
+
+    try {
+      const payload = {
+        p_kode_proyek: quickProyekForm.kode_proyek.trim(),
+        p_nama_proyek: quickProyekForm.nama_proyek.trim(),
+        p_nama_singkat: quickProyekForm.nama_singkat.trim() || quickProyekForm.nama_proyek.trim(),
+        p_lokasi: quickProyekForm.lokasi.trim() || null,
+        p_zona_waktu: quickProyekForm.zona_waktu
+      }
+
+      const { data: resData, error: rpcErr } = await supabase.rpc('absen_upsert_proyek', payload)
+      if (rpcErr) throw rpcErr
+
+      await fetchProyekList()
+
+      const newKode = quickProyekForm.kode_proyek.trim()
+      setForm(prev => ({
+        ...prev,
+        kode_proyek: newKode,
+        proyek_akses: Array.from(new Set([...prev.proyek_akses, newKode]))
+      }))
+      setCreateForm(prev => ({
+        ...prev,
+        kode_proyek: newKode,
+        proyek_akses: Array.from(new Set([...prev.proyek_akses, newKode]))
+      }))
+
+      setShowQuickAddProyek(false)
+      setQuickProyekForm({ kode_proyek: '', nama_proyek: '', nama_singkat: '', lokasi: '', zona_waktu: 'Asia/Jayapura' })
+    } catch (err) {
+      setQuickProyekError(err.message)
+    } finally {
+      setSavingQuickProyek(false)
+    }
   }
 
   function openResetPassword(u) {
@@ -441,6 +534,7 @@ export default function ManajemenUser() {
                     <th className="text-left px-4 py-3">Email</th>
                     <th className="text-left px-4 py-3">Nama</th>
                     <th className="text-center px-4 py-3">Role</th>
+                    <th className="text-left px-4 py-3">Proyek Aktif (Assign Login)</th>
                     <th className="text-center px-4 py-3">Status</th>
                     <th className="text-left px-4 py-3">Terdaftar</th>
                     <th className="text-center px-4 py-3">Aksi</th>
@@ -458,6 +552,16 @@ export default function ManajemenUser() {
                           {row.has_profile ? (
                             <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold border ${roleBadge[row.role] || ''}`}>
                               {roleLabel[row.role] || row.role}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#475569' }}>-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {row.has_profile ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                              <Building2 size={12} className="text-cyan-400" />
+                              {row.kode_proyek || '524006'}
                             </span>
                           ) : (
                             <span style={{ color: '#475569' }}>-</span>
@@ -502,7 +606,7 @@ export default function ManajemenUser() {
                     )
                   })}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={7} className="px-5 py-12 text-center" style={{ color: '#475569' }}>
+                    <tr><td colSpan={8} className="px-5 py-12 text-center" style={{ color: '#475569' }}>
                       <Users size={32} className="mx-auto mb-2" style={{ color: '#334155' }} />
                       Tidak ada user ditemukan
                     </td></tr>
@@ -544,6 +648,33 @@ export default function ManajemenUser() {
               <div>
                 <label className="block text-sm font-medium mb-1.5" style={{ color: '#94a3b8' }}>Nama Tampilan *</label>
                 <input value={form.nama} onChange={e => setForm({ ...form, nama: e.target.value })} required className="input-field" placeholder="Nama lengkap user" />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium" style={{ color: '#94a3b8' }}>
+                    Assign Proyek Aktif Login (Kode PK) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickAddProyek(true)}
+                    className="text-xs font-bold text-cyan-400 hover:underline flex items-center gap-1"
+                  >
+                    <Plus size={12} /> Proyek Baru
+                  </button>
+                </div>
+                <select
+                  value={form.kode_proyek}
+                  onChange={e => setForm({ ...form, kode_proyek: e.target.value })}
+                  className="input-field font-mono font-bold bg-slate-900 text-white"
+                  required
+                >
+                  {proyekList.map(p => (
+                    <option key={p.kode_proyek} value={p.kode_proyek} className="bg-slate-900 text-white">
+                      {p.kode_proyek} — {p.nama_singkat || p.nama_proyek}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -617,6 +748,33 @@ export default function ManajemenUser() {
               </div>
 
               <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium" style={{ color: '#94a3b8' }}>
+                    Assign Proyek Aktif Login (Kode PK) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickAddProyek(true)}
+                    className="text-xs font-bold text-cyan-400 hover:underline flex items-center gap-1"
+                  >
+                    <Plus size={12} /> Proyek Baru
+                  </button>
+                </div>
+                <select
+                  value={createForm.kode_proyek}
+                  onChange={e => setCreateForm({ ...createForm, kode_proyek: e.target.value })}
+                  className="input-field font-mono font-bold bg-slate-900 text-white"
+                  required
+                >
+                  {proyekList.map(p => (
+                    <option key={p.kode_proyek} value={p.kode_proyek} className="bg-slate-900 text-white">
+                      {p.kode_proyek} — {p.nama_singkat || p.nama_proyek}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium mb-1.5" style={{ color: '#94a3b8' }}>Role *</label>
                 <div className="space-y-2">
                   {roleOptions.map(r => (
@@ -683,6 +841,83 @@ export default function ManajemenUser() {
               <div className="flex gap-3 justify-end pt-3">
                 <button type="button" onClick={() => setShowResetModal(false)} className="btn-secondary">Batal</button>
                 <button type="submit" disabled={resetting} className="btn-primary">{resetting ? 'Mereset...' : 'Reset Password'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Proyek Modal */}
+      {showQuickAddProyek && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h4 className="text-sm font-black text-white flex items-center gap-2">
+                <Building2 size={18} className="text-cyan-400" /> Tambah Kode Proyek Aktif Baru
+              </h4>
+              <button type="button" onClick={() => setShowQuickAddProyek(false)} className="text-slate-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            {quickProyekError && (
+              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-xs text-rose-300 font-bold">
+                {quickProyekError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveQuickProyek} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Kode Proyek (Primary Key) *</label>
+                <input
+                  type="text"
+                  value={quickProyekForm.kode_proyek}
+                  onChange={e => setQuickProyekForm({ ...quickProyekForm, kode_proyek: e.target.value })}
+                  placeholder="Contoh: 524007"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono font-bold focus:outline-none focus:border-cyan-400"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Nama Proyek *</label>
+                <input
+                  type="text"
+                  value={quickProyekForm.nama_proyek}
+                  onChange={e => setQuickProyekForm({ ...quickProyekForm, nama_proyek: e.target.value })}
+                  placeholder="Contoh: Proyek Camp Accomodation 524007"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold focus:outline-none focus:border-cyan-400"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Nama Singkat Proyek</label>
+                <input
+                  type="text"
+                  value={quickProyekForm.nama_singkat}
+                  onChange={e => setQuickProyekForm({ ...quickProyekForm, nama_singkat: e.target.value })}
+                  placeholder="Contoh: Camp Accomodation 524007"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Lokasi Site Proyek</label>
+                <input
+                  type="text"
+                  value={quickProyekForm.lokasi}
+                  onChange={e => setQuickProyekForm({ ...quickProyekForm, lokasi: e.target.value })}
+                  placeholder="Contoh: Tembagapura, Papua"
+                  className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowQuickAddProyek(false)} className="btn-secondary">Batal</button>
+                <button type="submit" disabled={savingQuickProyek} className="btn-primary">
+                  {savingQuickProyek ? 'Menyimpan...' : 'Simpan Kode Proyek'}
+                </button>
               </div>
             </form>
           </div>
