@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Plus, Pencil, Search, Upload, FileSpreadsheet, CheckCircle, AlertTriangle, X, Users, Eye, EyeOff, Building2, HardHat } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { getActiveProject } from './PilihProyek'
 
 function fmtRupiah(val) {
   const num = String(val).replace(/\D/g, '')
@@ -37,11 +38,18 @@ export default function MasterKaryawan() {
   const [importResult, setImportResult] = useState(null)
   const [importError, setImportError] = useState('')
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    const handleStorage = () => load()
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.rpc('absen_list_karyawan')
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+    const { data } = await supabase.rpc('absen_list_karyawan', { p_kode_proyek: activeKode })
     setData(data || [])
     setLoading(false)
   }
@@ -98,11 +106,14 @@ export default function MasterKaryawan() {
       pin: form.pin || null,
     }
 
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
     let error
     if (editing) {
       ({ error } = await supabase.rpc('absen_update_karyawan', { p_id: editing.id, p_data: payload }))
     } else {
-      ({ error } = await supabase.rpc('absen_tambah_karyawan', { p_data: payload }))
+      ({ error } = await supabase.rpc('absen_tambah_karyawan', { p_data: payload, p_kode_proyek: activeKode }))
     }
     if (error) { alert(error.message); setSaving(false); return }
     setSaving(false)
@@ -110,8 +121,8 @@ export default function MasterKaryawan() {
     load()
   }
 
-  function handleImportFile(e) {
-    const f = e.target.files[0]
+  async function handleFile(e) {
+    const f = e.target.files?.[0]
     if (!f) return
     setImportError('')
     setImportResult(null)
@@ -119,34 +130,22 @@ export default function MasterKaryawan() {
     const reader = new FileReader()
     reader.onload = (evt) => {
       try {
-        const wb = XLSX.read(evt.target.result, { type: 'array' })
+        const wb = XLSX.read(evt.target.result, { type: 'binary' })
         const sheetName = wb.SheetNames.find(s => s.toUpperCase() === 'JUN') || wb.SheetNames[0]
         const ws = wb.Sheets[sheetName]
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1 })
 
         const employees = []
-        const seen = new Set()
+        for (let i = 1; i < raw.length; i++) {
+          const r = raw[i]
+          if (!r || r.length === 0) continue
+          const nama = String(r[3] || '').trim()
+          const uid = String(r[4] || '').trim()
+          const mandor = String(r[5] || '').trim()
+          const jabatan = String(r[6] || '').trim()
 
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i]
-          if (!row || row.length < 7) continue
-          const no = row[2]
-          const nama = row[3]
-          const uid = row[4]
-          const mandor = row[5]
-          const jabatan = row[6]
-          if (typeof no !== 'number' || !nama || typeof nama !== 'string') continue
-          if (!uid) continue
-          const uidStr = String(uid).trim()
-          if (seen.has(uidStr)) continue
-          seen.add(uidStr)
-          employees.push({
-            nama: String(nama).trim(),
-            uid_mesin: uidStr,
-            mandor: mandor ? String(mandor).trim() : '',
-            jabatan: jabatan ? String(jabatan).trim() : '',
-            rowNum: i + 1,
-          })
+          if (!nama) continue
+          employees.push({ nama, uid_mesin: uid, mandor, jabatan })
         }
 
         if (employees.length === 0) {
@@ -160,13 +159,16 @@ export default function MasterKaryawan() {
         setImportPreview(null)
       }
     }
-    reader.readAsArrayBuffer(f)
+    reader.readAsBinaryString(f)
   }
 
   async function handleImportConfirm() {
     if (!importPreview) return
     setImporting(true)
     setImportError('')
+
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
 
     const payload = importPreview.map(emp => ({
       nama: emp.nama,
@@ -175,7 +177,7 @@ export default function MasterKaryawan() {
       mandor: emp.mandor || '',
     }))
 
-    const { data: result, error } = await supabase.rpc('absen_import_karyawan', { p_data: payload })
+    const { data: result, error } = await supabase.rpc('absen_import_karyawan', { p_data: payload, p_kode_proyek: activeKode })
 
     if (error) {
       setImportError(error.message)

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Calculator, Lock, Download, Unlock, FileSpreadsheet, Users, CheckCircle, Eye, Info, X, Calendar, Clock, DollarSign, Building2 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { getActiveProject } from './PilihProyek'
 
 export default function RekapBulanan() {
   const now = new Date()
@@ -122,12 +123,31 @@ export default function RekapBulanan() {
     setLoadingDetail(false)
   }
 
-  useEffect(() => { load() }, [bulan, tahun])
+  useEffect(() => {
+    load()
+    const handleStorage = () => load()
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [bulan, tahun])
 
   async function load() {
     setLoading(true)
     setError('')
     setSelected(new Set())
+
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const kIds = (karyawanProyek || []).map(k => k.id)
+
+    if (kIds.length === 0) {
+      setData([])
+      setPeriode(null)
+      setMandorMap({})
+      setLoading(false)
+      return
+    }
 
     const padBulan = String(bulan).padStart(2, '0')
     const startDate = `${tahun}-${padBulan}-01`
@@ -137,26 +157,32 @@ export default function RekapBulanan() {
     const [gajiRes, periodeRes, mandorRes, scanRes, harianRes, laporanRes, daftarLemburRes, slotRes, kalenderRes] = await Promise.all([
       supabase.from('absen_gaji_bulanan')
         .select('*, absen_karyawan(nama, jabatan, atasan_id, gaji_bulanan, tunjangan)')
+        .in('karyawan_id', kIds)
         .eq('bulan', bulan).eq('tahun', tahun)
         .order('absen_karyawan(nama)'),
       supabase.from('absen_periode_gaji')
         .select('*').eq('bulan', bulan).eq('tahun', tahun).maybeSingle(),
       supabase.from('absen_karyawan')
         .select('id, nama')
+        .eq('kode_proyek', activeKode)
         .ilike('jabatan', '%mandor%')
         .eq('status_aktif', true),
       supabase.from('absen_scan_wajah')
         .select('karyawan_id, tanggal, slot_id, absen_jadwal_slot(jenis)')
+        .in('karyawan_id', kIds)
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_harian')
         .select('karyawan_id, tanggal, status, jam_masuk, jam_pulang')
+        .in('karyawan_id', kIds)
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_laporan_terlewat')
         .select('karyawan_id, tanggal, slot_id, absen_jadwal_slot(jenis)')
+        .in('karyawan_id', kIds)
         .eq('status', 'APPROVED')
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_daftar_lembur')
         .select('karyawan_id, tanggal')
+        .in('karyawan_id', kIds)
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_jadwal_slot')
         .select('id, jenis, aktif')

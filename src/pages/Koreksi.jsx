@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { FileEdit, X, AlertCircle, Search } from 'lucide-react'
+import { getActiveProject } from './PilihProyek'
 
 const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
@@ -48,10 +49,32 @@ export default function Koreksi() {
   const [error, setError] = useState('')
   const [kuotaInfo, setKuotaInfo] = useState(null)
 
-  useEffect(() => { load() }, [bulan, tahun])
+  useEffect(() => {
+    load()
+    const handleStorage = () => load()
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [bulan, tahun])
 
   async function load() {
     setLoading(true)
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    // Filter karyawan by active project code
+    const { data: karyawanProyek } = await supabase
+      .from('absen_karyawan')
+      .select('id')
+      .eq('kode_proyek', activeKode)
+
+    const kIds = (karyawanProyek || []).map(k => k.id)
+    if (kIds.length === 0) {
+      setData([])
+      setMandorMap({})
+      setLoading(false)
+      return
+    }
+
     const startDate = `${tahun}-${String(bulan).padStart(2, '0')}-01`
     const endDate = bulan === 12 ? `${tahun + 1}-01-01` : `${tahun}-${String(bulan + 1).padStart(2, '0')}-01`
 
@@ -59,6 +82,7 @@ export default function Koreksi() {
       supabase
         .from('absen_harian')
         .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+        .in('karyawan_id', kIds)
         .in('status', ['TANPA_PULANG','TANPA_MASUK','HANYA_SCAN_TENGAH','INSIDEN'])
         .gte('tanggal', startDate)
         .lt('tanggal', endDate)
@@ -66,6 +90,7 @@ export default function Koreksi() {
       supabase
         .from('absen_karyawan')
         .select('id, nama')
+        .eq('kode_proyek', activeKode)
         .ilike('jabatan', '%mandor%')
         .eq('status_aktif', true),
     ])

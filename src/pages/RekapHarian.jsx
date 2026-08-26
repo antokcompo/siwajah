@@ -4,6 +4,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'dat
 import { id as localeId } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle, Search } from 'lucide-react'
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
+import { getActiveProject } from './PilihProyek'
 
 const statusColor = {
   LENGKAP: 'bg-emerald-100 text-emerald-700 font-semibold',
@@ -108,7 +109,13 @@ export default function RekapHarian() {
     loadSlots()
   }, [])
 
-  useEffect(() => { loadMonth() }, [bulan, tahun])
+  useEffect(() => {
+    loadMonth()
+    const handleStorage = () => loadMonth()
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [bulan, tahun])
+
   useEffect(() => {
     if (selectedDate) {
       loadDetail(selectedDate)
@@ -117,10 +124,13 @@ export default function RekapHarian() {
   }, [selectedDate, filter])
 
   async function loadSlots() {
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
     const { data } = await supabase
       .from('absen_jadwal_slot')
       .select('*')
       .eq('aktif', true)
+      .eq('kode_proyek', activeKode)
       .order('urutan', { ascending: true })
     setSlotMaster(data || [])
   }
@@ -143,22 +153,31 @@ export default function RekapHarian() {
 
   async function loadMonth() {
     setLoading(true)
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const kIds = (karyawanProyek || []).map(k => k.id)
+
+    if (kIds.length === 0) {
+      setData([])
+      setMandorMap({})
+      setLoading(false)
+      return
+    }
+
     const start = format(startOfMonth(currentDate), 'yyyy-MM-dd')
     const end = format(endOfMonth(currentDate), 'yyyy-MM-dd')
     const [rpcRes, mandorRes] = await Promise.all([
-      supabase.rpc('absen_list_harian_bulan', { p_start: start, p_end: end }),
-      supabase.from('absen_karyawan').select('id, nama').ilike('jabatan', '%mandor%').eq('status_aktif', true),
-    ])
-    if (rpcRes.error) {
-      const { data: fallback } = await supabase
+      supabase
         .from('absen_harian')
         .select('tanggal, status, is_insiden')
+        .in('karyawan_id', kIds)
         .gte('tanggal', start)
-        .lte('tanggal', end)
-      setData(fallback || [])
-    } else {
-      setData(rpcRes.data || [])
-    }
+        .lte('tanggal', end),
+      supabase.from('absen_karyawan').select('id, nama').eq('kode_proyek', activeKode).ilike('jabatan', '%mandor%').eq('status_aktif', true),
+    ])
+    setData(rpcRes.data || [])
     const mMap = {}
     ;(mandorRes.data || []).forEach(m => { mMap[m.id] = m.nama })
     setMandorMap(mMap)
@@ -166,18 +185,28 @@ export default function RekapHarian() {
   }
 
   async function loadDetail(date) {
-    const params = { p_tanggal: date }
-    if (filter !== 'semua') params.p_status = filter
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const kIds = (karyawanProyek || []).map(k => k.id)
+    if (kIds.length === 0) {
+      setDetail([])
+      setLaporanData([])
+      return
+    }
 
     const [rpcRes, scanRes, laporanRes] = await Promise.all([
-      supabase.rpc('absen_detail_harian', params),
+      supabase.from('absen_harian').select('*, absen_karyawan(nama, jabatan, atasan_id)').in('karyawan_id', kIds).eq('tanggal', date),
       supabase
         .from('absen_scan_wajah')
         .select('karyawan_id, slot_id, absen_jadwal_slot(jenis)')
+        .in('karyawan_id', kIds)
         .eq('tanggal', date),
       supabase
         .from('absen_laporan_terlewat')
         .select('karyawan_id, slot_id, status, absen_jadwal_slot(jenis)')
+        .in('karyawan_id', kIds)
         .eq('tanggal', date)
         .eq('status', 'APPROVED')
     ])

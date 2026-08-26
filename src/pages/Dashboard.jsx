@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
+import { getActiveProject } from './PilihProyek'
 import { 
   Users, CheckCircle, AlertTriangle, Clock, TrendingUp, 
   BarChart3, Timer, UserCheck, Hammer, MapPinOff, ExternalLink, MapPin, X,
@@ -204,11 +205,42 @@ export default function Dashboard() {
     })
   }, [offsiteScans, offsiteSearch])
 
-  useEffect(() => { loadStats() }, [bulan, tahun])
-  useEffect(() => { loadTrends() }, [tahun])
+  useEffect(() => {
+    loadStats()
+    loadTrends()
+    const handleStorage = () => {
+      loadStats()
+      loadTrends()
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [bulan, tahun])
 
   async function loadStats() {
     setLoading(true)
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    // Get active project worker IDs
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const kIds = (karyawanProyek || []).map(k => k.id)
+
+    if (kIds.length === 0) {
+      setStats({
+        total_karyawan: 0,
+        hadir_hari_ini: 0,
+        tanpa_masuk_hari_ini: 0,
+        tanpa_pulang_hari_ini: 0,
+        lembur_hari_ini: 0,
+        izin_hari_ini: 0,
+        total_gaji_bulan_ini: 0,
+        total_jam_lembur_bulan_ini: 0
+      })
+      setOffsiteScans([])
+      setLoading(false)
+      return
+    }
+
     const padBulan = String(bulan).padStart(2, '0')
     const startDate = `${tahun}-${padBulan}-01`
     const lastDay = new Date(tahun, bulan, 0).getDate()
@@ -220,6 +252,7 @@ export default function Dashboard() {
       supabase
         .from('absen_scan_wajah')
         .select('id, karyawan_id, tanggal, slot_id, waktu_scan, client_tz, gps_lat, gps_lng, lokasi_kerja, foto_url, is_mock_gps, gps_accuracy, fake_gps_score, fake_gps_reason, absen_karyawan(nama, jabatan), absen_jadwal_slot(label, jam)')
+        .in('karyawan_id', kIds)
         .gte('tanggal', startDate)
         .lte('tanggal', endDate)
         .not('gps_lat', 'is', null)
@@ -256,12 +289,27 @@ export default function Dashboard() {
   }
 
   async function loadTrends() {
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const kIds = (karyawanProyek || []).map(k => k.id)
+
+    if (kIds.length === 0) {
+      setSalaryTrend([])
+      setWorkerTrend([])
+      setAttendanceTrend([])
+      setOvertimeTrend([])
+      setWorkHoursTrend([])
+      return
+    }
+
     const startDate = `${tahun}-01-01`
     const endDate = `${tahun}-12-31`
 
     const [gajiResult, harianResult] = await Promise.all([
-      supabase.from('absen_gaji_bulanan').select('bulan, total_gaji').eq('tahun', tahun),
-      supabase.from('absen_harian').select('tanggal, karyawan_id, jam_masuk, jam_pulang, jam_lembur').gte('tanggal', startDate).lte('tanggal', endDate).limit(50000),
+      supabase.from('absen_gaji_bulanan').select('bulan, total_gaji').in('karyawan_id', kIds).eq('tahun', tahun),
+      supabase.from('absen_harian').select('tanggal, karyawan_id, jam_masuk, jam_pulang, jam_lembur').in('karyawan_id', kIds).gte('tanggal', startDate).lte('tanggal', endDate).limit(50000),
     ])
 
     const gajiData = gajiResult.data || []

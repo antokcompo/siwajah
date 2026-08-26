@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
 import { Check, X, Clock, Search, Plus, Trash2, Users, ClipboardCheck, CalendarPlus, CheckCircle, XCircle, AlertTriangle, Calendar, Filter, Activity, ClipboardList, CheckCircle2 } from 'lucide-react'
+import { getActiveProject } from './PilihProyek'
 
 const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
@@ -85,13 +86,31 @@ function DaftarLemburTab() {
   const [processing, setProcessing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
 
-  useEffect(() => { loadDaftar() }, [viewMode, tanggal, bulan, tahun])
+  useEffect(() => {
+    loadDaftar()
+    const handleStorage = () => loadDaftar()
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [viewMode, tanggal, bulan, tahun])
 
   async function loadDaftar() {
     setLoading(true)
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const kIds = (karyawanProyek || []).map(k => k.id)
+
+    if (kIds.length === 0) {
+      setDaftar([])
+      setLoading(false)
+      return
+    }
+
     let q = supabase
       .from('absen_daftar_lembur')
       .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+      .in('karyawan_id', kIds)
       .order('tanggal', { ascending: false })
       .order('created_at', { ascending: true })
 
@@ -109,9 +128,12 @@ function DaftarLemburTab() {
   }
 
   async function openAddModal() {
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
     const { data } = await supabase
       .from('absen_karyawan')
       .select('id, nama, jabatan')
+      .eq('kode_proyek', activeKode)
       .eq('status_aktif', true)
       .order('nama')
     setAllKaryawan(data || [])

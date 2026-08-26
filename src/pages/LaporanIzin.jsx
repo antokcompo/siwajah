@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { FileWarning, CalendarDays, CheckCircle, XCircle, X, Image as ImageIcon, Edit3, Eye, MapPin, ExternalLink } from 'lucide-react'
+import { getActiveProject } from './PilihProyek'
 
 const tabConfig = [
   { key: 'laporan', label: 'Laporan Terlewat', icon: FileWarning },
@@ -37,14 +38,33 @@ export default function LaporanIzin() {
   const [processing, setProcessing] = useState(false)
   const [zoomPhoto, setZoomPhoto] = useState(null)
 
-  useEffect(() => { load() }, [tab, filter])
+  useEffect(() => {
+    load()
+    const handleStorage = () => load()
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [tab, filter])
 
   async function load() {
     setLoading(true)
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const kIds = (karyawanProyek || []).map(k => k.id)
+
+    if (kIds.length === 0) {
+      if (tab === 'laporan') setLaporan([])
+      else setIzin([])
+      setLoading(false)
+      return
+    }
+
     if (tab === 'laporan') {
       let q = supabase
         .from('absen_laporan_terlewat')
         .select('*, absen_karyawan(nama, jabatan, atasan_id), absen_jadwal_slot(label, jam, jenis)')
+        .in('karyawan_id', kIds)
         .order('created_at', { ascending: false })
         .limit(50)
       if (filter !== 'ALL') q = q.eq('status', filter)
@@ -54,6 +74,7 @@ export default function LaporanIzin() {
       let q = supabase
         .from('absen_izin')
         .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+        .in('karyawan_id', kIds)
         .order('created_at', { ascending: false })
         .limit(50)
       if (filter === 'PENDING') {
