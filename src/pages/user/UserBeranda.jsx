@@ -131,18 +131,24 @@ export default function UserBeranda() {
 
   function getSlotStatus(slot) {
     if (todayIzin) return 'on_leave'
-    if (isTodayHoliday && !lemburRegistered) return 'holiday'
-    if (isLemburSlot(slot) && !lemburRegistered) return 'not_registered'
+    if (isTodayHoliday && !lemburRegistered && !hasScannedLembur) return 'holiday'
 
-    const isPulangLembur = slot.jenis === 'pulang_lembur' || slot.id === 'dynamic-pulang-lembur' || (slot.label || '').toLowerCase().includes('pulang lembur')
+    const isPulangLembur = slot.jenis === 'pulang_lembur' || String(slot.id) === 'dynamic-pulang-lembur' || (slot.label || '').toLowerCase().includes('pulang lembur')
+
+    if (isLemburSlot(slot) && !lemburRegistered && !hasScannedLembur && !isPulangLembur) return 'not_registered'
 
     const scan = todayScans.find(s =>
-      s.slot_id === slot.id ||
-      (isPulangLembur && (s.absen_jadwal_slot?.jenis === 'pulang_lembur' || (s.slot_label || '').toLowerCase().includes('pulang lembur') || (s.keterangan || '').toLowerCase().includes('pulang lembur')))
+      String(s.slot_id) === String(slot.id) ||
+      (isPulangLembur && (
+        s.absen_jadwal_slot?.jenis === 'pulang_lembur' ||
+        (s.slot_label || '').toLowerCase().includes('pulang lembur') ||
+        (s.keterangan || '').toLowerCase().includes('pulang lembur') ||
+        (s.lokasi_kerja || '').toLowerCase().includes('pulang lembur')
+      ))
     )
     if (scan) return 'done'
 
-    const laporan = todayLaporan.find(l => l.slot_id === slot.id)
+    const laporan = todayLaporan.find(l => String(l.slot_id) === String(slot.id))
     if (laporan) {
       if (laporan.status === 'PENDING') return 'pending_laporan'
       if (laporan.status === 'APPROVED') return 'done'
@@ -159,9 +165,9 @@ export default function UserBeranda() {
     slotTime.setHours(h, m, 0, 0)
 
     const windowStart = new Date(slotTime)
-    windowStart.setMinutes(windowStart.getMinutes() - slot.toleransi_menit)
+    windowStart.setMinutes(windowStart.getMinutes() - (slot.toleransi_menit || 30))
     const windowEnd = new Date(slotTime)
-    windowEnd.setMinutes(windowEnd.getMinutes() + slot.toleransi_menit)
+    windowEnd.setMinutes(windowEnd.getMinutes() + (slot.toleransi_menit || 30))
 
     if (now >= windowStart && now <= windowEnd) return 'active'
     if (now > windowEnd) return 'missed'
@@ -258,17 +264,20 @@ export default function UserBeranda() {
 
   const hasScannedLembur = todayScans.some(s => {
     if (!s) return false
-    const slotObj = slots.find(item => item.id === s.slot_id) || s.absen_jadwal_slot
+    const slotObj = slots.find(item => String(item.id) === String(s.slot_id)) || s.absen_jadwal_slot
     const jenis = (slotObj?.jenis || '').toLowerCase()
     const label = (slotObj?.label || '').toLowerCase()
     const ket = (s.keterangan || '').toLowerCase()
     const sLabel = (s.slot_label || '').toLowerCase()
+    const lokasi = (s.lokasi_kerja || '').toLowerCase()
+
     return (
       jenis === 'lembur' ||
       (label.includes('lembur') && !label.includes('pulang')) ||
       (ket.includes('lembur') && !ket.includes('pulang')) ||
       (sLabel.includes('lembur') && !sLabel.includes('pulang')) ||
-      s.slot_id === 'dynamic-pulang-lembur'
+      (lokasi.includes('lembur') && !lokasi.includes('pulang')) ||
+      String(s.slot_id) === 'dynamic-pulang-lembur'
     )
   })
 
