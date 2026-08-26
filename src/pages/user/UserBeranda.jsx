@@ -134,7 +134,12 @@ export default function UserBeranda() {
     if (isTodayHoliday && !lemburRegistered) return 'holiday'
     if (isLemburSlot(slot) && !lemburRegistered) return 'not_registered'
 
-    const scan = todayScans.find(s => s.slot_id === slot.id)
+    const isPulangLembur = slot.jenis === 'pulang_lembur' || slot.id === 'dynamic-pulang-lembur' || (slot.label || '').toLowerCase().includes('pulang lembur')
+
+    const scan = todayScans.find(s =>
+      s.slot_id === slot.id ||
+      (isPulangLembur && (s.absen_jadwal_slot?.jenis === 'pulang_lembur' || (s.slot_label || '').toLowerCase().includes('pulang lembur') || (s.keterangan || '').toLowerCase().includes('pulang lembur')))
+    )
     if (scan) return 'done'
 
     const laporan = todayLaporan.find(l => l.slot_id === slot.id)
@@ -143,24 +148,20 @@ export default function UserBeranda() {
       if (laporan.status === 'APPROVED') return 'done'
     }
 
+    if (isPulangLembur) {
+      return 'active'
+    }
+
+    if (!slot.jam) return 'active'
     const todayStr = getLocalDateString(now)
     const [h, m] = slot.jam.split(':').map(Number)
     const slotTime = new Date(now)
     slotTime.setHours(h, m, 0, 0)
 
-    let windowStart, windowEnd
-
-    if (slot.jenis === 'pulang_lembur') {
-      windowStart = new Date(slotTime)
-      windowStart.setHours(windowStart.getHours() - 6)
-      windowEnd = new Date(slotTime)
-      windowEnd.setMinutes(windowEnd.getMinutes() + (slot.toleransi_menit || 30))
-    } else {
-      windowStart = new Date(slotTime)
-      windowStart.setMinutes(windowStart.getMinutes() - slot.toleransi_menit)
-      windowEnd = new Date(slotTime)
-      windowEnd.setMinutes(windowEnd.getMinutes() + slot.toleransi_menit)
-    }
+    const windowStart = new Date(slotTime)
+    windowStart.setMinutes(windowStart.getMinutes() - slot.toleransi_menit)
+    const windowEnd = new Date(slotTime)
+    windowEnd.setMinutes(windowEnd.getMinutes() + slot.toleransi_menit)
 
     if (now >= windowStart && now <= windowEnd) return 'active'
     if (now > windowEnd) return 'missed'
@@ -256,10 +257,19 @@ export default function UserBeranda() {
   }
 
   const hasScannedLembur = todayScans.some(s => {
+    if (!s) return false
     const slotObj = slots.find(item => item.id === s.slot_id) || s.absen_jadwal_slot
     const jenis = (slotObj?.jenis || '').toLowerCase()
     const label = (slotObj?.label || '').toLowerCase()
-    return jenis === 'lembur' || (label.includes('lembur') && !jenis.includes('pulang') && !label.includes('pulang'))
+    const ket = (s.keterangan || '').toLowerCase()
+    const sLabel = (s.slot_label || '').toLowerCase()
+    return (
+      jenis === 'lembur' ||
+      (label.includes('lembur') && !label.includes('pulang')) ||
+      (ket.includes('lembur') && !ket.includes('pulang')) ||
+      (sLabel.includes('lembur') && !sLabel.includes('pulang')) ||
+      s.slot_id === 'dynamic-pulang-lembur'
+    )
   })
 
   // Filter base slots: remove static 12:00 & 23:00 slots
@@ -275,14 +285,14 @@ export default function UserBeranda() {
   let displaySlots = []
   if (hasScannedLembur) {
     if (dbPulangLemburSlot) {
-      displaySlots = baseSlots
+      displaySlots = baseSlots.map(s => (s.jenis === 'pulang_lembur' ? { ...s, jam: '' } : s))
     } else {
       const dynamicPulangLembur = {
         id: 'dynamic-pulang-lembur',
-        jam: '22:00',
+        jam: '',
         label: 'Pulang Lembur',
         jenis: 'pulang_lembur',
-        toleransi_menit: 180,
+        toleransi_menit: 0,
         wajib: false,
       }
       displaySlots = [
@@ -426,8 +436,12 @@ export default function UserBeranda() {
             : 'bg-slate-900/90 border border-slate-800 shadow-lg'
         }`}>
           <p className="text-xs text-emerald-300 uppercase tracking-wider font-black">Absen Berikutnya</p>
-          <p className="text-4xl font-black text-emerald-400 mt-1 tracking-tight">{nextSlot.jam.slice(0, 5)}</p>
-          <p className="text-xs text-slate-200 mt-1 font-bold">{nextSlot.label} &bull; Toleransi ±{nextSlot.toleransi_menit} menit</p>
+          <p className="text-3xl font-black text-emerald-400 mt-1 tracking-tight">
+            {nextSlot.jenis === 'pulang_lembur' || !nextSlot.jam ? nextSlot.label : nextSlot.jam.slice(0, 5)}
+          </p>
+          <p className="text-xs text-slate-200 mt-1 font-bold">
+            {nextSlot.jenis === 'pulang_lembur' || !nextSlot.jam ? 'Jam terecord setelah absen pulang lembur' : `${nextSlot.label} • Toleransi ±${nextSlot.toleransi_menit} menit`}
+          </p>
 
           {getSlotStatus(nextSlot) === 'active' ? (
             <button
@@ -439,7 +453,7 @@ export default function UserBeranda() {
           ) : (
             <div className="mt-4 flex items-center justify-center gap-2 text-slate-300 font-bold text-sm">
               <Clock size={16} className="text-emerald-400" />
-              <span>Buka pukul {nextSlot.jam.slice(0, 5)}</span>
+              <span>{nextSlot.jam ? `Buka pukul ${nextSlot.jam.slice(0, 5)}` : 'Pulang Lembur'}</span>
             </div>
           )}
         </div>
@@ -498,11 +512,17 @@ export default function UserBeranda() {
         <div className="space-y-2">
           {displaySlots.map(slot => {
             const st = getSlotStatus(slot)
-            const scan = todayScans.find(s => s.slot_id === slot.id)
+            const isPulangLembur = slot.jenis === 'pulang_lembur' || slot.id === 'dynamic-pulang-lembur' || (slot.label || '').toLowerCase().includes('pulang lembur')
+            const scan = todayScans.find(s =>
+              s.slot_id === slot.id ||
+              (isPulangLembur && (s.absen_jadwal_slot?.jenis === 'pulang_lembur' || (s.slot_label || '').toLowerCase().includes('pulang lembur') || (s.keterangan || '').toLowerCase().includes('pulang lembur')))
+            )
             const approvedLaporan = todayLaporan.find(l => l.slot_id === slot.id && l.status === 'APPROVED')
             const scanTime = scan?.waktu_scan
               ? new Date(scan.waktu_scan).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
               : (approvedLaporan ? 'Lapor Disetujui' : null)
+
+            const displayJamLabel = isPulangLembur ? 'Pulang Lembur' : slot.jam?.slice(0, 5)
 
             return (
               <div
@@ -540,13 +560,13 @@ export default function UserBeranda() {
                   'bg-slate-600'
                 }`} />
 
-                {/* Time */}
-                <span className={`text-sm font-black w-14 ${
+                {/* Time or Label */}
+                <span className={`text-sm font-black ${isPulangLembur ? 'w-32 text-emerald-300' : 'w-14 text-white'} ${
                   st === 'active' ? 'text-emerald-300' :
                   st === 'pending_laporan' ? 'text-amber-300' :
                   st === 'missed' ? 'text-rose-400' :
                   'text-white'
-                }`}>{slot.jam.slice(0, 5)}</span>
+                }`}>{displayJamLabel}</span>
 
                 {/* Status Content */}
                 <div className="flex-1 min-w-0 font-sans">
