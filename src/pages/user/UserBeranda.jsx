@@ -287,14 +287,15 @@ export default function UserBeranda() {
     return true
   })
 
-  const dbPulangLemburSlot = slots.find(s =>
+  // Find if a valid Pulang Lembur slot exists inside baseSlots (not filtered out)
+  const validPulangLemburInBase = baseSlots.find(s =>
     s.jenis === 'pulang_lembur' || (s.label || '').toLowerCase().includes('pulang lembur')
   )
 
   let displaySlots = []
   if (hasScannedLembur) {
-    if (dbPulangLemburSlot) {
-      displaySlots = baseSlots.map(s => (s.jenis === 'pulang_lembur' ? { ...s, jam: '' } : s))
+    if (validPulangLemburInBase) {
+      displaySlots = baseSlots.map(s => (s.id === validPulangLemburInBase.id ? { ...s, jam: '' } : s))
     } else {
       const dynamicPulangLembur = {
         id: 'dynamic-pulang-lembur',
