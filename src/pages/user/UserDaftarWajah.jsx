@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { loadModels, detectFace } from '../../lib/faceApi'
+import { loadModels, detectFace, withTimeout } from '../../lib/faceApi'
 import { Camera, CheckCircle, AlertTriangle, RotateCcw, User, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Check } from 'lucide-react'
 
 const STEP_ICONS = [User, ArrowLeft, ArrowRight, ArrowUp, ArrowDown]
@@ -107,10 +107,11 @@ export default function UserDaftarWajah() {
       // Save average vector + all 5 individual angle vectors for 100% multi-angle coverage
       const multiDescriptors = [avgDescriptor, ...descs]
 
-      const { data, error: rpcError } = await supabase.rpc('absen_simpan_face_data', {
+      const savePromise = supabase.rpc('absen_simpan_face_data', {
         p_karyawan_id: karyawan.id,
         p_descriptor: multiDescriptors,
       })
+      const { data, error: rpcError } = await withTimeout(savePromise, 10000, 'Koneksi lambat saat menyimpan data wajah. Silakan coba lagi.')
       if (rpcError) throw rpcError
       setStatus('saved')
     } catch (err) {

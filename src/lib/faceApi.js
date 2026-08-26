@@ -1,43 +1,75 @@
 import * as faceapi from 'face-api.js'
 
 let modelsLoaded = false
+let modelsPromise = null
+
+export function withTimeout(promise, ms, errorMessage = 'Waktu operasi habis') {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(errorMessage))
+    }, ms)
+    promise
+      .then(res => { clearTimeout(timer); resolve(res) })
+      .catch(err => { clearTimeout(timer); reject(err) })
+  })
+}
 
 export async function loadModels() {
   if (modelsLoaded) return
-  await Promise.all([
-    faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
-    faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-    faceapi.nets.faceLandmark68TinyNet.loadFromUri('/models'),
-    faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
-  ])
-  modelsLoaded = true
+  if (modelsPromise) return modelsPromise
+
+  modelsPromise = withTimeout(
+    Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+      faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri('/models'),
+      faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
+    ]),
+    12000,
+    'Gagal memuat model AI (waktu koneksi habis). Silakan coba lagi.'
+  ).then(() => {
+    modelsLoaded = true
+  }).catch(err => {
+    modelsPromise = null
+    throw err
+  })
+
+  return modelsPromise
 }
 
 export async function detectFace(videoEl) {
   if (!modelsLoaded) await loadModels()
 
-  // 1. Primary detection: SsdMobilenetv1 with lowered confidence threshold (0.22)
-  // High tolerance for beard, glasses, tilt angles, and varied lighting
+  const runDetection = async () => {
+    // 1. Primary detection: SsdMobilenetv1 with lowered confidence threshold (0.22)
+    try {
+      const detection = await faceapi
+        .detectSingleFace(videoEl, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.22 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptor()
+
+      if (detection) return detection
+    } catch (_e) {}
+
+    // 2. Secondary fallback: TinyFaceDetector with inputSize 512 for extreme pitch angles (Tengadah / Menunduk)
+    try {
+      const detection = await faceapi
+        .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.18 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptor()
+
+      if (detection) return detection
+    } catch (_e) {}
+
+    return null
+  }
+
   try {
-    const detection = await faceapi
-      .detectSingleFace(videoEl, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.22 }))
-      .withFaceLandmarks(true)
-      .withFaceDescriptor()
-
-    if (detection) return detection
-  } catch (_e) {}
-
-  // 2. Secondary fallback: TinyFaceDetector with inputSize 512 for extreme pitch angles (Tengadah / Menunduk)
-  try {
-    const detection = await faceapi
-      .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.18 }))
-      .withFaceLandmarks(true)
-      .withFaceDescriptor()
-
-    if (detection) return detection
-  } catch (_e) {}
-
-  return null
+    return await withTimeout(runDetection(), 8000, 'Deteksi wajah terlalu lama.')
+  } catch (err) {
+    console.warn('detectFace warning/timeout:', err)
+    return null
+  }
 }
 
 export function compareFaces(descriptor1, descriptor2) {

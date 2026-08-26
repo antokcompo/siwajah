@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { loadModels, detectFace, findBestMatch, getConfidenceLevel } from '../../lib/faceApi'
+import { loadModels, detectFace, findBestMatch, getConfidenceLevel, withTimeout } from '../../lib/faceApi'
 import { CheckCircle, AlertTriangle, Camera, MapPin, MapPinOff, WifiOff, ShieldAlert } from 'lucide-react'
 import { savePendingScan, cacheFaceData, getCachedFaceData } from '../../lib/offlineQueue'
 import { compressImage } from '../../lib/imageCompressor'
@@ -133,10 +133,16 @@ export default function UserScan() {
 
       let faces = null
       if (navigator.onLine) {
-        const { data } = await supabase.rpc('absen_get_all_face_data')
-        faces = data
-        if (faces && faces.length > 0) {
-          try { await cacheFaceData(faces) } catch {}
+        try {
+          const fetchPromise = supabase.rpc('absen_get_all_face_data')
+          const { data } = await withTimeout(fetchPromise, 6000, 'Timeout fetch face data')
+          faces = data
+          if (faces && faces.length > 0) {
+            try { await cacheFaceData(faces) } catch {}
+          }
+        } catch (_err) {
+          console.warn('Online face fetch failed or timed out, using offline cache:', _err)
+          try { faces = await getCachedFaceData() } catch {}
         }
       } else {
         try { faces = await getCachedFaceData() } catch {}
@@ -221,52 +227,57 @@ export default function UserScan() {
     }
 
     try {
-      let fotoUrl = null
-      if (fotoBlob) {
-        let uploadBlob = fotoBlob
-        try {
-          const comp = await compressImage(fotoBlob, { maxWidth: 600, maxHeight: 600, quality: 0.7 })
-          uploadBlob = comp.blob
-        } catch (err) {
-          console.warn('Scan photo compress failed, using original blob:', err)
+      const submitPromise = (async () => {
+        let fotoUrl = null
+        if (fotoBlob) {
+          let uploadBlob = fotoBlob
+          try {
+            const comp = await compressImage(fotoBlob, { maxWidth: 600, maxHeight: 600, quality: 0.7 })
+            uploadBlob = comp.blob
+          } catch (err) {
+            console.warn('Scan photo compress failed, using original blob:', err)
+          }
+
+          const filePath = `${karyawan.id}/${Date.now()}.jpg`
+          const { error: uploadError } = await supabase.storage
+            .from('scan-photos')
+            .upload(filePath, uploadBlob, { contentType: 'image/jpeg', upsert: false })
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(filePath)
+            fotoUrl = urlData.publicUrl
+          }
         }
 
-        const filePath = `${karyawan.id}/${Date.now()}.jpg`
-        const { error: uploadError } = await supabase.storage
-          .from('scan-photos')
-          .upload(filePath, uploadBlob, { contentType: 'image/jpeg', upsert: false })
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('scan-photos').getPublicUrl(filePath)
-          fotoUrl = urlData.publicUrl
-        }
-      }
+        const { data, error: rpcError } = await supabase.rpc('absen_catat_scan_wajah', {
+          p_karyawan_id: karyawan.id,
+          p_slot_id: slot.id,
+          p_lokasi_kerja: lokasi || null,
+          p_jenis_pekerjaan: pekerjaan || null,
+          p_keterangan: keterangan || null,
+          p_foto_url: fotoUrl,
+          p_gps_lat: gps?.lat || null,
+          p_gps_lng: gps?.lng || null,
+          p_confidence: confidence,
+          p_client_tz: getUserTz(),
+          p_is_mock_gps: gps?.isMock || false,
+          p_gps_accuracy: gps?.accuracy || null,
+          p_fake_gps_score: gps?.fakeGpsScore || 0,
+          p_fake_gps_reason: gps?.reasons ? gps.reasons.join(', ') : null,
+        })
+        if (rpcError) throw rpcError
+        if (data?.error) throw new Error(data.error)
+        return data
+      })()
 
-      const { data, error: rpcError } = await supabase.rpc('absen_catat_scan_wajah', {
-        p_karyawan_id: karyawan.id,
-        p_slot_id: slot.id,
-        p_lokasi_kerja: lokasi || null,
-        p_jenis_pekerjaan: pekerjaan || null,
-        p_keterangan: keterangan || null,
-        p_foto_url: fotoUrl,
-        p_gps_lat: gps?.lat || null,
-        p_gps_lng: gps?.lng || null,
-        p_confidence: confidence,
-        p_client_tz: getUserTz(),
-        p_is_mock_gps: gps?.isMock || false,
-        p_gps_accuracy: gps?.accuracy || null,
-        p_fake_gps_score: gps?.fakeGpsScore || 0,
-        p_fake_gps_reason: gps?.reasons ? gps.reasons.join(', ') : null,
-      })
-      if (rpcError) throw rpcError
-      if (data.error) throw new Error(data.error)
-
+      const data = await withTimeout(submitPromise, 8000, 'Koneksi lambat saat mengirim data presensi.')
       setResult(data)
       setPhase('success')
     } catch (err) {
+      console.warn('Online submission failed or timed out, saving offline:', err)
       try {
         await saveOffline()
       } catch (offlineErr) {
-        setError(err.message)
+        setError('Gagal mencatat presensi: ' + (err.message || offlineErr.message))
       }
     } finally {
       setSubmitting(false)
