@@ -5,7 +5,7 @@ ALTER TABLE absen_karyawan ADD COLUMN IF NOT EXISTS kode_proyek TEXT DEFAULT '52
 ALTER TABLE absen_harian ADD COLUMN IF NOT EXISTS kode_proyek TEXT DEFAULT '524006';
 ALTER TABLE absen_scan_wajah ADD COLUMN IF NOT EXISTS kode_proyek TEXT DEFAULT '524006';
 ALTER TABLE absen_jadwal_slot ADD COLUMN IF NOT EXISTS kode_proyek TEXT DEFAULT '524006';
-ALTER TABLE absen_kalender_kerja ADD COLUMN IF NOT EXISTS kode_proyek TEXT DEFAULT '524006';
+ALTER TABLE absen_kalender ADD COLUMN IF NOT EXISTS kode_proyek TEXT DEFAULT '524006';
 ALTER TABLE absen_laporan_terlewat ADD COLUMN IF NOT EXISTS kode_proyek TEXT DEFAULT '524006';
 ALTER TABLE absen_izin ADD COLUMN IF NOT EXISTS kode_proyek TEXT DEFAULT '524006';
 
@@ -14,7 +14,7 @@ UPDATE absen_karyawan SET kode_proyek = '524006' WHERE kode_proyek IS NULL;
 UPDATE absen_harian SET kode_proyek = '524006' WHERE kode_proyek IS NULL;
 UPDATE absen_scan_wajah SET kode_proyek = '524006' WHERE kode_proyek IS NULL;
 UPDATE absen_jadwal_slot SET kode_proyek = '524006' WHERE kode_proyek IS NULL;
-UPDATE absen_kalender_kerja SET kode_proyek = '524006' WHERE kode_proyek IS NULL;
+UPDATE absen_kalender SET kode_proyek = '524006' WHERE kode_proyek IS NULL;
 UPDATE absen_laporan_terlewat SET kode_proyek = '524006' WHERE kode_proyek IS NULL;
 UPDATE absen_izin SET kode_proyek = '524006' WHERE kode_proyek IS NULL;
 
@@ -23,7 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_karyawan_kode_proyek ON absen_karyawan (kode_proy
 CREATE INDEX IF NOT EXISTS idx_harian_kode_proyek ON absen_harian (kode_proyek);
 CREATE INDEX IF NOT EXISTS idx_scan_wajah_kode_proyek ON absen_scan_wajah (kode_proyek);
 CREATE INDEX IF NOT EXISTS idx_jadwal_slot_kode_proyek ON absen_jadwal_slot (kode_proyek);
-CREATE INDEX IF NOT EXISTS idx_kalender_kode_proyek ON absen_kalender_kerja (kode_proyek);
+CREATE INDEX IF NOT EXISTS idx_kalender_kode_proyek ON absen_kalender (kode_proyek);
 CREATE INDEX IF NOT EXISTS idx_laporan_terlewat_kode_proyek ON absen_laporan_terlewat (kode_proyek);
 CREATE INDEX IF NOT EXISTS idx_izin_kode_proyek ON absen_izin (kode_proyek);
 
