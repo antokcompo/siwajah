@@ -248,9 +248,17 @@ export default function UserScan() {
           }
         }
 
+        let targetSlotId = slot.id
+        if (targetSlotId === 'dynamic-pulang-lembur') {
+          try {
+            const { data: dbSlot } = await supabase.from('absen_jadwal_slot').select('id').or('jenis.eq.pulang_lembur,label.ilike.%pulang lembur%').maybeSingle()
+            if (dbSlot?.id) targetSlotId = dbSlot.id
+          } catch (e) {}
+        }
+
         const { data, error: rpcError } = await supabase.rpc('absen_catat_scan_wajah', {
           p_karyawan_id: karyawan.id,
-          p_slot_id: slot.id,
+          p_slot_id: targetSlotId,
           p_lokasi_kerja: lokasi || null,
           p_jenis_pekerjaan: pekerjaan || null,
           p_keterangan: keterangan || null,

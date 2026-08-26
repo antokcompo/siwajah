@@ -256,20 +256,45 @@ export default function UserBeranda() {
   }
 
   const hasScannedLembur = todayScans.some(s => {
-    const slotObj = slots.find(item => item.id === s.slot_id)
-    return slotObj?.jenis === 'lembur' || (slotObj?.label || '').toLowerCase().includes('masuk lembur') || (slotObj?.label || '').toLowerCase() === 'lembur'
+    const slotObj = slots.find(item => item.id === s.slot_id) || s.absen_jadwal_slot
+    const jenis = (slotObj?.jenis || '').toLowerCase()
+    const label = (slotObj?.label || '').toLowerCase()
+    return jenis === 'lembur' || (label.includes('lembur') && !jenis.includes('pulang') && !label.includes('pulang'))
   })
 
-  const displaySlots = slots.filter(slot => {
-    // 1. Exclude 12:00 and 23:00 static slots
+  // Filter base slots: remove static 12:00 & 23:00 slots
+  const baseSlots = slots.filter(slot => {
     if (slot.jam?.startsWith('12:00') || slot.jam?.startsWith('23:00')) return false
-
-    // 2. Dynamic Pulang Lembur: Only show IF worker has completed their Lembur (clock-in) scan!
-    if (slot.jenis === 'pulang_lembur' || (slot.label || '').toLowerCase().includes('pulang lembur')) {
-      return hasScannedLembur
-    }
     return true
   })
+
+  const dbPulangLemburSlot = slots.find(s =>
+    s.jenis === 'pulang_lembur' || (s.label || '').toLowerCase().includes('pulang lembur')
+  )
+
+  let displaySlots = []
+  if (hasScannedLembur) {
+    if (dbPulangLemburSlot) {
+      displaySlots = baseSlots
+    } else {
+      const dynamicPulangLembur = {
+        id: 'dynamic-pulang-lembur',
+        jam: '22:00',
+        label: 'Pulang Lembur',
+        jenis: 'pulang_lembur',
+        toleransi_menit: 180,
+        wajib: false,
+      }
+      displaySlots = [
+        ...baseSlots.filter(s => !(s.jenis === 'pulang_lembur' || (s.label || '').toLowerCase().includes('pulang lembur'))),
+        dynamicPulangLembur
+      ]
+    }
+  } else {
+    displaySlots = baseSlots.filter(s =>
+      !(s.jenis === 'pulang_lembur' || (s.label || '').toLowerCase().includes('pulang lembur'))
+    )
+  }
 
   const nextSlot = displaySlots.find(s => getSlotStatus(s) === 'active')
     || displaySlots.find(s => getSlotStatus(s) === 'upcoming' && !(isLemburSlot(s) && !lemburRegistered))
