@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Building2, MapPin, Users, ArrowRight, Search, Sparkles, Layers, ShieldCheck, CheckCircle2, Clock } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 export const DEFAULT_PROJECTS = [
   {
@@ -43,6 +44,7 @@ export default function PilihProyek() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState(null)
+  const [projectsList, setProjectsList] = useState(DEFAULT_PROJECTS)
 
   const activeProject = getActiveProject()
 
@@ -51,9 +53,35 @@ export default function PilihProyek() {
     if (activeProject) {
       setSelectedId(activeProject.id)
     }
+
+    async function fetchProyek() {
+      try {
+        const { data: dbData } = await supabase.from('absen_proyek').select('*').order('created_at', { ascending: true })
+        if (dbData && dbData.length > 0) {
+          const formatted = dbData.map(p => ({
+            id: `prj-${p.kode_proyek}`,
+            kode: p.kode_proyek,
+            nama: p.nama_proyek,
+            nama_singkat: p.nama_singkat || p.nama_proyek,
+            lokasi: p.lokasi || 'Site Proyek',
+            zona_waktu: p.zona_waktu || 'Asia/Jayapura',
+            tz_label: p.tz_label || (p.zona_waktu === 'Asia/Jakarta' ? 'WIB (UTC+7)' : p.zona_waktu === 'Asia/Makassar' ? 'WITA (UTC+8)' : 'WIT (UTC+9)'),
+            status: p.status || 'AKTIF',
+            total_karyawan: p.total_karyawan || 100,
+            deskripsi: p.deskripsi || `Proyek Aktif Kode ${p.kode_proyek}`,
+            is_default: p.kode_proyek === '524006'
+          }))
+          setProjectsList(formatted)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch projects from DB:', err)
+      }
+    }
+
+    fetchProyek()
   }, [])
 
-  const filteredProjects = DEFAULT_PROJECTS.filter(p =>
+  const filteredProjects = projectsList.filter(p =>
     p.nama.toLowerCase().includes(search.toLowerCase()) ||
     p.kode.toLowerCase().includes(search.toLowerCase()) ||
     p.lokasi.toLowerCase().includes(search.toLowerCase())

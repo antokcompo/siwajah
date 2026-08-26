@@ -37,7 +37,129 @@ export default function MasterKaryawan() {
   const [importResult, setImportResult] = useState(null)
   const [importError, setImportError] = useState('')
 
+  const [showProyekModal, setShowProyekModal] = useState(false)
+  const [proyekList, setProyekList] = useState([])
+  const [loadingProyek, setLoadingProyek] = useState(false)
+  const [savingProyek, setSavingProyek] = useState(false)
+  const [proyekError, setProyekError] = useState('')
+  const [proyekSuccess, setProyekSuccess] = useState('')
+
+  const [proyekForm, setProyekForm] = useState({
+    kode_proyek: '',
+    nama_proyek: '',
+    nama_singkat: '',
+    lokasi: '',
+    zona_waktu: 'Asia/Jayapura',
+    tz_label: 'WIT (UTC+9)',
+    status: 'AKTIF',
+    deskripsi: ''
+  })
+  const [editingProyekKode, setEditingProyekKode] = useState(null)
+
   useEffect(() => { load() }, [])
+
+  async function loadProyekList() {
+    setLoadingProyek(true)
+    try {
+      const { data: resData, error: err } = await supabase.from('absen_proyek').select('*').order('created_at', { ascending: true })
+      if (!err && resData && resData.length > 0) {
+        setProyekList(resData)
+      } else {
+        setProyekList([
+          {
+            kode_proyek: '524006',
+            nama_proyek: 'Proyek Portsite Accommodation Complex (524006)',
+            nama_singkat: 'Portsite Accommodation Complex',
+            lokasi: 'Portsite, Papua',
+            zona_waktu: 'Asia/Jayapura',
+            tz_label: 'WIT (UTC+9)',
+            status: 'AKTIF',
+            deskripsi: 'Proyek Utama Portsite Accommodation Complex (524006).'
+          }
+        ])
+      }
+    } catch {
+    } finally {
+      setLoadingProyek(false)
+    }
+  }
+
+  function openAddProyek() {
+    setEditingProyekKode(null)
+    setProyekForm({
+      kode_proyek: '',
+      nama_proyek: '',
+      nama_singkat: '',
+      lokasi: '',
+      zona_waktu: 'Asia/Jayapura',
+      tz_label: 'WIT (UTC+9)',
+      status: 'AKTIF',
+      deskripsi: ''
+    })
+    setProyekError('')
+    setProyekSuccess('')
+  }
+
+  function openEditProyek(p) {
+    setEditingProyekKode(p.kode_proyek)
+    setProyekForm({
+      kode_proyek: p.kode_proyek,
+      nama_proyek: p.nama_proyek || '',
+      nama_singkat: p.nama_singkat || '',
+      lokasi: p.lokasi || '',
+      zona_waktu: p.zona_waktu || 'Asia/Jayapura',
+      tz_label: p.tz_label || (p.zona_waktu === 'Asia/Jakarta' ? 'WIB (UTC+7)' : p.zona_waktu === 'Asia/Makassar' ? 'WITA (UTC+8)' : 'WIT (UTC+9)'),
+      status: p.status || 'AKTIF',
+      deskripsi: p.deskripsi || ''
+    })
+    setProyekError('')
+    setProyekSuccess('')
+  }
+
+  async function handleSaveProyek(e) {
+    e.preventDefault()
+    if (!proyekForm.kode_proyek.trim()) {
+      setProyekError('Kode Proyek (Primary Key) wajib diisi.')
+      return
+    }
+    if (!proyekForm.nama_proyek.trim()) {
+      setProyekError('Nama Proyek wajib diisi.')
+      return
+    }
+
+    setSavingProyek(true)
+    setProyekError('')
+
+    let tzLabel = 'WIT (UTC+9)'
+    if (proyekForm.zona_waktu === 'Asia/Jakarta') tzLabel = 'WIB (UTC+7)'
+    if (proyekForm.zona_waktu === 'Asia/Makassar') tzLabel = 'WITA (UTC+8)'
+
+    try {
+      const payload = {
+        p_kode_proyek: proyekForm.kode_proyek.trim(),
+        p_nama_proyek: proyekForm.nama_proyek.trim(),
+        p_nama_singkat: proyekForm.nama_singkat.trim() || proyekForm.nama_proyek.trim(),
+        p_lokasi: proyekForm.lokasi.trim() || null,
+        p_zona_waktu: proyekForm.zona_waktu,
+        p_tz_label: tzLabel,
+        p_status: proyekForm.status,
+        p_deskripsi: proyekForm.deskripsi.trim() || null
+      }
+
+      const { data: resData, error: rpcErr } = await supabase.rpc('absen_upsert_proyek', payload)
+      if (rpcErr) throw rpcErr
+      if (resData?.error) throw new Error(resData.error)
+
+      setProyekSuccess(`Proyek Kode ${proyekForm.kode_proyek} berhasil disimpan!`)
+      loadProyekList()
+      openAddProyek()
+      setTimeout(() => setProyekSuccess(''), 4000)
+    } catch (err) {
+      setProyekError(err.message)
+    } finally {
+      setSavingProyek(false)
+    }
+  }
 
   async function load() {
     setLoading(true)
@@ -233,6 +355,9 @@ export default function MasterKaryawan() {
           <p className="text-gray-500 text-xs mt-0.5">Kelola data karyawan proyek</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => { setShowProyekModal(true); loadProyekList() }} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-colors border border-slate-700 shadow-sm">
+            <Building2 size={14} className="text-cyan-400" /> Tambah Proyek Aktif
+          </button>
           <button onClick={() => { setShowImport(true); setImportPreview(null); setImportResult(null); setImportError('') }} className="btn-success text-xs">
             <Upload size={14} /> Import Excel
           </button>
@@ -526,6 +651,176 @@ export default function MasterKaryawan() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Kelola Proyek Aktif */}
+      {showProyekModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100 mb-5">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Building2 size={20} className="text-blue-600" /> Kelola Proyek Aktif SI WAJAH
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">Tambah & atur proyek aktif (Kode Proyek = Primary Key)</p>
+              </div>
+              <button onClick={() => setShowProyekModal(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
+                <X size={18} />
+              </button>
+            </div>
+
+            {proyekSuccess && (
+              <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 flex items-center gap-2">
+                <CheckCircle size={16} /> {proyekSuccess}
+              </div>
+            )}
+            {proyekError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 flex items-center gap-2">
+                <AlertTriangle size={16} /> {proyekError}
+              </div>
+            )}
+
+            {/* List Existing Projects */}
+            <div className="mb-6">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Daftar Proyek Aktif Terdaftar</h4>
+              {loadingProyek ? (
+                <div className="py-6 text-center text-xs text-slate-500 font-medium">Memuat daftar proyek...</div>
+              ) : (
+                <div className="space-y-2.5">
+                  {proyekList.map(p => (
+                    <div key={p.kode_proyek} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-black tracking-wider">
+                          {p.kode_proyek}
+                        </span>
+                        <div>
+                          <h5 className="text-xs font-black text-slate-900">{p.nama_proyek}</h5>
+                          <p className="text-[11px] text-slate-500 font-medium">{p.lokasi || 'Tanpa Lokasi'} • {p.tz_label || p.zona_waktu}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">{p.status || 'AKTIF'}</span>
+                        <button type="button" onClick={() => openEditProyek(p)} className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-600">
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Form Add / Edit Project */}
+            <form onSubmit={handleSaveProyek} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                  {editingProyekKode ? `Edit Proyek Kode ${editingProyekKode}` : '+ Tambah Proyek Aktif Baru'}
+                </h4>
+                {editingProyekKode && (
+                  <button type="button" onClick={openAddProyek} className="text-xs font-bold text-blue-600 hover:underline">
+                    Batal Edit / Tambah Baru
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Kode Proyek (Primary Key) *</label>
+                  <input
+                    type="text"
+                    value={proyekForm.kode_proyek}
+                    onChange={e => setProyekForm({ ...proyekForm, kode_proyek: e.target.value })}
+                    disabled={!!editingProyekKode}
+                    placeholder="Contoh: 524006"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500 disabled:bg-slate-100"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status Proyek *</label>
+                  <select
+                    value={proyekForm.status}
+                    onChange={e => setProyekForm({ ...proyekForm, status: e.target.value })}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="AKTIF">AKTIF</option>
+                    <option value="NONAKTIF">NONAKTIF</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nama Proyek *</label>
+                  <input
+                    type="text"
+                    value={proyekForm.nama_proyek}
+                    onChange={e => setProyekForm({ ...proyekForm, nama_proyek: e.target.value })}
+                    placeholder="Contoh: Proyek Portsite Accommodation Complex"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Nama Singkat Proyek</label>
+                  <input
+                    type="text"
+                    value={proyekForm.nama_singkat}
+                    onChange={e => setProyekForm({ ...proyekForm, nama_singkat: e.target.value })}
+                    placeholder="Contoh: Portsite Accommodation Complex"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Lokasi Site Proyek</label>
+                  <input
+                    type="text"
+                    value={proyekForm.lokasi}
+                    onChange={e => setProyekForm({ ...proyekForm, lokasi: e.target.value })}
+                    placeholder="Contoh: Portsite, Papua"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Zona Waktu Site Proyek *</label>
+                  <select
+                    value={proyekForm.zona_waktu}
+                    onChange={e => setProyekForm({ ...proyekForm, zona_waktu: e.target.value })}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="Asia/Jayapura">WIT - Asia/Jayapura (UTC+9)</option>
+                    <option value="Asia/Makassar">WITA - Asia/Makassar (UTC+8)</option>
+                    <option value="Asia/Jakarta">WIB - Asia/Jakarta (UTC+7)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="text-xs">
+                <label className="block font-bold text-slate-700 mb-1">Deskripsi Proyek (Opsional)</label>
+                <textarea
+                  value={proyekForm.deskripsi}
+                  onChange={e => setProyekForm({ ...proyekForm, deskripsi: e.target.value })}
+                  placeholder="Catatan / deskripsi proyek..."
+                  rows={2}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-500 resize-none font-sans"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={savingProyek}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow-md disabled:opacity-50"
+                >
+                  {savingProyek ? 'Menyimpan...' : 'Simpan Proyek'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
