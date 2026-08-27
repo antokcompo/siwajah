@@ -20,13 +20,39 @@ export default function RekapBulanan() {
   const [detailModalItem, setDetailModalItem] = useState(null)
   const [detailHarian, setDetailHarian] = useState([])
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [potonganInput, setPotonganInput] = useState('0')
+  const [savingPotongan, setSavingPotongan] = useState(false)
   const { profile } = useAuth()
 
   const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
   const fmt = n => new Intl.NumberFormat('id-ID').format(Math.round(n || 0))
 
+  async function savePotongan(item) {
+    if (!item) return
+    setSavingPotongan(true)
+    const newPotongan = Math.max(0, Number(potonganInput) || 0)
+    const newTotalGaji = Number(item.gaji_pokok || 0) + Number(item.gaji_lembur || 0) + Number(item.tunjangan || 0) - newPotongan
+
+    const { error } = await supabase
+      .from('absen_gaji_bulanan')
+      .update({
+        potongan: newPotongan,
+        total_gaji: newTotalGaji
+      })
+      .eq('id', item.id)
+
+    setSavingPotongan(false)
+    if (error) {
+      alert('Gagal menyimpan potongan: ' + error.message)
+    } else {
+      setDetailModalItem(prev => prev ? { ...prev, potongan: newPotongan, total_gaji: newTotalGaji } : null)
+      setData(prev => prev.map(d => d.id === item.id ? { ...d, potongan: newPotongan, total_gaji: newTotalGaji } : d))
+    }
+  }
+
   async function openDetailModal(item) {
     setDetailModalItem(item)
+    setPotonganInput(String(item.potongan || 0))
     setLoadingDetail(true)
     setDetailHarian([])
 
@@ -737,6 +763,7 @@ export default function RekapBulanan() {
                   <th className="text-right px-3 py-3 whitespace-nowrap">Gaji Pokok</th>
                   <th className="text-right px-3 py-3 whitespace-nowrap">Gaji Lembur</th>
                   <th className="text-right px-3 py-3">Tunjangan</th>
+                  <th className="text-right px-3 py-3 whitespace-nowrap text-rose-600 font-bold">Potongan</th>
                   <th className="text-right px-3 py-3 whitespace-nowrap">Total Gaji</th>
                   <th className="text-center px-3 py-3">Status</th>
                   <th className="text-center px-3 py-3 whitespace-nowrap">Aksi</th>
@@ -749,8 +776,9 @@ export default function RekapBulanan() {
                   const subPokok = items.reduce((s, d) => s + Number(d.gaji_pokok), 0)
                   const subGajiLembur = items.reduce((s, d) => s + Number(d.gaji_lembur), 0)
                   const subTunjangan = items.reduce((s, d) => s + Number(d.tunjangan), 0)
+                  const subPotongan = items.reduce((s, d) => s + Number(d.potongan || 0), 0)
                   const subTotal = items.reduce((s, d) => s + Number(d.total_gaji), 0)
-                  const colCount = canApprove && draftIds.length > 0 ? 10 : 9
+                  const colCount = canApprove && draftIds.length > 0 ? 11 : 10
 
                   return (
                     <Fragment key={groupName}>
@@ -791,6 +819,7 @@ export default function RekapBulanan() {
                           <td className="px-3 py-2.5 text-right tabular-nums text-gray-900 whitespace-nowrap">Rp {fmt(d.gaji_pokok)}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums text-gray-500 whitespace-nowrap">Rp {fmt(d.gaji_lembur)}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums text-gray-500 whitespace-nowrap">Rp {fmt(d.tunjangan)}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums text-rose-600 font-medium whitespace-nowrap">{d.potongan > 0 ? `-Rp ${fmt(d.potongan)}` : '-'}</td>
                           <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-gray-900 whitespace-nowrap">Rp {fmt(d.total_gaji)}</td>
                           <td className="px-3 py-2.5 text-center">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
@@ -821,6 +850,7 @@ export default function RekapBulanan() {
                         <td className="px-3 py-2 text-right tabular-nums text-[12px] font-semibold text-slate-600 whitespace-nowrap">Rp {fmt(subPokok)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-[12px] font-semibold text-slate-500 whitespace-nowrap">Rp {fmt(subGajiLembur)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-[12px] font-semibold text-slate-500 whitespace-nowrap">Rp {fmt(subTunjangan)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[12px] font-semibold text-rose-600 whitespace-nowrap">{subPotongan > 0 ? `-Rp ${fmt(subPotongan)}` : '-'}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-[12px] font-bold text-slate-700 whitespace-nowrap">Rp {fmt(subTotal)}</td>
                         <td />
                         <td />
@@ -828,7 +858,7 @@ export default function RekapBulanan() {
                     </Fragment>
                   )
                 }) : (
-                  <tr><td colSpan={canApprove && draftIds.length > 0 ? 10 : 9} className="px-5 py-12 text-center text-gray-400">
+                  <tr><td colSpan={canApprove && draftIds.length > 0 ? 11 : 10} className="px-5 py-12 text-center text-gray-400">
                     <FileSpreadsheet size={32} className="mx-auto text-gray-300 mb-2" />
                     <p className="font-semibold text-gray-600 mb-1">Belum ada data gaji untuk {getActiveProject()?.nama_singkat || 'Proyek Ini'}</p>
                     <p className="text-xs text-gray-400">Klik tombol <strong className="text-blue-600">"Hitung Gaji"</strong> di kanan atas untuk menghitung dan menampilkan gaji karyawan secara otomatis.</p>
@@ -845,6 +875,7 @@ export default function RekapBulanan() {
                     <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.gaji_pokok), 0))}</td>
                     <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.gaji_lembur), 0))}</td>
                     <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.tunjangan), 0))}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-rose-600 whitespace-nowrap">{data.reduce((s,d) => s + Number(d.potongan || 0), 0) > 0 ? `-Rp ${fmt(data.reduce((s,d) => s + Number(d.potongan || 0), 0))}` : '-'}</td>
                     <td className="px-3 py-3 text-right tabular-nums whitespace-nowrap">Rp {fmt(data.reduce((s,d) => s + Number(d.total_gaji), 0))}</td>
                     <td />
                     <td />
@@ -976,23 +1007,52 @@ export default function RekapBulanan() {
                     </div>
 
                     {/* Kartu 3: Tunjangan & Potongan */}
-                    <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2">
+                    <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-300 text-xs flex items-center gap-1.5">
-                          <Building2 size={14} className="text-purple-400" /> 3. Tunjangan & Potongan
+                          <Building2 size={14} className="text-purple-400" /> 3. Tunjangan & Potongan (Denda)
                         </span>
-                        <span className="font-bold text-purple-400 text-sm">Rp {fmt(detailModalItem.tunjangan - (detailModalItem.potongan || 0))}</span>
+                        <span className="font-bold text-purple-400 text-sm">Rp {fmt(Number(detailModalItem.tunjangan || 0) - Number(detailModalItem.potongan || 0))}</span>
                       </div>
-                      <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1 font-mono">
-                        <div className="flex justify-between">
+                      <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 space-y-1.5 font-mono">
+                        <div className="flex justify-between items-center">
                           <span>+ Tunjangan Jabatan:</span>
-                          <span className="text-slate-200">Rp {fmt(detailModalItem.tunjangan)}</span>
+                          <span className="text-slate-200 font-semibold">Rp {fmt(detailModalItem.tunjangan)}</span>
                         </div>
-                        <div className="flex justify-between text-rose-400">
+                        <div className="flex justify-between items-center text-rose-400 pt-1 border-t border-slate-800/60">
                           <span>- Potongan / Denda:</span>
-                          <span>Rp {fmt(detailModalItem.potongan || 0)}</span>
+                          <span className="font-bold">Rp {fmt(detailModalItem.potongan || 0)}</span>
                         </div>
                       </div>
+
+                      {/* Interactive Denda / Potongan Input */}
+                      {!isClosed && (
+                        <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                          <label className="text-[11px] font-bold text-rose-300 flex items-center gap-1">
+                            Input / Update Nominal Denda & Potongan Gaji (Rp):
+                          </label>
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Rp</span>
+                              <input
+                                type="number"
+                                value={potonganInput}
+                                onChange={e => setPotonganInput(e.target.value)}
+                                placeholder="0"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-rose-500"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => savePotongan(detailModalItem)}
+                              disabled={savingPotongan}
+                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-colors whitespace-nowrap"
+                            >
+                              {savingPotongan ? 'Simpan...' : 'Simpan Denda'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Kartu 4: Take Home Pay */}
