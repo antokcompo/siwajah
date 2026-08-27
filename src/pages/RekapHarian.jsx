@@ -91,6 +91,7 @@ export default function RekapHarian() {
   const [detail, setDetail] = useState([])
   const [scanData, setScanData] = useState([])
   const [mandorMap, setMandorMap] = useState({})
+  const [empMap, setEmpMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('semua')
   const [searchQuery, setSearchQuery] = useState('')
@@ -156,8 +157,11 @@ export default function RekapHarian() {
     const activeProj = getActiveProject()
     const activeKode = activeProj?.kode || '524006'
 
-    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id, nama, jabatan, atasan_id').eq('kode_proyek', activeKode)
     const kIds = (karyawanProyek || []).map(k => k.id)
+    const kMap = {}
+    ;(karyawanProyek || []).forEach(k => { kMap[k.id] = k })
+    setEmpMap(kMap)
 
     if (kIds.length === 0) {
       setData([])
@@ -188,8 +192,12 @@ export default function RekapHarian() {
     const activeProj = getActiveProject()
     const activeKode = activeProj?.kode || '524006'
 
-    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id, nama, jabatan, atasan_id').eq('kode_proyek', activeKode)
     const kIds = (karyawanProyek || []).map(k => k.id)
+    const kMap = {}
+    ;(karyawanProyek || []).forEach(k => { kMap[k.id] = k })
+    setEmpMap(kMap)
+
     if (kIds.length === 0) {
       setDetail([])
       setLaporanData([])
@@ -197,7 +205,7 @@ export default function RekapHarian() {
     }
 
     const [rpcRes, scanRes, laporanRes] = await Promise.all([
-      supabase.from('absen_harian').select('*, absen_karyawan(nama, jabatan, atasan_id)').in('karyawan_id', kIds).eq('tanggal', date),
+      supabase.from('absen_harian').select('*, absen_karyawan(id, nama, jabatan, atasan_id)').in('karyawan_id', kIds).eq('tanggal', date),
       supabase
         .from('absen_scan_wajah')
         .select('karyawan_id, slot_id, absen_jadwal_slot(jenis)')
@@ -233,16 +241,21 @@ export default function RekapHarian() {
     if (rpcRes.error) {
       let q = supabase
         .from('absen_harian')
-        .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+        .select('*, absen_karyawan(id, nama, jabatan, atasan_id)')
         .eq('tanggal', date)
       if (filter !== 'semua') q = q.eq('status', filter)
       const { data: fallback } = await q
       rawList = fallback || []
     } else {
-      rawList = (rpcRes.data || []).map(d => ({
-        ...d,
-        absen_karyawan: { nama: d.karyawan_nama, jabatan: d.karyawan_jabatan, atasan_id: d.atasan_id }
-      }))
+      rawList = (rpcRes.data || []).map(d => {
+        const empInfo = (d.absen_karyawan && d.absen_karyawan.nama)
+          ? d.absen_karyawan
+          : (kMap[d.karyawan_id] || { id: d.karyawan_id, nama: d.karyawan_nama || 'Unknown', jabatan: d.karyawan_jabatan || '-', atasan_id: d.atasan_id })
+        return {
+          ...d,
+          absen_karyawan: empInfo
+        }
+      })
     }
 
     const enriched = rawList.map(item => {
@@ -337,7 +350,7 @@ export default function RekapHarian() {
     const workerMap = {}
 
     detail.forEach(d => {
-      const k = d.absen_karyawan
+      const k = (d.absen_karyawan && d.absen_karyawan.nama) ? d.absen_karyawan : (empMap[d.karyawan_id] || d.absen_karyawan)
       if (!k) return
       const kid = d.karyawan_id || k.id
       const atasanId = k.atasan_id
@@ -348,7 +361,7 @@ export default function RekapHarian() {
     })
 
     scanData.forEach(s => {
-      const k = s.absen_karyawan
+      const k = (s.absen_karyawan && s.absen_karyawan.nama) ? s.absen_karyawan : (empMap[s.karyawan_id] || s.absen_karyawan)
       if (!k) return
       const kid = s.karyawan_id || k.id
       const atasanId = k.atasan_id
@@ -360,7 +373,7 @@ export default function RekapHarian() {
     })
 
     laporanData.forEach(l => {
-      const k = l.absen_karyawan
+      const k = (l.absen_karyawan && l.absen_karyawan.nama) ? l.absen_karyawan : (empMap[l.karyawan_id] || l.absen_karyawan)
       if (!k) return
       const kid = l.karyawan_id || k.id
       const atasanId = k.atasan_id
