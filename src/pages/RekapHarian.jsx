@@ -500,10 +500,20 @@ export default function RekapHarian() {
               )
             })}
           </div>
-          <div className="flex gap-4 mt-5 pt-4 border-t border-gray-100 text-xs text-gray-500">
-            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> OK</span>
-            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500" /> Koreksi</span>
-            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500" /> Insiden</span>
+          <div className="flex flex-col gap-1.5 mt-5 pt-4 border-t border-gray-800 text-[11px] text-gray-400">
+            <div className="font-bold text-gray-300 text-xs mb-0.5">Keterangan Indikator Tanggal:</div>
+            <div className="flex items-center gap-2" title="Seluruh presensi pekerja pada tanggal ini LENGKAP (6/6 Slot)">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span><strong className="text-emerald-400">OK (Lengkap)</strong>: Seluruh pekerja presensi 100% lengkap</span>
+            </div>
+            <div className="flex items-center gap-2" title="Ada pekerja dengan presensi belum lengkap (< 6 Slot) atau butuh koreksi">
+              <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+              <span><strong className="text-amber-400">Koreksi / Perlu Atensi</strong>: Ada pekerja presensi belum lengkap</span>
+            </div>
+            <div className="flex items-center gap-2" title="Terdapat laporan insiden darurat / operasional proyek">
+              <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              <span><strong className="text-red-400">Insiden</strong>: Ada catatan insiden darurat / insiden proyek</span>
+            </div>
           </div>
         </div>
 
