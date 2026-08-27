@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { Clock, Plus, Save, Trash2, GripVertical } from 'lucide-react'
+import { getActiveProject } from './PilihProyek'
 
 const jenisOptions = [
   { value: 'masuk', label: 'Masuk', color: 'bg-emerald-500' },
@@ -23,16 +24,36 @@ export default function JadwalSlot() {
 
   async function loadSlots() {
     setLoading(true)
-    const activeProj = getActiveProject()
-    const activeKode = activeProj?.kode || '524006'
+    try {
+      const activeProj = getActiveProject()
+      const activeKode = activeProj?.kode || '524006'
 
-    const { data } = await supabase
-      .from('absen_jadwal_slot')
-      .select('*')
-      .eq('kode_proyek', activeKode)
-      .order('urutan', { ascending: true })
-    setSlots(data || [])
-    setLoading(false)
+      const { data, error } = await supabase
+        .from('absen_jadwal_slot')
+        .select('*')
+        .eq('kode_proyek', activeKode)
+        .order('urutan', { ascending: true })
+
+      if (error) {
+        const { data: fallbackData } = await supabase
+          .from('absen_jadwal_slot')
+          .select('*')
+          .order('urutan', { ascending: true })
+        setSlots(fallbackData || [])
+      } else if (data && data.length > 0) {
+        setSlots(data)
+      } else {
+        const { data: fallbackData } = await supabase
+          .from('absen_jadwal_slot')
+          .select('*')
+          .order('urutan', { ascending: true })
+        setSlots(fallbackData || [])
+      }
+    } catch (err) {
+      console.error('Error loading slots:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   function addSlot() {
