@@ -274,12 +274,7 @@ export default function RekapBulanan() {
 
       let calcGajiLembur = Number(item.gaji_lembur || 0)
       if (calcJamLembur > 0) {
-        if (calcJamLembur <= 1) {
-          calcGajiLembur = calcJamLembur * upahPerJam * 1.5
-        } else {
-          calcGajiLembur = (1 * upahPerJam * 1.5) + ((calcJamLembur - 1) * upahPerJam * 2.0)
-        }
-        calcGajiLembur = Math.round(calcGajiLembur / 100) * 100
+        calcGajiLembur = Math.round(calcJamLembur * (gajiBulanan / 208))
       }
 
       if (distinctCount > 0 && item.status === 'draft') {
@@ -971,7 +966,8 @@ export default function RekapBulanan() {
                         {Number(detailModalItem.jam_lembur_total) > 0 ? (
                           <>
                             <div className="text-slate-300">Tarif Per Jam = Gaji Master ÷ 26 ÷ 8 Jam = Rp {fmt(gajiMasterVal / 208)}</div>
-                            <div className="text-amber-300">Aturan Standard: Jam 1 (1.5x) + Jam Berikutnya (2.0x)</div>
+                            <div className="text-amber-300">Rumus Lembur Flat: Total Jam Lembur × Tarif Per Jam</div>
+                            <div className="text-amber-400 font-bold">{detailModalItem.jam_lembur_total} Jam × Rp {fmt(gajiMasterVal / 208)} = Rp {fmt(detailModalItem.gaji_lembur)}</div>
                           </>
                         ) : (
                           <div className="text-slate-500">Tidak ada akumulasi jam lembur pada bulan ini</div>
