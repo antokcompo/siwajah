@@ -172,7 +172,7 @@ export default function RekapBulanan() {
         .in('karyawan_id', kIds)
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_harian')
-        .select('karyawan_id, tanggal, status, jam_masuk, jam_pulang')
+        .select('karyawan_id, tanggal, status, jam_masuk, jam_pulang, jam_lembur, status_lembur')
         .in('karyawan_id', kIds)
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_laporan_terlewat')
@@ -181,7 +181,7 @@ export default function RekapBulanan() {
         .eq('status', 'APPROVED')
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_daftar_lembur')
-        .select('karyawan_id, tanggal')
+        .select('karyawan_id, tanggal, status')
         .in('karyawan_id', kIds)
         .gte('tanggal', startDate).lte('tanggal', endDate),
       supabase.from('absen_jadwal_slot')
@@ -225,6 +225,28 @@ export default function RekapBulanan() {
     })
     ;(daftarLemburRes.data || []).forEach(dl => addDate(dl.karyawan_id, dl.tanggal))
 
+    // Map approved overtime registrations per worker & date
+    const approvedDaftarSet = new Set()
+    ;(daftarLemburRes.data || []).forEach(dl => {
+      if (dl.status === 'APPROVED') {
+        approvedDaftarSet.add(`${dl.karyawan_id}_${dl.tanggal}`)
+      }
+    })
+
+    const empApprovedOvertime = {}
+    ;(harianRes.data || []).forEach(h => {
+      const key = `${h.karyawan_id}_${h.tanggal}`
+      const isApproved = (h.status_lembur === 'APPROVED') || approvedDaftarSet.has(key)
+      if (isApproved) {
+        let hrs = Number(h.jam_lembur || 0)
+        if (hrs === 0 && approvedDaftarSet.has(key)) hrs = 4.0
+        if (hrs > 0) {
+          if (!empApprovedOvertime[h.karyawan_id]) empApprovedOvertime[h.karyawan_id] = 0
+          empApprovedOvertime[h.karyawan_id] += hrs
+        }
+      }
+    })
+
     const regSlotCount = (slotRes.data || []).filter(s => !(s.jenis || '').toLowerCase().includes('lembur')).length || 6
     const hariKerjaKalender = (kalenderRes.data || []).length || 26
 
@@ -243,20 +265,35 @@ export default function RekapBulanan() {
       const kid = item.karyawan_id
       const distinctCount = empAttendedDates[kid] ? empAttendedDates[kid].size : 0
       const totalWeight = empTotalWeight[kid] !== undefined ? empTotalWeight[kid] : distinctCount
+      const calcJamLembur = empApprovedOvertime[kid] !== undefined ? empApprovedOvertime[kid] : Number(item.jam_lembur_total || 0)
+
+      const gajiBulanan = Number(item.absen_karyawan?.gaji_bulanan || 0)
+      const isFull = totalWeight >= hariKerjaKalender
+      const gajiHarian = gajiBulanan / hariKerjaKalender
+      const upahPerJam = gajiHarian / 8
+
+      let calcGajiLembur = Number(item.gaji_lembur || 0)
+      if (calcJamLembur > 0) {
+        if (calcJamLembur <= 1) {
+          calcGajiLembur = calcJamLembur * upahPerJam * 1.5
+        } else {
+          calcGajiLembur = (1 * upahPerJam * 1.5) + ((calcJamLembur - 1) * upahPerJam * 2.0)
+        }
+        calcGajiLembur = Math.round(calcGajiLembur / 100) * 100
+      }
 
       if (distinctCount > 0 && item.status === 'draft') {
-        const gajiBulanan = Number(item.absen_karyawan?.gaji_bulanan || 0)
-        const isFull = totalWeight >= hariKerjaKalender
-        const gajiHarian = gajiBulanan / hariKerjaKalender
         const gajiPokok = isFull ? gajiBulanan : Math.round((gajiHarian * totalWeight) / 100) * 100
-        const totalGaji = gajiPokok + Number(item.gaji_lembur || 0) + Number(item.tunjangan || 0)
+        const totalGaji = gajiPokok + calcGajiLembur + Number(item.tunjangan || 0)
 
-        if (item.hari_kerja !== distinctCount || item.gaji_pokok !== gajiPokok) {
+        if (item.hari_kerja !== distinctCount || item.gaji_pokok !== gajiPokok || item.gaji_lembur !== calcGajiLembur || item.jam_lembur_total !== calcJamLembur) {
           supabase
             .from('absen_gaji_bulanan')
             .update({
               hari_kerja: distinctCount,
+              jam_lembur_total: calcJamLembur,
               gaji_pokok: gajiPokok,
+              gaji_lembur: calcGajiLembur,
               total_gaji: totalGaji
             })
             .eq('id', item.id)
@@ -266,11 +303,18 @@ export default function RekapBulanan() {
         return {
           ...item,
           hari_kerja: distinctCount,
+          jam_lembur_total: calcJamLembur,
           gaji_pokok: gajiPokok,
+          gaji_lembur: calcGajiLembur,
           total_gaji: totalGaji
         }
       }
-      return item
+      return {
+        ...item,
+        jam_lembur_total: calcJamLembur,
+        gaji_lembur: calcGajiLembur,
+        total_gaji: Number(item.gaji_pokok || 0) + calcGajiLembur + Number(item.tunjangan || 0)
+      }
     })
 
     setData(enrichedGajiList)
