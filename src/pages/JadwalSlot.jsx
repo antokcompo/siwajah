@@ -81,11 +81,15 @@ export default function JadwalSlot() {
     const activeKode = activeProj?.kode || '524006'
 
     try {
-      const payload = slots.map((s, i) => ({
-        ...s,
-        kode_proyek: activeKode,
-        urutan: i + 1,
-      }))
+      const payload = slots.map((s, i) => {
+        const isUuid = s.id && typeof s.id === 'string' && s.id.includes('-') && s.id.length >= 32
+        return {
+          ...s,
+          id: isUuid ? s.id : null,
+          kode_proyek: activeKode,
+          urutan: i + 1,
+        }
+      })
       const { error } = await supabase.rpc('absen_save_jadwal_slot', { p_data: payload, p_kode_proyek: activeKode })
       if (error) throw error
       setMessage(`Jadwal slot berhasil disimpan untuk proyek ${activeProj?.nama_singkat || activeKode}`)
