@@ -499,6 +499,18 @@ function ApprovalTab() {
 
   async function load() {
     setLoading(true)
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const kIds = (karyawanProyek || []).map(k => k.id)
+
+    if (kIds.length === 0) {
+      setData([])
+      setLoading(false)
+      return
+    }
+
     const startDate = `${tahun}-${String(bulan).padStart(2, '0')}-01`
     const endDate = bulan === 12 ? `${tahun + 1}-01-01` : `${tahun}-${String(bulan + 1).padStart(2, '0')}-01`
 
@@ -507,23 +519,27 @@ function ApprovalTab() {
       supabase
         .from('absen_harian')
         .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+        .in('karyawan_id', kIds)
         .gte('tanggal', startDate)
         .lt('tanggal', endDate)
         .order('tanggal', { ascending: false }),
       supabase
         .from('absen_daftar_lembur')
         .select('*, absen_karyawan(nama, jabatan, atasan_id)')
+        .in('karyawan_id', kIds)
         .gte('tanggal', startDate)
         .lt('tanggal', endDate)
         .order('tanggal', { ascending: false }),
       supabase
         .from('absen_scan_wajah')
         .select('karyawan_id, tanggal, slot_id, waktu_scan, gps_lat, gps_lng, lokasi_kerja, absen_jadwal_slot(jenis, label)')
+        .in('karyawan_id', kIds)
         .gte('tanggal', startDate)
         .lt('tanggal', endDate),
       supabase
         .from('absen_karyawan')
         .select('id, nama')
+        .eq('kode_proyek', activeKode)
         .ilike('jabatan', '%mandor%')
         .eq('status_aktif', true),
       supabase.from('absen_konfigurasi').select('key, value')
