@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Save, Clock, Timer, AlertTriangle, Shield, CheckCircle, CheckCircle2, AlertCircle, RotateCcw, ChevronDown, ChevronUp, Info, Globe, Mail, X, MapPin } from 'lucide-react'
 import SiteMapPicker from '../components/SiteMapPicker'
+import { getActiveProject } from './PilihProyek'
 
 const timezoneOptions = [
   { value: 'Asia/Jakarta', label: 'WIB — Waktu Indonesia Barat (UTC+7)' },
@@ -393,6 +394,21 @@ export default function Konfigurasi() {
     allFields.forEach(f => {
       if (values[f.key] !== undefined && values[f.key] !== '') payload[f.key] = values[f.key]
     })
+
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    let tzLabel = 'WIT (UTC+9)'
+    if (values.zona_waktu === 'Asia/Jakarta') tzLabel = 'WIB (UTC+7)'
+    if (values.zona_waktu === 'Asia/Makassar') tzLabel = 'WITA (UTC+8)'
+
+    try {
+      await supabase.from('absen_proyek').update({
+        zona_waktu: values.zona_waktu,
+        tz_label: tzLabel,
+        updated_at: new Date().toISOString()
+      }).eq('kode_proyek', activeKode)
+    } catch (e) {}
 
     try {
       const { error: rpcErr } = await supabase.rpc('absen_save_konfigurasi', { p_data: payload })

@@ -52,14 +52,51 @@ export function UserAuthProvider({ children }) {
 
     // Use sessionStorage so closing app / opening shortcut requires fresh login
     const stored = sessionStorage.getItem('siwajah_user')
+    let uId = null
     if (stored) {
-      try { setKaryawan(JSON.parse(stored)) } catch { /* ignore */ }
+      try {
+        const u = JSON.parse(stored)
+        setKaryawan(u)
+        uId = u.id
+      } catch { /* ignore */ }
     }
     setLoading(false)
-    loadTimezone()
+    loadTimezone(uId)
   }, [])
 
-  async function loadTimezone() {
+  async function loadTimezone(karyawanId) {
+    let targetKode = null
+    if (karyawanId) {
+      const { data: kData } = await supabase
+        .from('absen_karyawan')
+        .select('kode_proyek')
+        .eq('id', karyawanId)
+        .maybeSingle()
+      if (kData?.kode_proyek) targetKode = kData.kode_proyek
+    }
+
+    if (!targetKode) {
+      try {
+        const saved = localStorage.getItem('siwajah_active_project')
+        if (saved) {
+          const p = JSON.parse(saved)
+          if (p?.kode) targetKode = p.kode
+        }
+      } catch (e) {}
+    }
+
+    if (targetKode) {
+      const { data: projData } = await supabase
+        .from('absen_proyek')
+        .select('zona_waktu')
+        .eq('kode_proyek', targetKode)
+        .maybeSingle()
+      if (projData?.zona_waktu) {
+        setProjectTz(projData.zona_waktu)
+        return
+      }
+    }
+
     const { data } = await supabase
       .from('absen_konfigurasi')
       .select('value')
@@ -83,6 +120,7 @@ export function UserAuthProvider({ children }) {
     }
     setKaryawan(user)
     sessionStorage.setItem('siwajah_user', JSON.stringify(user))
+    loadTimezone(data.karyawan_id)
     return user
   }
 
