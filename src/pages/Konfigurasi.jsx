@@ -336,34 +336,34 @@ export default function Konfigurasi() {
   async function load() {
     setLoading(true)
     setError('')
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
 
-    try {
-      const { data: rpcData, error: rpcErr } = await supabase.rpc('absen_get_konfigurasi')
-      if (!rpcErr && rpcData) {
-        const parsed = typeof rpcData === 'string' ? JSON.parse(rpcData) : rpcData
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
-          const merged = { ...defaultValues, ...parsed }
-          setValues(merged)
-          setOrigValues(merged)
-          setChanged({})
-          setLoading(false)
-          return
-        }
-      }
-    } catch {}
+    // Load per-project settings from absen_proyek first
+    const { data: pData } = await supabase
+      .from('absen_proyek')
+      .select('*')
+      .eq('kode_proyek', activeKode)
+      .maybeSingle()
+
+    const map = { ...defaultValues }
+    if (pData) {
+      if (pData.zona_waktu) map.zona_waktu = pData.zona_waktu
+      if (pData.latitude) map.site_lat = String(pData.latitude)
+      if (pData.longitude) map.site_lng = String(pData.longitude)
+      if (pData.radius_meter) map.site_radius_meter = String(pData.radius_meter)
+      if (pData.nama_proyek) map.site_nama = pData.nama_proyek
+    }
 
     const { data, error: err } = await supabase
       .from('absen_konfigurasi')
       .select('key, value')
+      .eq('kode_proyek', activeKode)
 
-    if (err) {
-      setError('Gagal memuat konfigurasi: ' + err.message)
-      setLoading(false)
-      return
+    if (data && data.length > 0) {
+      data.forEach(d => { if (d.value) map[d.key] = d.value })
     }
 
-    const map = { ...defaultValues }
-    if (data) data.forEach(d => { if (d.value) map[d.key] = d.value })
     setValues(map)
     setOrigValues(map)
     setChanged({})
@@ -390,11 +390,6 @@ export default function Konfigurasi() {
     setSaved(false)
     setError('')
 
-    const payload = {}
-    allFields.forEach(f => {
-      if (values[f.key] !== undefined && values[f.key] !== '') payload[f.key] = values[f.key]
-    })
-
     const activeProj = getActiveProject()
     const activeKode = activeProj?.kode || '524006'
 
@@ -406,25 +401,17 @@ export default function Konfigurasi() {
       await supabase.from('absen_proyek').update({
         zona_waktu: values.zona_waktu,
         tz_label: tzLabel,
+        latitude: values.site_lat ? Number(values.site_lat) : null,
+        longitude: values.site_lng ? Number(values.site_lng) : null,
+        radius_meter: values.site_radius_meter ? Number(values.site_radius_meter) : null,
         updated_at: new Date().toISOString()
       }).eq('kode_proyek', activeKode)
     } catch (e) {}
 
-    try {
-      const { error: rpcErr } = await supabase.rpc('absen_save_konfigurasi', { p_data: payload })
-      if (!rpcErr) {
-        setSaved(true)
-        setOrigValues({ ...values })
-        setChanged({})
-        setTimeout(() => setSaved(false), 3000)
-        setSaving(false)
-        return
-      }
-    } catch {}
-
     const rows = allFields
       .filter(f => values[f.key] !== undefined && values[f.key] !== '')
       .map(f => ({
+        kode_proyek: activeKode,
         key: f.key,
         value: values[f.key],
         deskripsi: f.label,
@@ -433,7 +420,7 @@ export default function Konfigurasi() {
 
     const { error: err } = await supabase
       .from('absen_konfigurasi')
-      .upsert(rows, { onConflict: 'key' })
+      .upsert(rows, { onConflict: 'kode_proyek, key' })
 
     if (err) {
       setError('Gagal menyimpan: ' + err.message)

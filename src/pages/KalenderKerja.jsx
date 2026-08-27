@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, RefreshCw, X, Calendar, Tag, FileText } from 'lucide-react'
+import { getActiveProject } from './PilihProyek'
 
 const jenisColor = {
   kerja: '',
@@ -59,11 +60,14 @@ export default function KalenderKerja() {
   async function load() {
     setLoading(true)
     setError('')
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
     const start = format(startOfMonth(currentDate), 'yyyy-MM-dd')
     const end = format(endOfMonth(currentDate), 'yyyy-MM-dd')
-    const { data, error: err } = await supabase.rpc('absen_list_kalender', { p_start: start, p_end: end })
+    const { data, error: err } = await supabase.rpc('absen_list_kalender', { p_start: start, p_end: end, p_kode_proyek: activeKode })
     if (err) {
-      const { data: fallback } = await supabase.from('absen_kalender').select('*').gte('tanggal', start).lte('tanggal', end).order('tanggal')
+      const { data: fallback } = await supabase.from('absen_kalender').select('*').eq('kode_proyek', activeKode).gte('tanggal', start).lte('tanggal', end).order('tanggal')
       setData(fallback || [])
     } else {
       setData(data || [])
@@ -74,9 +78,13 @@ export default function KalenderKerja() {
   async function generateMonth() {
     setGenerating(true)
     setError('')
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
     const { error: err } = await supabase.rpc('absen_generate_kalender', {
       p_tahun: tahun,
       p_bulan: bulan,
+      p_kode_proyek: activeKode
     })
     if (err) {
       setError('Gagal generate kalender: ' + err.message)
@@ -98,6 +106,8 @@ export default function KalenderKerja() {
     e.preventDefault()
     setEditSaving(true)
     setError('')
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
 
     const keterangan = editForm.jenis_hari === 'kerja' ? null : (editForm.keterangan || jenisLabel[editForm.jenis_hari])
 
@@ -105,6 +115,7 @@ export default function KalenderKerja() {
       p_tanggal: editData.tanggal,
       p_jenis_hari: editForm.jenis_hari,
       p_keterangan: keterangan,
+      p_kode_proyek: activeKode
     })
     if (err) {
       setError('Gagal update: ' + err.message)

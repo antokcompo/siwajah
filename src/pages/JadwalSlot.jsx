@@ -23,9 +23,13 @@ export default function JadwalSlot() {
 
   async function loadSlots() {
     setLoading(true)
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
     const { data } = await supabase
       .from('absen_jadwal_slot')
       .select('*')
+      .eq('kode_proyek', activeKode)
       .order('urutan', { ascending: true })
     setSlots(data || [])
     setLoading(false)
@@ -52,14 +56,18 @@ export default function JadwalSlot() {
   async function handleSave() {
     setSaving(true)
     setMessage('')
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
     try {
       const payload = slots.map((s, i) => ({
         ...s,
+        kode_proyek: activeKode,
         urutan: i + 1,
       }))
-      const { error } = await supabase.rpc('absen_save_jadwal_slot', { p_data: payload })
+      const { error } = await supabase.rpc('absen_save_jadwal_slot', { p_data: payload, p_kode_proyek: activeKode })
       if (error) throw error
-      setMessage('Jadwal berhasil disimpan')
+      setMessage(`Jadwal slot berhasil disimpan untuk proyek ${activeProj?.nama_singkat || activeKode}`)
       await loadSlots()
     } catch (err) {
       setMessage('Gagal: ' + err.message)
