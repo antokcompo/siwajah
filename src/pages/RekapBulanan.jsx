@@ -346,10 +346,24 @@ export default function RekapBulanan() {
   }
 
   async function hitungGaji() {
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
     setCalculating(true)
     setError('')
-    const { error } = await supabase.rpc('absen_hitung_gaji', { p_bulan: bulan, p_tahun: tahun })
-    if (error) setError(error.message)
+
+    const { data: kList } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode).eq('status_aktif', true)
+    if (!kList || kList.length === 0) {
+      setError(`Proyek ${activeProj?.nama_singkat || activeKode} (Kode: ${activeKode}) belum memiliki karyawan terdaftar. Silakan tambahkan karyawan pada menu Master Karyawan terlebih dahulu.`)
+      setCalculating(false)
+      return
+    }
+
+    const { error } = await supabase.rpc('absen_hitung_gaji', { p_bulan: bulan, p_tahun: tahun, p_kode_proyek: activeKode })
+    if (error) {
+      const { error: fallbackErr } = await supabase.rpc('absen_hitung_gaji', { p_bulan: bulan, p_tahun: tahun })
+      if (fallbackErr) setError(fallbackErr.message)
+    }
     setCalculating(false)
     load()
   }
@@ -777,7 +791,8 @@ export default function RekapBulanan() {
                 }) : (
                   <tr><td colSpan={canApprove && draftIds.length > 0 ? 10 : 9} className="px-5 py-12 text-center text-gray-400">
                     <FileSpreadsheet size={32} className="mx-auto text-gray-300 mb-2" />
-                    Belum ada data gaji. Klik "Hitung Gaji" untuk memulai.
+                    <p className="font-semibold text-gray-600 mb-1">Belum ada data gaji untuk {getActiveProject()?.nama_singkat || 'Proyek Ini'}</p>
+                    <p className="text-xs text-gray-400">Klik tombol <strong className="text-blue-600">"Hitung Gaji"</strong> di kanan atas untuk menghitung dan menampilkan gaji karyawan secara otomatis.</p>
                   </td></tr>
                 )}
               </tbody>
