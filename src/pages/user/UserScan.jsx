@@ -258,7 +258,7 @@ export default function UserScan() {
 
         const { data, error: rpcError } = await supabase.rpc('absen_catat_scan_wajah', {
           p_karyawan_id: karyawan.id,
-          p_slot_id: targetSlotId,
+          p_slot_id: String(targetSlotId),
           p_lokasi_kerja: lokasi || null,
           p_jenis_pekerjaan: pekerjaan || null,
           p_keterangan: keterangan || null,

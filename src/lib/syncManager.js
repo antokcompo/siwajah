@@ -41,9 +41,21 @@ export async function syncPendingScans() {
         }
       }
 
+      let targetSlotId = scan.slot_id
+      if (typeof targetSlotId === 'string' && targetSlotId.includes('dynamic')) {
+        try {
+          const { data: dbSlot } = await supabase
+            .from('absen_jadwal_slot')
+            .select('id')
+            .or('jenis.eq.pulang_lembur,label.ilike.%pulang lembur%')
+            .maybeSingle()
+          if (dbSlot?.id) targetSlotId = String(dbSlot.id)
+        } catch (e) {}
+      }
+
       const { data, error } = await supabase.rpc('absen_catat_scan_wajah', {
         p_karyawan_id: scan.karyawan_id,
-        p_slot_id: scan.slot_id,
+        p_slot_id: String(targetSlotId),
         p_lokasi_kerja: scan.lokasi_kerja || null,
         p_jenis_pekerjaan: scan.jenis_pekerjaan || null,
         p_keterangan: scan.keterangan || null,
