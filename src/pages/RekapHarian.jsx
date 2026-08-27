@@ -172,16 +172,64 @@ export default function RekapHarian() {
 
     const start = format(startOfMonth(currentDate), 'yyyy-MM-dd')
     const end = format(endOfMonth(currentDate), 'yyyy-MM-dd')
-    const [rpcRes, mandorRes] = await Promise.all([
+    const [harianRes, scanRes, laporanRes, mandorRes] = await Promise.all([
       supabase
         .from('absen_harian')
-        .select('tanggal, status, is_insiden')
+        .select('karyawan_id, tanggal, status, jam_masuk, jam_pulang, is_insiden')
         .in('karyawan_id', kIds)
+        .gte('tanggal', start)
+        .lte('tanggal', end),
+      supabase
+        .from('absen_scan_wajah')
+        .select('karyawan_id, tanggal, slot_id, absen_jadwal_slot(jenis)')
+        .in('karyawan_id', kIds)
+        .gte('tanggal', start)
+        .lte('tanggal', end),
+      supabase
+        .from('absen_laporan_terlewat')
+        .select('karyawan_id, tanggal, slot_id, absen_jadwal_slot(jenis)')
+        .in('karyawan_id', kIds)
+        .eq('status', 'APPROVED')
         .gte('tanggal', start)
         .lte('tanggal', end),
       supabase.from('absen_karyawan').select('id, nama').eq('kode_proyek', activeKode).ilike('jabatan', '%mandor%').eq('status_aktif', true),
     ])
-    setData(rpcRes.data || [])
+
+    const monthSlotCounts = {}
+    ;(scanRes.data || []).forEach(s => {
+      const j = (s.absen_jadwal_slot?.jenis || '').toLowerCase()
+      if (!j.includes('lembur')) {
+        const key = `${s.karyawan_id}_${s.tanggal}`
+        if (!monthSlotCounts[key]) monthSlotCounts[key] = new Set()
+        monthSlotCounts[key].add(s.slot_id)
+      }
+    })
+    ;(laporanRes.data || []).forEach(l => {
+      const j = (l.absen_jadwal_slot?.jenis || '').toLowerCase()
+      if (!j.includes('lembur')) {
+        const key = `${l.karyawan_id}_${l.tanggal}`
+        if (!monthSlotCounts[key]) monthSlotCounts[key] = new Set()
+        monthSlotCounts[key].add(l.slot_id)
+      }
+    })
+
+    const enrichedHarianMonth = (harianRes.data || []).map(h => {
+      const key = `${h.karyawan_id}_${h.tanggal}`
+      const vSlots = monthSlotCounts[key] ? monthSlotCounts[key].size : 0
+      let computedStatus = h.status
+      if (vSlots < 6) {
+        computedStatus = 'TIDAK_LENGKAP'
+      } else {
+        computedStatus = 'LENGKAP'
+      }
+      return {
+        ...h,
+        verifiedSlots: vSlots,
+        computedStatus
+      }
+    })
+
+    setData(enrichedHarianMonth)
     const mMap = {}
     ;(mandorRes.data || []).forEach(m => { mMap[m.id] = m.nama })
     setMandorMap(mMap)
@@ -262,12 +310,10 @@ export default function RekapHarian() {
       const kid = item.karyawan_id || item.absen_karyawan?.id
       const vSlots = slotCounts[kid] ? slotCounts[kid].size : 0
       let computedStatus = item.status
-      if (item.jam_masuk && item.jam_pulang) {
-        if (vSlots < 6) {
-          computedStatus = 'TIDAK_LENGKAP'
-        } else {
-          computedStatus = 'LENGKAP'
-        }
+      if (vSlots < 6) {
+        computedStatus = 'TIDAK_LENGKAP'
+      } else {
+        computedStatus = 'LENGKAP'
       }
       return {
         ...item,
@@ -306,7 +352,7 @@ export default function RekapHarian() {
     const dayData = data.filter(d => d.tanggal === ds)
     if (dayData.length === 0) return 'empty'
     if (dayData.some(d => d.is_insiden)) return 'insiden'
-    if (dayData.every(d => d.status === 'LENGKAP')) return 'ok'
+    if (dayData.every(d => (d.computedStatus || d.status) === 'LENGKAP')) return 'ok'
     return 'koreksi'
   }
 
