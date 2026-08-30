@@ -33,6 +33,7 @@ const menuGroups = [
     label: 'MASTER & PENGATURAN',
     items: [
       { path: '/master-karyawan', label: 'Master Karyawan', icon: Users, roles: ['admin','hrd'] },
+      { path: '/roster-security', label: 'Roster Security', icon: Shield, roles: ['admin','atasan','hrd','manajemen'] },
       { path: '/kalender', label: 'Kalender Kerja', icon: CalendarCheck, roles: ['admin'] },
       { path: '/jadwal-slot', label: 'Jadwal Slot Absen', icon: Timer, roles: ['admin'] },
       { path: '/tutup-absen', label: 'Tutup Absen', icon: Lock, roles: ['admin','manajemen','hrd'] },

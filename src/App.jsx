@@ -19,6 +19,7 @@ import ManajemenUser from './pages/ManajemenUser'
 import JadwalSlot from './pages/JadwalSlot'
 import LaporanIzin from './pages/LaporanIzin'
 import TutupAbsen from './pages/TutupAbsen'
+import RosterSecurity from './pages/RosterSecurity'
 
 import UserLayout from './pages/user/UserLayout'
 import UserIzin from './pages/user/UserIzin'
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="/approval-lembur" element={<ApprovalLembur />} />
         <Route path="/rekap-bulanan" element={<RekapBulanan />} />
         <Route path="/master-karyawan" element={<MasterKaryawan />} />
+        <Route path="/roster-security" element={<RosterSecurity />} />
         <Route path="/kalender" element={<KalenderKerja />} />
         <Route path="/konfigurasi" element={<Konfigurasi />} />
         <Route path="/manajemen-user" element={<ManajemenUser />} />

@@ -19,6 +19,7 @@ export default function JadwalSlot() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [activeTab, setActiveTab] = useState('REGULER') // REGULER | SECURITY_PAGI | SECURITY_MALAM
 
   useEffect(() => { loadSlots() }, [])
 
@@ -57,7 +58,7 @@ export default function JadwalSlot() {
   }
 
   function addSlot() {
-    setSlots([...slots, { ...emptySlot, urutan: slots.length + 1 }])
+    setSlots([...slots, { ...emptySlot, urutan: slots.length + 1, kategori_shift: activeTab }])
   }
 
   function updateSlot(index, field, value) {
@@ -87,6 +88,7 @@ export default function JadwalSlot() {
           ...s,
           id: isUuid ? s.id : null,
           kode_proyek: activeKode,
+          kategori_shift: s.kategori_shift || 'REGULER',
           urutan: i + 1,
         }
       })
@@ -101,21 +103,62 @@ export default function JadwalSlot() {
     }
   }
 
-  const activeSlots = slots.filter(s => s.aktif !== false)
-  const inactiveSlots = slots.filter(s => s.aktif === false)
+  const filteredSlots = useMemo(() => {
+    return slots.filter(s => {
+      const cat = s.kategori_shift || 'REGULER'
+      if (activeTab === 'REGULER') return cat === 'REGULER' || !cat
+      return cat === activeTab
+    })
+  }, [slots, activeTab])
+
+  const activeSlots = filteredSlots.filter(s => s.aktif !== false)
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Jadwal Slot Absen</h1>
-          <p className="text-gray-500 text-xs mt-0.5">Atur jadwal dan toleransi scan harian</p>
+          <p className="text-gray-500 text-xs mt-0.5">Atur jadwal dan toleransi scan harian per kelompok shift</p>
         </div>
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
           {saving ? (
             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : <Save size={16} />}
           Simpan
+        </button>
+      </div>
+
+      {/* Tabs Switcher */}
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          onClick={() => setActiveTab('REGULER')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border ${
+            activeTab === 'REGULER'
+              ? 'bg-blue-600 text-white border-blue-500 shadow-md'
+              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+          }`}
+        >
+          Reguler Kantor
+        </button>
+        <button
+          onClick={() => setActiveTab('SECURITY_PAGI')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border ${
+            activeTab === 'SECURITY_PAGI'
+              ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+          }`}
+        >
+          Security Shift Pagi (7 Slot)
+        </button>
+        <button
+          onClick={() => setActiveTab('SECURITY_MALAM')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border ${
+            activeTab === 'SECURITY_MALAM'
+              ? 'bg-purple-600 text-white border-purple-500 shadow-md'
+              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+          }`}
+        >
+          Security Shift Malam (6 Slot)
         </button>
       </div>
 
