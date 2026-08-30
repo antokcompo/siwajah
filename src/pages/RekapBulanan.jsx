@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { Calculator, Lock, Download, Unlock, FileSpreadsheet, Users, CheckCircle, Eye, Info, X, Calendar, Clock, DollarSign, Building2 } from 'lucide-react'
+import { Calculator, Lock, Download, Unlock, FileSpreadsheet, Users, CheckCircle, Eye, Info, X, Calendar, Clock, DollarSign, Building2, Search } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { getActiveProject } from './PilihProyek'
@@ -22,6 +22,7 @@ export default function RekapBulanan() {
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [potonganInput, setPotonganInput] = useState('0')
   const [savingPotongan, setSavingPotongan] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const { profile } = useAuth()
 
   const namaBulan = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
@@ -388,9 +389,19 @@ export default function RekapBulanan() {
     setLoading(false)
   }
 
+  const filteredData = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return data
+    return data.filter(d => {
+      const nama = (d.absen_karyawan?.nama || '').toLowerCase()
+      const jabatan = (d.absen_karyawan?.jabatan || '').toLowerCase()
+      return nama.includes(q) || jabatan.includes(q)
+    })
+  }, [data, searchQuery])
+
   const grouped = useMemo(() => {
     const groups = {}
-    data.forEach(d => {
+    filteredData.forEach(d => {
       const atasanId = d.absen_karyawan?.atasan_id
       const groupName = atasanId && mandorMap[atasanId] ? mandorMap[atasanId] : 'Harian Kantor'
       if (!groups[groupName]) groups[groupName] = []
@@ -401,7 +412,7 @@ export default function RekapBulanan() {
       if (b === 'Harian Kantor') return -1
       return a.localeCompare(b)
     })
-  }, [data, mandorMap])
+  }, [filteredData, mandorMap])
 
   const draftIds = useMemo(() => data.filter(d => d.status === 'draft').map(d => d.id), [data])
   const isClosed = periode?.status === 'tutup'
@@ -760,21 +771,48 @@ export default function RekapBulanan() {
       )}
 
       <div className="card">
-        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-5 py-3.5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
               <FileSpreadsheet size={16} className="text-blue-600" />
             </div>
             <div>
               <span className="font-semibold text-gray-900 text-sm">{namaBulan[bulan]} {tahun}</span>
-              {data.length > 0 && <span className="text-xs text-gray-400 ml-2">{data.length} karyawan</span>}
+              {data.length > 0 && (
+                <span className="text-xs text-gray-400 ml-2">
+                  {filteredData.length !== data.length ? `${filteredData.length} dari ${data.length} karyawan` : `${data.length} karyawan`}
+                </span>
+              )}
             </div>
           </div>
-          {data.length > 0 && (
-            <button onClick={exportPdf} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors">
-              <Download size={13} /> Ekspor PDF
-            </button>
-          )}
+
+          <div className="flex items-center gap-3">
+            {/* Dynamic Search Box */}
+            <div className="relative w-full md:w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari nama atau jabatan..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            {data.length > 0 && (
+              <button onClick={exportPdf} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors shrink-0">
+                <Download size={13} /> Ekspor PDF
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
