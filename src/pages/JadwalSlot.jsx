@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { Clock, Plus, Save, Trash2, GripVertical } from 'lucide-react'
 import { getActiveProject } from './PilihProyek'
