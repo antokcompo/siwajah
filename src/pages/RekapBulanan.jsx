@@ -164,7 +164,12 @@ export default function RekapBulanan() {
     const activeProj = getActiveProject()
     const activeKode = activeProj?.kode || '524006'
 
-    const { data: karyawanProyek } = await supabase.from('absen_karyawan').select('id').eq('kode_proyek', activeKode)
+    const { data: karyawanProyek } = await supabase
+      .from('absen_karyawan')
+      .select('id, nama, jabatan, atasan_id, gaji_bulanan, tunjangan, status_aktif')
+      .eq('kode_proyek', activeKode)
+      .eq('status_aktif', true)
+
     const kIds = (karyawanProyek || []).map(k => k.id)
 
     if (kIds.length === 0) {
@@ -285,7 +290,26 @@ export default function RekapBulanan() {
       empTotalWeight[kid] = sumWeight
     })
 
-    const rawGajiList = gajiRes.data || []
+    const existingGajiEmpIds = new Set((gajiRes.data || []).map(g => g.karyawan_id))
+    const missingEmps = (karyawanProyek || []).filter(k => !existingGajiEmpIds.has(k.id))
+
+    const missingRows = missingEmps.map(k => ({
+      id: `temp_${k.id}`,
+      karyawan_id: k.id,
+      bulan,
+      tahun,
+      hari_kerja: 0,
+      jam_lembur_total: 0,
+      gaji_pokok: 0,
+      gaji_lembur: 0,
+      tunjangan: Number(k.tunjangan || 0),
+      potongan: 0,
+      total_gaji: 0,
+      status: 'draft',
+      absen_karyawan: k
+    }))
+
+    const rawGajiList = [...(gajiRes.data || []), ...missingRows]
 
     const enrichedGajiList = rawGajiList.map(item => {
       const kid = item.karyawan_id
@@ -296,18 +320,34 @@ export default function RekapBulanan() {
       const gajiBulanan = Number(item.absen_karyawan?.gaji_bulanan || 0)
       const isFull = totalWeight >= hariKerjaKalender
       const gajiHarian = gajiBulanan / hariKerjaKalender
-      const upahPerJam = gajiHarian / 8
 
       let calcGajiLembur = Number(item.gaji_lembur || 0)
       if (calcJamLembur > 0) {
         calcGajiLembur = Math.round(calcJamLembur * (gajiBulanan / 208))
       }
 
-      if (distinctCount > 0 && item.status === 'draft') {
+      if (item.status === 'draft') {
         const gajiPokok = isFull ? gajiBulanan : Math.round((gajiHarian * totalWeight) / 100) * 100
-        const totalGaji = gajiPokok + calcGajiLembur + Number(item.tunjangan || 0)
+        const totalGaji = gajiPokok + calcGajiLembur + Number(item.tunjangan || 0) - Number(item.potongan || 0)
 
-        if (item.hari_kerja !== distinctCount || item.gaji_pokok !== gajiPokok || item.gaji_lembur !== calcGajiLembur || item.jam_lembur_total !== calcJamLembur) {
+        if (typeof item.id === 'string' && item.id.startsWith('temp_')) {
+          supabase
+            .from('absen_gaji_bulanan')
+            .upsert({
+              karyawan_id: kid,
+              bulan,
+              tahun,
+              hari_kerja: distinctCount,
+              jam_lembur_total: calcJamLembur,
+              gaji_pokok: gajiPokok,
+              gaji_lembur: calcGajiLembur,
+              tunjangan: Number(item.tunjangan || item.absen_karyawan?.tunjangan || 0),
+              potongan: Number(item.potongan || 0),
+              total_gaji: totalGaji,
+              status: 'draft'
+            }, { onConflict: 'karyawan_id, bulan, tahun' })
+            .then(() => {})
+        } else if (item.hari_kerja !== distinctCount || item.gaji_pokok !== gajiPokok || item.gaji_lembur !== calcGajiLembur || item.jam_lembur_total !== calcJamLembur) {
           supabase
             .from('absen_gaji_bulanan')
             .update({
@@ -334,7 +374,7 @@ export default function RekapBulanan() {
         ...item,
         jam_lembur_total: calcJamLembur,
         gaji_lembur: calcGajiLembur,
-        total_gaji: Number(item.gaji_pokok || 0) + calcGajiLembur + Number(item.tunjangan || 0)
+        total_gaji: Number(item.gaji_pokok || 0) + calcGajiLembur + Number(item.tunjangan || 0) - Number(item.potongan || 0)
       }
     })
 
