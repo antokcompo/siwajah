@@ -305,9 +305,6 @@ export default function RosterSecurity() {
                         <span className={`text-xs font-bold ${isSelected ? 'text-cyan-300' : 'text-slate-200'}`}>
                           {format(d, 'd')}
                         </span>
-                        {ds === '2026-08-31' && (
-                          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" title="Studi Kasus 31/08/2026" />
-                        )}
                       </div>
 
                       <div className="space-y-0.5 text-[10px] font-medium mt-1">
@@ -367,11 +364,6 @@ export default function RosterSecurity() {
                     : 'Pilih Tanggal'}
                 </h3>
               </div>
-              {selectedDate === '2026-08-31' && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
-                  STUDI KASUS
-                </span>
-              )}
             </div>
 
             {/* Search Personel */}
