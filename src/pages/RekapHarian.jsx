@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle, Search } from 'lucide-react'
-import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
+import { getDistanceMeters, formatDistance, isLocationOutsideGeofence } from '../lib/geoUtils'
 import { getActiveProject } from './PilihProyek'
 
 const statusColor = {
@@ -786,9 +786,10 @@ export default function RekapHarian() {
               {selectedScan.gps_lat && selectedScan.gps_lng && (() => {
                 const sLat = Number(siteConfig?.lat || -4.824518)
                 const sLng = Number(siteConfig?.lng || 136.844673)
-                const sRadius = Number(siteConfig?.radius || 400)
-                const scanDist = getDistanceMeters(selectedScan.gps_lat, selectedScan.gps_lng, sLat, sLng)
-                const isOffsite = scanDist > sRadius || selectedScan?.di_luar_lokasi
+                const sRadius = Number(siteConfig?.radius || 1000)
+                const geoCheck = isLocationOutsideGeofence(selectedScan.gps_lat, selectedScan.gps_lng, sLat, sLng, sRadius, selectedScan.gps_accuracy)
+                const isOffsite = geoCheck.isOutside || selectedScan?.di_luar_lokasi
+                const scanDist = geoCheck.effectiveDistanceMeters
 
                 return (
                   <div className={`border rounded-xl p-3.5 space-y-2.5 ${isOffsite ? 'bg-rose-50 border-rose-300' : 'bg-gray-50 border-gray-200'}`}>

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { getDistanceMeters, formatDistance } from '../lib/geoUtils'
+import { getDistanceMeters, formatDistance, isLocationOutsideGeofence } from '../lib/geoUtils'
 import { getActiveProject } from './PilihProyek'
 import { 
   Users, CheckCircle, AlertTriangle, Clock, TrendingUp, 
@@ -267,7 +267,7 @@ export default function Dashboard() {
 
     const sLat = Number(cfgMap.site_lat || -4.824518)
     const sLng = Number(cfgMap.site_lng || 136.844673)
-    const sRadius = Number(cfgMap.site_radius_meter || 400)
+    const sRadius = Number(cfgMap.site_radius_meter || 1000)
     const sNama = cfgMap.site_nama || 'Portsite Accommodation Project'
     const sTz = cfgMap.zona_waktu || 'Asia/Jayapura'
 
@@ -275,11 +275,11 @@ export default function Dashboard() {
 
     const offsiteList = []
     scansGpsRes.data?.forEach(s => {
-      const dist = getDistanceMeters(s.gps_lat, s.gps_lng, sLat, sLng)
-      if (dist > sRadius) {
+      const geoCheck = isLocationOutsideGeofence(s.gps_lat, s.gps_lng, sLat, sLng, sRadius, s.gps_accuracy)
+      if (geoCheck.isOutside) {
         offsiteList.push({
           ...s,
-          distanceMeters: dist
+          distanceMeters: geoCheck.effectiveDistanceMeters
         })
       }
     })
