@@ -139,16 +139,52 @@ export default function JadwalSlot() {
     }
   }
 
+  const standardSlots = useMemo(() => ({
+    REGULER: [
+      { jam: '08:00', label: 'Pagi', jenis: 'masuk', toleransi_menit: 15, wajib: true, urutan: 1, aktif: true, kategori_shift: 'REGULER' },
+      { jam: '10:00', label: 'Progress 1', jenis: 'progress', toleransi_menit: 10, wajib: true, urutan: 2, aktif: true, kategori_shift: 'REGULER' },
+      { jam: '11:30', label: 'Siang', jenis: 'istirahat', toleransi_menit: 20, wajib: true, urutan: 3, aktif: true, kategori_shift: 'REGULER' },
+      { jam: '13:00', label: 'Siang', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 4, aktif: true, kategori_shift: 'REGULER' },
+      { jam: '15:00', label: 'Progress 2', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 5, aktif: true, kategori_shift: 'REGULER' },
+      { jam: '17:00', label: 'Pulang', jenis: 'pulang', toleransi_menit: 15, wajib: true, urutan: 6, aktif: true, kategori_shift: 'REGULER' },
+      { jam: '19:00', label: 'Lembur', jenis: 'lembur', toleransi_menit: 15, wajib: true, urutan: 7, aktif: true, kategori_shift: 'REGULER' },
+      { jam: '00:00', label: 'Pulang lembur', jenis: 'pulang_lembur', toleransi_menit: 15, wajib: true, urutan: 8, aktif: true, kategori_shift: 'REGULER' },
+    ],
+    SECURITY_PAGI: [
+      { jam: '06:00', label: 'Security Masuk Pagi', jenis: 'masuk', toleransi_menit: 15, wajib: true, urutan: 101, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+      { jam: '08:00', label: 'Security Patroli 1', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 102, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+      { jam: '10:00', label: 'Security Patroli 2', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 103, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+      { jam: '11:30', label: 'Security Istirahat', jenis: 'istirahat', toleransi_menit: 20, wajib: true, urutan: 104, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+      { jam: '13:00', label: 'Security Patroli 3', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 105, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+      { jam: '15:00', label: 'Security Patroli 4', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 106, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+      { jam: '17:00', label: 'Security Pulang Pagi', jenis: 'pulang', toleransi_menit: 30, wajib: true, urutan: 107, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+    ],
+    SECURITY_MALAM: [
+      { jam: '17:00', label: 'Security Masuk Malam', jenis: 'masuk', toleransi_menit: 15, wajib: true, urutan: 201, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+      { jam: '19:00', label: 'Security Patroli Malam 1', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 202, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+      { jam: '23:00', label: 'Security Patroli Malam 2', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 203, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+      { jam: '01:00', label: 'Security Patroli Subuh 1 (+1)', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 204, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+      { jam: '03:00', label: 'Security Patroli Subuh 2 (+1)', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 205, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+      { jam: '06:00', label: 'Security Pulang Malam (+1)', jenis: 'pulang', toleransi_menit: 30, wajib: true, urutan: 206, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+    ]
+  }), [])
+
   const filteredSlots = useMemo(() => {
     const raw = slots.filter(s => {
       const cat = s.kategori_shift || 'REGULER'
+      const lbl = (s.label || '').toLowerCase()
+      const isSec = cat === 'SECURITY_PAGI' || cat === 'SECURITY_MALAM' || lbl.includes('security') || lbl.includes('patroli')
+
       if (activeTab === 'REGULER') {
-        return cat === 'REGULER' || !cat || cat === ''
+        return (cat === 'REGULER' || !s.kategori_shift) && !isSec
+      } else if (activeTab === 'SECURITY_PAGI') {
+        return cat === 'SECURITY_PAGI' || (isSec && !lbl.includes('malam') && !lbl.includes('subuh'))
+      } else if (activeTab === 'SECURITY_MALAM') {
+        return cat === 'SECURITY_MALAM' || (isSec && (lbl.includes('malam') || lbl.includes('subuh') || s.jam?.slice(0, 5) === '01:00' || s.jam?.slice(0, 5) === '03:00'))
       }
       return cat === activeTab
     })
 
-    // Deduplicate by jam & label so double rows are never displayed
     const seen = new Set()
     const unique = []
     for (const s of raw) {
@@ -158,8 +194,13 @@ export default function JadwalSlot() {
         unique.push(s)
       }
     }
+
+    if (unique.length === 0) {
+      return standardSlots[activeTab] || []
+    }
+
     return unique
-  }, [slots, activeTab])
+  }, [slots, activeTab, standardSlots])
 
   const activeSlots = filteredSlots.filter(s => s.aktif !== false)
 
