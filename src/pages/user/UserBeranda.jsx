@@ -102,9 +102,8 @@ export default function UserBeranda() {
 
     const kKodeProyek = karyawan?.kode_proyek || '524006'
 
-    const [directSlotsRes, userSlotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
+    const [directSlotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
       supabase.from('absen_jadwal_slot').select('*').eq('aktif', true).eq('kode_proyek', kKodeProyek).order('urutan', { ascending: true }),
-      supabase.rpc('absen_get_jadwal_slot_user', { p_karyawan_id: karyawan.id, p_tanggal: todayStr }),
       supabase
         .from('absen_scan_wajah')
         .select('*, absen_jadwal_slot(*)')
@@ -132,14 +131,15 @@ export default function UserBeranda() {
       targetCategory = shift === 'MALAM' ? 'SECURITY_MALAM' : 'SECURITY_PAGI'
     }
 
-    let rawSlots = []
-    if (directSlotsRes.data && directSlotsRes.data.length > 0) {
-      rawSlots = directSlotsRes.data
-    } else if (userSlotsRes.data && userSlotsRes.data.length > 0) {
-      rawSlots = userSlotsRes.data
-    }
+    let rawSlots = directSlotsRes.data || []
 
-    const filteredSlots = rawSlots.filter(s => {
+    const filteredSlots = rawSlots.map(s => {
+      let jam = s.jam || ''
+      if (jam.startsWith('17:15') || (s.jenis === 'pulang' && jam.startsWith('17:'))) {
+        jam = '17:00:00'
+      }
+      return { ...s, jam }
+    }).filter(s => {
       const cat = s.kategori_shift || (
         (s.label || '').toLowerCase().includes('malam') || ['01:00','03:00','23:00'].includes(s.jam?.slice(0,5))
           ? 'SECURITY_MALAM'
