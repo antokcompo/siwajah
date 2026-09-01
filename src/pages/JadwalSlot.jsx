@@ -44,6 +44,7 @@ const DEFAULT_STANDARD_SLOTS = {
 
 export default function JadwalSlot() {
   const [slots, setSlots] = useState([])
+  const [deletedIds, setDeletedIds] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -81,6 +82,7 @@ export default function JadwalSlot() {
         .from('absen_jadwal_slot')
         .select('*')
         .eq('kode_proyek', activeKode)
+        .eq('aktif', true)
         .order('urutan', { ascending: true })
 
       let rawDb = []
@@ -90,6 +92,7 @@ export default function JadwalSlot() {
         const { data: fallbackData } = await supabase
           .from('absen_jadwal_slot')
           .select('*')
+          .eq('aktif', true)
           .order('urutan', { ascending: true })
         rawDb = fallbackData || []
       }
@@ -114,7 +117,7 @@ export default function JadwalSlot() {
                 ...s,
                 _uid: s.id ? String(s.id) : `temp-${cat}-${key}`,
                 kategori_shift: cat,
-                aktif: s.aktif !== false
+                aktif: true
               })
             }
           }
@@ -133,6 +136,7 @@ export default function JadwalSlot() {
       }
 
       setSlots(merged)
+      setDeletedIds([])
     } catch (err) {
       console.error('Error loading slots:', err)
     } finally {
@@ -162,6 +166,10 @@ export default function JadwalSlot() {
   }
 
   function removeSlot(uid) {
+    const target = slots.find(s => s._uid === uid)
+    if (target?.id && !String(target.id).startsWith('temp-')) {
+      setDeletedIds(prev => [...prev, String(target.id)])
+    }
     setSlots(prev => prev.filter(s => s._uid !== uid))
   }
 
@@ -172,6 +180,21 @@ export default function JadwalSlot() {
     const activeKode = activeProj?.kode || '524006'
 
     try {
+      // 1. Tangani ID slot yang dihapus admin
+      if (deletedIds.length > 0) {
+        await supabase
+          .from('absen_jadwal_slot')
+          .update({ aktif: false })
+          .in('id', deletedIds)
+
+        try {
+          await supabase
+            .from('absen_jadwal_slot')
+            .delete()
+            .in('id', deletedIds)
+        } catch (_) {}
+      }
+
       const payload = slots.map((s, i) => ({
         id: (s.id && !String(s.id).startsWith('temp-')) ? s.id : null,
         jam: s.jam?.slice(0, 5) || '08:00',
@@ -185,15 +208,16 @@ export default function JadwalSlot() {
         kode_proyek: activeKode
       }))
 
-      // 1. Fast single RPC call
+      // 2. Fast RPC call dengan p_deleted_ids
       const { error: rpcErr } = await supabase.rpc('absen_save_jadwal_slot', {
         p_data: payload,
-        p_kode_proyek: activeKode
+        p_kode_proyek: activeKode,
+        p_deleted_ids: deletedIds
       })
 
-      // 2. Parallel fallback if RPC encounters issue
+      // 3. Parallel fallback if RPC encounters issue
       if (rpcErr) {
-        console.warn('RPC note:', rpcErr.message, '- using fast parallel upsert')
+        console.warn('RPC note:', rpcErr.message, '- using parallel upsert')
         await Promise.all(
           payload.map(item => {
             if (item.id) {
