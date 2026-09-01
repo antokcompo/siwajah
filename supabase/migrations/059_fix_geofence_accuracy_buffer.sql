@@ -4,7 +4,7 @@
 -- 1. Menambahkan kolom lat, lng, radius_meter pada absen_proyek jika belum ada.
 -- 2. Mengatur titik pusat GPS Portsite Accommodation Complex (524006) ke:
 --    Lat: -4.824518, Lng: 136.844673, Radius: 1000 meter.
--- 3. Memperbarui tabel absen_konfigurasi agar selaras dengan Portsite Papua.
+-- 3. Memperbarui tabel absen_konfigurasi (key, value, deskripsi) agar selaras dengan Portsite Papua.
 -- 4. Memperbarui RPC absen_catat_scan_wajah dengan buffer toleransi akurasi GPS HP.
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
@@ -23,18 +23,18 @@ SET
   radius_meter = 1000
 WHERE kode_proyek = '524006' OR lat IS NULL OR lat = -6.2;
 
--- 3. Update tabel absen_konfigurasi agar titik pusat site proyek selaras
-INSERT INTO absen_konfigurasi (kunci, nilai, keterangan, kode_proyek)
+-- 3. Update tabel absen_konfigurasi (key, value, deskripsi) agar titik pusat site proyek selaras
+INSERT INTO absen_konfigurasi (key, value, deskripsi, kode_proyek)
 VALUES 
   ('site_lat', '-4.824518', 'Latitude Site Portsite Papua', '524006'),
   ('site_lng', '136.844673', 'Longitude Site Portsite Papua', '524006'),
   ('site_radius_meter', '1000', 'Radius Geofence Portsite (meter)', '524006')
-ON CONFLICT (kunci) DO UPDATE SET
-  nilai = EXCLUDED.nilai;
+ON CONFLICT (key) DO UPDATE SET
+  value = EXCLUDED.value;
 
-UPDATE absen_konfigurasi SET nilai = '-4.824518' WHERE kunci = 'site_lat' AND (nilai = '-6.2' OR nilai = '-6.200000');
-UPDATE absen_konfigurasi SET nilai = '136.844673' WHERE kunci = 'site_lng' AND (nilai = '106.816666' OR nilai = '106.8167');
-UPDATE absen_konfigurasi SET nilai = '1000' WHERE kunci = 'site_radius_meter';
+UPDATE absen_konfigurasi SET value = '-4.824518' WHERE key = 'site_lat' AND (value = '-6.2' OR value = '-6.200000');
+UPDATE absen_konfigurasi SET value = '136.844673' WHERE key = 'site_lng' AND (value = '106.816666' OR value = '106.8167');
+UPDATE absen_konfigurasi SET value = '1000' WHERE key = 'site_radius_meter';
 
 -- 4. Update RPC Catat Scan Wajah dengan Geofencing Pintar & Accuracy Buffer
 CREATE OR REPLACE FUNCTION absen_catat_scan_wajah(
