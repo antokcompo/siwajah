@@ -3,7 +3,7 @@
 --
 -- 1. Menambahkan kolom lat, lng, radius_meter pada absen_proyek jika belum ada.
 -- 2. Mengatur titik pusat GPS Portsite Accommodation Complex (524006) ke:
---    Lat: -4.824518, Lng: 136.844673, Radius: 1000 meter.
+--    Lat: -4.824518, Lng: 136.844673, Radius: 500 meter (dapat diubah di menu Konfigurasi).
 -- 3. Memperbarui tabel absen_konfigurasi (key, value, deskripsi) agar selaras dengan Portsite Papua.
 -- 4. Memperbarui RPC absen_catat_scan_wajah dengan buffer toleransi akurasi GPS HP.
 --
@@ -13,14 +13,14 @@
 -- 1. Tambah kolom lat, lng, radius_meter pada tabel absen_proyek jika belum ada
 ALTER TABLE absen_proyek ADD COLUMN IF NOT EXISTS lat numeric DEFAULT -4.824518;
 ALTER TABLE absen_proyek ADD COLUMN IF NOT EXISTS lng numeric DEFAULT 136.844673;
-ALTER TABLE absen_proyek ADD COLUMN IF NOT EXISTS radius_meter numeric DEFAULT 1000;
+ALTER TABLE absen_proyek ADD COLUMN IF NOT EXISTS radius_meter numeric DEFAULT 500;
 
 -- 2. Set titik pusat koordinat GPS Portsite Accommodation Complex (524006)
 UPDATE absen_proyek
 SET 
   lat = -4.824518,
   lng = 136.844673,
-  radius_meter = 1000
+  radius_meter = 500
 WHERE kode_proyek = '524006' OR lat IS NULL OR lat = -6.2;
 
 -- 3. Update tabel absen_konfigurasi (key, value, deskripsi) secara aman tanpa ON CONFLICT constraint
@@ -42,9 +42,9 @@ BEGIN
 
   -- site_radius_meter
   IF EXISTS (SELECT 1 FROM absen_konfigurasi WHERE key = 'site_radius_meter') THEN
-    UPDATE absen_konfigurasi SET value = '1000', deskripsi = 'Radius Geofence Portsite (meter)' WHERE key = 'site_radius_meter';
+    UPDATE absen_konfigurasi SET value = '500', deskripsi = 'Radius Geofence Portsite (meter)' WHERE key = 'site_radius_meter';
   ELSE
-    INSERT INTO absen_konfigurasi (key, value, deskripsi, kode_proyek) VALUES ('site_radius_meter', '1000', 'Radius Geofence Portsite (meter)', '524006');
+    INSERT INTO absen_konfigurasi (key, value, deskripsi, kode_proyek) VALUES ('site_radius_meter', '500', 'Radius Geofence Portsite (meter)', '524006');
   END IF;
 END $$;
 
@@ -70,7 +70,7 @@ DECLARE
   v_proyek_kode text;
   v_site_lat numeric := -4.824518;
   v_site_lng numeric := 136.844673;
-  v_site_radius numeric := 1000;
+  v_site_radius numeric := 500;
   v_dist numeric := 0;
   v_effective_dist numeric := 0;
   v_acc_buffer numeric := 0;
@@ -84,7 +84,7 @@ BEGIN
   v_proyek_kode := COALESCE(v_proyek_kode, '524006');
 
   -- Ambil koordinat & radius site dari tabel absen_proyek
-  SELECT COALESCE(lat, -4.824518), COALESCE(lng, 136.844673), COALESCE(radius_meter, 1000)
+  SELECT COALESCE(lat, -4.824518), COALESCE(lng, 136.844673), COALESCE(radius_meter, 500)
   INTO v_site_lat, v_site_lng, v_site_radius
   FROM absen_proyek
   WHERE kode_proyek = v_proyek_kode;
@@ -92,7 +92,7 @@ BEGIN
   -- Fallback jika proyek belum diset koordinatnya
   v_site_lat := COALESCE(v_site_lat, -4.824518);
   v_site_lng := COALESCE(v_site_lng, 136.844673);
-  v_site_radius := COALESCE(v_site_radius, 1000);
+  v_site_radius := COALESCE(v_site_radius, 500);
 
   -- Hitung Geofencing jika GPS latitude & longitude valid
   IF p_gps_lat IS NOT NULL AND p_gps_lng IS NOT NULL THEN
