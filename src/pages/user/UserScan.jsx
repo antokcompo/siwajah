@@ -319,7 +319,7 @@ export default function UserScan() {
         return resultData
       })()
 
-      const data = await withTimeout(submitPromise, 8000, 'Koneksi lambat saat mengirim data presensi.')
+      const data = await withTimeout(submitPromise, 20000, 'Koneksi lambat saat mengirim data presensi.')
       setResult(data)
       setPhase('success')
     } catch (err) {
