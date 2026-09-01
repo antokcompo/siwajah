@@ -247,7 +247,7 @@ export default function Dashboard() {
     const endDate = `${tahun}-${padBulan}-${String(lastDay).padStart(2, '0')}`
 
     const [statsRes, configRes, scansGpsRes] = await Promise.all([
-      supabase.rpc('absen_dashboard_stats', { p_bulan: bulan, p_tahun: tahun }),
+      supabase.rpc('absen_dashboard_stats', { p_bulan: bulan, p_tahun: tahun, p_kode_proyek: activeKode }),
       supabase.from('absen_konfigurasi').select('key, value'),
       supabase
         .from('absen_scan_wajah')

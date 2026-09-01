@@ -146,7 +146,14 @@ export default function Koreksi() {
     setSaving(false)
   }
 
-  const fmtDate = d => new Date(d + 'T00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+  const fmtDate = d => {
+    if (!d) return '-'
+    try {
+      return new Date(d + 'T00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+    } catch {
+      return String(d)
+    }
+  }
 
   const filtered = data.filter(d =>
     (d.absen_karyawan?.nama || '').toLowerCase().includes(search.toLowerCase()) ||
