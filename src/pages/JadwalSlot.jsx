@@ -121,8 +121,8 @@ export default function JadwalSlot() {
               })
             }
           }
-        } else {
-          // Use standard defaults if category is empty
+        } else if (rawDb.length === 0) {
+          // Hanya gunakan default jika database benar-benar kosong total
           const defaults = DEFAULT_STANDARD_SLOTS[cat] || []
           for (const s of defaults) {
             merged.push({
@@ -165,12 +165,39 @@ export default function JadwalSlot() {
     setSlots(prev => prev.map(s => s._uid === uid ? { ...s, [field]: value } : s))
   }
 
-  function removeSlot(uid) {
+  async function removeSlot(uid) {
     const target = slots.find(s => s._uid === uid)
-    if (target?.id && !String(target.id).startsWith('temp-')) {
-      setDeletedIds(prev => [...prev, String(target.id)])
-    }
+    if (!target) return
+
+    // 1. Langsung hapus dari tampilan UI
     setSlots(prev => prev.filter(s => s._uid !== uid))
+
+    const activeProj = getActiveProject()
+    const activeKode = activeProj?.kode || '524006'
+
+    // 2. Langsung eksekusi hapus di database Supabase
+    if (target.id && !String(target.id).startsWith('temp-')) {
+      const idStr = String(target.id)
+      setDeletedIds(prev => [...prev, idStr])
+      try {
+        await supabase.from('absen_jadwal_slot').update({ aktif: false }).eq('id', target.id)
+        await supabase.from('absen_jadwal_slot').delete().eq('id', target.id)
+      } catch (err) {
+        console.warn('Direct delete note:', err)
+      }
+    } else {
+      try {
+        await supabase
+          .from('absen_jadwal_slot')
+          .update({ aktif: false })
+          .eq('kode_proyek', activeKode)
+          .eq('kategori_shift', target.kategori_shift || activeTab)
+          .eq('jam', target.jam)
+          .eq('label', target.label)
+      } catch (err) {
+        console.warn('Direct match delete note:', err)
+      }
+    }
   }
 
   async function handleSave() {
