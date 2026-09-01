@@ -23,18 +23,30 @@ SET
   radius_meter = 1000
 WHERE kode_proyek = '524006' OR lat IS NULL OR lat = -6.2;
 
--- 3. Update tabel absen_konfigurasi (key, value, deskripsi) agar titik pusat site proyek selaras
-INSERT INTO absen_konfigurasi (key, value, deskripsi, kode_proyek)
-VALUES 
-  ('site_lat', '-4.824518', 'Latitude Site Portsite Papua', '524006'),
-  ('site_lng', '136.844673', 'Longitude Site Portsite Papua', '524006'),
-  ('site_radius_meter', '1000', 'Radius Geofence Portsite (meter)', '524006')
-ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value;
+-- 3. Update tabel absen_konfigurasi (key, value, deskripsi) secara aman tanpa ON CONFLICT constraint
+DO $$
+BEGIN
+  -- site_lat
+  IF EXISTS (SELECT 1 FROM absen_konfigurasi WHERE key = 'site_lat') THEN
+    UPDATE absen_konfigurasi SET value = '-4.824518', deskripsi = 'Latitude Site Portsite Papua' WHERE key = 'site_lat';
+  ELSE
+    INSERT INTO absen_konfigurasi (key, value, deskripsi, kode_proyek) VALUES ('site_lat', '-4.824518', 'Latitude Site Portsite Papua', '524006');
+  END IF;
 
-UPDATE absen_konfigurasi SET value = '-4.824518' WHERE key = 'site_lat' AND (value = '-6.2' OR value = '-6.200000');
-UPDATE absen_konfigurasi SET value = '136.844673' WHERE key = 'site_lng' AND (value = '106.816666' OR value = '106.8167');
-UPDATE absen_konfigurasi SET value = '1000' WHERE key = 'site_radius_meter';
+  -- site_lng
+  IF EXISTS (SELECT 1 FROM absen_konfigurasi WHERE key = 'site_lng') THEN
+    UPDATE absen_konfigurasi SET value = '136.844673', deskripsi = 'Longitude Site Portsite Papua' WHERE key = 'site_lng';
+  ELSE
+    INSERT INTO absen_konfigurasi (key, value, deskripsi, kode_proyek) VALUES ('site_lng', '136.844673', 'Longitude Site Portsite Papua', '524006');
+  END IF;
+
+  -- site_radius_meter
+  IF EXISTS (SELECT 1 FROM absen_konfigurasi WHERE key = 'site_radius_meter') THEN
+    UPDATE absen_konfigurasi SET value = '1000', deskripsi = 'Radius Geofence Portsite (meter)' WHERE key = 'site_radius_meter';
+  ELSE
+    INSERT INTO absen_konfigurasi (key, value, deskripsi, kode_proyek) VALUES ('site_radius_meter', '1000', 'Radius Geofence Portsite (meter)', '524006');
+  END IF;
+END $$;
 
 -- 4. Update RPC Catat Scan Wajah dengan Geofencing Pintar & Accuracy Buffer
 CREATE OR REPLACE FUNCTION absen_catat_scan_wajah(
