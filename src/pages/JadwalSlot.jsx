@@ -142,7 +142,17 @@ export default function JadwalSlot() {
   const filteredSlots = useMemo(() => {
     return slots.filter(s => {
       const cat = s.kategori_shift || 'REGULER'
-      if (activeTab === 'REGULER') return cat === 'REGULER' || !cat
+      const lbl = (s.label || '').toLowerCase()
+      const isSecuritySlot = cat === 'SECURITY_PAGI' || cat === 'SECURITY_MALAM' || lbl.includes('security') || lbl.includes('patroli') || lbl.includes('satpam')
+
+      if (activeTab === 'REGULER') {
+        // Tab Reguler Kantor tidak boleh menampilkan slot Security / Patroli
+        return !isSecuritySlot && (cat === 'REGULER' || !cat || cat === '')
+      } else if (activeTab === 'SECURITY_PAGI') {
+        return cat === 'SECURITY_PAGI' || (isSecuritySlot && !lbl.includes('malam') && !cat.includes('MALAM'))
+      } else if (activeTab === 'SECURITY_MALAM') {
+        return cat === 'SECURITY_MALAM' || (isSecuritySlot && (lbl.includes('malam') || cat.includes('MALAM')))
+      }
       return cat === activeTab
     })
   }, [slots, activeTab])
