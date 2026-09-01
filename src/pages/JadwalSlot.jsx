@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { Clock, Plus, Save, Trash2, GripVertical } from 'lucide-react'
+import { Clock, Plus, Save, Trash2 } from 'lucide-react'
 import { getActiveProject } from './PilihProyek'
 
 const jenisOptions = [
@@ -12,7 +12,35 @@ const jenisOptions = [
   { value: 'pulang_lembur', label: 'Pulang Lembur', color: 'bg-purple-500' },
 ]
 
-const emptySlot = { id: null, jam: '08:00', label: '', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 99, aktif: true }
+const DEFAULT_STANDARD_SLOTS = {
+  REGULER: [
+    { jam: '08:00', label: 'Pagi', jenis: 'masuk', toleransi_menit: 15, wajib: true, urutan: 1, aktif: true, kategori_shift: 'REGULER' },
+    { jam: '10:00', label: 'Progress 1', jenis: 'progress', toleransi_menit: 10, wajib: true, urutan: 2, aktif: true, kategori_shift: 'REGULER' },
+    { jam: '11:30', label: 'Siang', jenis: 'istirahat', toleransi_menit: 20, wajib: true, urutan: 3, aktif: true, kategori_shift: 'REGULER' },
+    { jam: '13:00', label: 'Siang', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 4, aktif: true, kategori_shift: 'REGULER' },
+    { jam: '15:00', label: 'Progress 2', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 5, aktif: true, kategori_shift: 'REGULER' },
+    { jam: '17:00', label: 'Pulang', jenis: 'pulang', toleransi_menit: 15, wajib: true, urutan: 6, aktif: true, kategori_shift: 'REGULER' },
+    { jam: '19:00', label: 'Lembur', jenis: 'lembur', toleransi_menit: 15, wajib: true, urutan: 7, aktif: true, kategori_shift: 'REGULER' },
+    { jam: '00:00', label: 'Pulang lembur', jenis: 'pulang_lembur', toleransi_menit: 15, wajib: true, urutan: 8, aktif: true, kategori_shift: 'REGULER' },
+  ],
+  SECURITY_PAGI: [
+    { jam: '06:00', label: 'Security Masuk Pagi', jenis: 'masuk', toleransi_menit: 15, wajib: true, urutan: 101, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+    { jam: '08:00', label: 'Security Patroli 1', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 102, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+    { jam: '10:00', label: 'Security Patroli 2', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 103, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+    { jam: '11:30', label: 'Security Istirahat', jenis: 'istirahat', toleransi_menit: 20, wajib: true, urutan: 104, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+    { jam: '13:00', label: 'Security Patroli 3', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 105, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+    { jam: '15:00', label: 'Security Patroli 4', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 106, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+    { jam: '17:00', label: 'Security Pulang Pagi', jenis: 'pulang', toleransi_menit: 30, wajib: true, urutan: 107, aktif: true, kategori_shift: 'SECURITY_PAGI' },
+  ],
+  SECURITY_MALAM: [
+    { jam: '17:00', label: 'Security Masuk Malam', jenis: 'masuk', toleransi_menit: 15, wajib: true, urutan: 201, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+    { jam: '19:00', label: 'Security Patroli Malam 1', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 202, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+    { jam: '23:00', label: 'Security Patroli Malam 2', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 203, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+    { jam: '01:00', label: 'Security Patroli Subuh 1 (+1)', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 204, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+    { jam: '03:00', label: 'Security Patroli Subuh 2 (+1)', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 205, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+    { jam: '06:00', label: 'Security Pulang Malam (+1)', jenis: 'pulang', toleransi_menit: 30, wajib: true, urutan: 206, aktif: true, kategori_shift: 'SECURITY_MALAM' },
+  ]
+}
 
 export default function JadwalSlot() {
   const [slots, setSlots] = useState([])
@@ -21,7 +49,27 @@ export default function JadwalSlot() {
   const [message, setMessage] = useState('')
   const [activeTab, setActiveTab] = useState('REGULER') // REGULER | SECURITY_PAGI | SECURITY_MALAM
 
-  useEffect(() => { loadSlots() }, [])
+  useEffect(() => {
+    loadSlots()
+  }, [])
+
+  function normalizeShiftCategory(slot) {
+    let cat = slot.kategori_shift
+    const lbl = (slot.label || '').toLowerCase()
+    const jamStr = (slot.jam || '').slice(0, 5)
+
+    if (cat === 'SECURITY_PAGI' || cat === 'SECURITY_MALAM' || cat === 'REGULER') {
+      return cat
+    }
+
+    if (lbl.includes('malam') || lbl.includes('subuh') || jamStr === '01:00' || jamStr === '03:00') {
+      return 'SECURITY_MALAM'
+    }
+    if (lbl.includes('security') || lbl.includes('patroli')) {
+      return 'SECURITY_PAGI'
+    }
+    return 'REGULER'
+  }
 
   async function loadSlots() {
     setLoading(true)
@@ -35,21 +83,56 @@ export default function JadwalSlot() {
         .eq('kode_proyek', activeKode)
         .order('urutan', { ascending: true })
 
-      if (error) {
-        const { data: fallbackData } = await supabase
-          .from('absen_jadwal_slot')
-          .select('*')
-          .order('urutan', { ascending: true })
-        setSlots(fallbackData || [])
-      } else if (data && data.length > 0) {
-        setSlots(data)
+      let rawDb = []
+      if (!error && data && data.length > 0) {
+        rawDb = data
       } else {
         const { data: fallbackData } = await supabase
           .from('absen_jadwal_slot')
           .select('*')
           .order('urutan', { ascending: true })
-        setSlots(fallbackData || [])
+        rawDb = fallbackData || []
       }
+
+      // Group DB items by category
+      const categories = ['REGULER', 'SECURITY_PAGI', 'SECURITY_MALAM']
+      const merged = []
+
+      for (const cat of categories) {
+        const catSlots = rawDb
+          .filter(s => normalizeShiftCategory(s) === cat)
+          .filter(s => s.aktif !== false)
+
+        if (catSlots.length > 0) {
+          // Deduplicate by jam & label
+          const seen = new Set()
+          for (const s of catSlots) {
+            const key = `${s.jam?.slice(0, 5)}-${s.label}`
+            if (!seen.has(key)) {
+              seen.add(key)
+              merged.push({
+                ...s,
+                _uid: s.id ? String(s.id) : `temp-${cat}-${key}`,
+                kategori_shift: cat,
+                aktif: s.aktif !== false
+              })
+            }
+          }
+        } else {
+          // Use standard defaults if category is empty
+          const defaults = DEFAULT_STANDARD_SLOTS[cat] || []
+          for (const s of defaults) {
+            merged.push({
+              ...s,
+              _uid: `temp-${cat}-${s.jam}-${s.label}`,
+              kode_proyek: activeKode,
+              aktif: true
+            })
+          }
+        }
+      }
+
+      setSlots(merged)
     } catch (err) {
       console.error('Error loading slots:', err)
     } finally {
@@ -58,21 +141,28 @@ export default function JadwalSlot() {
   }
 
   function addSlot() {
-    setSlots([...slots, { ...emptySlot, urutan: slots.length + 1, kategori_shift: activeTab }])
-  }
-
-  function updateSlot(index, field, value) {
-    const updated = [...slots]
-    updated[index] = { ...updated[index], [field]: value }
-    setSlots(updated)
-  }
-
-  function removeSlot(index) {
-    if (slots[index].id) {
-      updateSlot(index, 'aktif', false)
-    } else {
-      setSlots(slots.filter((_, i) => i !== index))
+    const newUid = `temp-new-${Date.now()}`
+    const newSlot = {
+      _uid: newUid,
+      id: null,
+      jam: '08:00',
+      label: '',
+      jenis: 'progress',
+      toleransi_menit: 15,
+      wajib: true,
+      urutan: slots.filter(s => s.kategori_shift === activeTab).length + 1,
+      aktif: true,
+      kategori_shift: activeTab
     }
+    setSlots(prev => [...prev, newSlot])
+  }
+
+  function updateSlot(uid, field, value) {
+    setSlots(prev => prev.map(s => s._uid === uid ? { ...s, [field]: value } : s))
+  }
+
+  function removeSlot(uid) {
+    setSlots(prev => prev.filter(s => s._uid !== uid))
   }
 
   async function handleSave() {
@@ -82,52 +172,62 @@ export default function JadwalSlot() {
     const activeKode = activeProj?.kode || '524006'
 
     try {
-      const payload = slots.map((s, i) => {
-        const isUuid = s.id && typeof s.id === 'string' && s.id.includes('-') && s.id.length >= 32
-        return {
-          ...s,
-          id: isUuid ? s.id : (s.id || null),
-          kode_proyek: activeKode,
-          kategori_shift: s.kategori_shift || activeTab || 'REGULER',
-          urutan: s.urutan || (i + 1),
-        }
+      const payload = slots.map((s, i) => ({
+        id: (s.id && !String(s.id).startsWith('temp-')) ? s.id : null,
+        jam: s.jam?.slice(0, 5) || '08:00',
+        label: s.label || 'Slot',
+        jenis: s.jenis || 'progress',
+        toleransi_menit: Number(s.toleransi_menit) || 15,
+        wajib: Boolean(s.wajib),
+        urutan: Number(s.urutan) || (i + 1),
+        aktif: s.aktif !== false,
+        kategori_shift: s.kategori_shift || 'REGULER',
+        kode_proyek: activeKode
+      }))
+
+      // 1. Fast single RPC call
+      const { error: rpcErr } = await supabase.rpc('absen_save_jadwal_slot', {
+        p_data: payload,
+        p_kode_proyek: activeKode
       })
 
-      // 1. Primary RPC save
-      const { error: rpcErr } = await supabase.rpc('absen_save_jadwal_slot', { p_data: payload, p_kode_proyek: activeKode })
-
-      // 2. Direct table update fallback to guarantee 100% immediate data persistence
-      for (const item of payload) {
-        if (item.id && typeof item.id === 'string' && item.id.includes('-')) {
-          await supabase
-            .from('absen_jadwal_slot')
-            .update({
-              jam: item.jam,
-              label: item.label,
-              jenis: item.jenis,
-              toleransi_menit: item.toleransi_menit,
-              wajib: item.wajib,
-              urutan: item.urutan,
-              aktif: item.aktif !== false,
-              kategori_shift: item.kategori_shift,
-              kode_proyek: activeKode
-            })
-            .eq('id', item.id)
-        } else {
-          await supabase
-            .from('absen_jadwal_slot')
-            .insert({
-              jam: item.jam,
-              label: item.label,
-              jenis: item.jenis,
-              toleransi_menit: item.toleransi_menit,
-              wajib: item.wajib,
-              urutan: item.urutan,
-              aktif: item.aktif !== false,
-              kategori_shift: item.kategori_shift,
-              kode_proyek: activeKode
-            })
-        }
+      // 2. Parallel fallback if RPC encounters issue
+      if (rpcErr) {
+        console.warn('RPC note:', rpcErr.message, '- using fast parallel upsert')
+        await Promise.all(
+          payload.map(item => {
+            if (item.id) {
+              return supabase
+                .from('absen_jadwal_slot')
+                .update({
+                  jam: item.jam,
+                  label: item.label,
+                  jenis: item.jenis,
+                  toleransi_menit: item.toleransi_menit,
+                  wajib: item.wajib,
+                  urutan: item.urutan,
+                  aktif: item.aktif,
+                  kategori_shift: item.kategori_shift,
+                  kode_proyek: activeKode
+                })
+                .eq('id', item.id)
+            } else {
+              return supabase
+                .from('absen_jadwal_slot')
+                .insert({
+                  jam: item.jam,
+                  label: item.label,
+                  jenis: item.jenis,
+                  toleransi_menit: item.toleransi_menit,
+                  wajib: item.wajib,
+                  urutan: item.urutan,
+                  aktif: item.aktif,
+                  kategori_shift: item.kategori_shift,
+                  kode_proyek: activeKode
+                })
+            }
+          })
+        )
       }
 
       setMessage(`Jadwal slot berhasil disimpan untuk proyek ${activeProj?.nama_singkat || activeKode}`)
@@ -139,70 +239,9 @@ export default function JadwalSlot() {
     }
   }
 
-  const standardSlots = useMemo(() => ({
-    REGULER: [
-      { jam: '08:00', label: 'Pagi', jenis: 'masuk', toleransi_menit: 15, wajib: true, urutan: 1, aktif: true, kategori_shift: 'REGULER' },
-      { jam: '10:00', label: 'Progress 1', jenis: 'progress', toleransi_menit: 10, wajib: true, urutan: 2, aktif: true, kategori_shift: 'REGULER' },
-      { jam: '11:30', label: 'Siang', jenis: 'istirahat', toleransi_menit: 20, wajib: true, urutan: 3, aktif: true, kategori_shift: 'REGULER' },
-      { jam: '13:00', label: 'Siang', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 4, aktif: true, kategori_shift: 'REGULER' },
-      { jam: '15:00', label: 'Progress 2', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 5, aktif: true, kategori_shift: 'REGULER' },
-      { jam: '17:00', label: 'Pulang', jenis: 'pulang', toleransi_menit: 15, wajib: true, urutan: 6, aktif: true, kategori_shift: 'REGULER' },
-      { jam: '19:00', label: 'Lembur', jenis: 'lembur', toleransi_menit: 15, wajib: true, urutan: 7, aktif: true, kategori_shift: 'REGULER' },
-      { jam: '00:00', label: 'Pulang lembur', jenis: 'pulang_lembur', toleransi_menit: 15, wajib: true, urutan: 8, aktif: true, kategori_shift: 'REGULER' },
-    ],
-    SECURITY_PAGI: [
-      { jam: '06:00', label: 'Security Masuk Pagi', jenis: 'masuk', toleransi_menit: 15, wajib: true, urutan: 101, aktif: true, kategori_shift: 'SECURITY_PAGI' },
-      { jam: '08:00', label: 'Security Patroli 1', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 102, aktif: true, kategori_shift: 'SECURITY_PAGI' },
-      { jam: '10:00', label: 'Security Patroli 2', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 103, aktif: true, kategori_shift: 'SECURITY_PAGI' },
-      { jam: '11:30', label: 'Security Istirahat', jenis: 'istirahat', toleransi_menit: 20, wajib: true, urutan: 104, aktif: true, kategori_shift: 'SECURITY_PAGI' },
-      { jam: '13:00', label: 'Security Patroli 3', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 105, aktif: true, kategori_shift: 'SECURITY_PAGI' },
-      { jam: '15:00', label: 'Security Patroli 4', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 106, aktif: true, kategori_shift: 'SECURITY_PAGI' },
-      { jam: '17:00', label: 'Security Pulang Pagi', jenis: 'pulang', toleransi_menit: 30, wajib: true, urutan: 107, aktif: true, kategori_shift: 'SECURITY_PAGI' },
-    ],
-    SECURITY_MALAM: [
-      { jam: '17:00', label: 'Security Masuk Malam', jenis: 'masuk', toleransi_menit: 15, wajib: true, urutan: 201, aktif: true, kategori_shift: 'SECURITY_MALAM' },
-      { jam: '19:00', label: 'Security Patroli Malam 1', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 202, aktif: true, kategori_shift: 'SECURITY_MALAM' },
-      { jam: '23:00', label: 'Security Patroli Malam 2', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 203, aktif: true, kategori_shift: 'SECURITY_MALAM' },
-      { jam: '01:00', label: 'Security Patroli Subuh 1 (+1)', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 204, aktif: true, kategori_shift: 'SECURITY_MALAM' },
-      { jam: '03:00', label: 'Security Patroli Subuh 2 (+1)', jenis: 'progress', toleransi_menit: 15, wajib: true, urutan: 205, aktif: true, kategori_shift: 'SECURITY_MALAM' },
-      { jam: '06:00', label: 'Security Pulang Malam (+1)', jenis: 'pulang', toleransi_menit: 30, wajib: true, urutan: 206, aktif: true, kategori_shift: 'SECURITY_MALAM' },
-    ]
-  }), [])
-
-  const filteredSlots = useMemo(() => {
-    const raw = slots.filter(s => {
-      const cat = s.kategori_shift || 'REGULER'
-      const lbl = (s.label || '').toLowerCase()
-      const isSec = cat === 'SECURITY_PAGI' || cat === 'SECURITY_MALAM' || lbl.includes('security') || lbl.includes('patroli')
-
-      if (activeTab === 'REGULER') {
-        return (cat === 'REGULER' || !s.kategori_shift) && !isSec
-      } else if (activeTab === 'SECURITY_PAGI') {
-        return cat === 'SECURITY_PAGI' || (isSec && !lbl.includes('malam') && !lbl.includes('subuh'))
-      } else if (activeTab === 'SECURITY_MALAM') {
-        return cat === 'SECURITY_MALAM' || (isSec && (lbl.includes('malam') || lbl.includes('subuh') || s.jam?.slice(0, 5) === '01:00' || s.jam?.slice(0, 5) === '03:00'))
-      }
-      return cat === activeTab
-    })
-
-    const seen = new Set()
-    const unique = []
-    for (const s of raw) {
-      const key = `${s.jam?.slice(0, 5)}-${s.label}`
-      if (!seen.has(key)) {
-        seen.add(key)
-        unique.push(s)
-      }
-    }
-
-    if (unique.length === 0) {
-      return standardSlots[activeTab] || []
-    }
-
-    return unique
-  }, [slots, activeTab, standardSlots])
-
-  const activeSlots = filteredSlots.filter(s => s.aktif !== false)
+  const activeTabSlots = useMemo(() => {
+    return slots.filter(s => s.kategori_shift === activeTab && s.aktif !== false)
+  }, [slots, activeTab])
 
   return (
     <div>
@@ -280,33 +319,31 @@ export default function JadwalSlot() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {activeSlots.map((slot, i) => {
-                    const realIndex = slots.indexOf(slot)
-                    const jenisInfo = jenisOptions.find(j => j.value === slot.jenis)
+                  {activeTabSlots.map((slot, i) => {
                     return (
-                      <tr key={slot.id || `new-${i}`} className="hover:bg-white/5 transition-colors">
+                      <tr key={slot._uid} className="hover:bg-white/5 transition-colors">
                         <td className="text-center px-3 py-3 text-slate-500">{i + 1}</td>
                         <td className="px-4 py-3">
                           <input
                             type="time"
                             value={slot.jam?.slice(0, 5) || ''}
-                            onChange={e => updateSlot(realIndex, 'jam', e.target.value)}
+                            onChange={e => updateSlot(slot._uid, 'jam', e.target.value)}
                             className="input-field py-1.5 w-28"
                           />
                         </td>
                         <td className="px-4 py-3">
                           <input
                             type="text"
-                            value={slot.label}
-                            onChange={e => updateSlot(realIndex, 'label', e.target.value)}
+                            value={slot.label || ''}
+                            onChange={e => updateSlot(slot._uid, 'label', e.target.value)}
                             placeholder="Nama slot..."
                             className="input-field py-1.5"
                           />
                         </td>
                         <td className="px-4 py-3">
                           <select
-                            value={slot.jenis}
-                            onChange={e => updateSlot(realIndex, 'jenis', e.target.value)}
+                            value={slot.jenis || 'progress'}
+                            onChange={e => updateSlot(slot._uid, 'jenis', e.target.value)}
                             className="select-field py-1.5"
                           >
                             {jenisOptions.map(j => <option key={j.value} value={j.value}>{j.label}</option>)}
@@ -317,22 +354,22 @@ export default function JadwalSlot() {
                             type="number"
                             min={1}
                             max={120}
-                            value={slot.toleransi_menit}
-                            onChange={e => updateSlot(realIndex, 'toleransi_menit', Number(e.target.value))}
+                            value={slot.toleransi_menit ?? 15}
+                            onChange={e => updateSlot(slot._uid, 'toleransi_menit', Number(e.target.value))}
                             className="input-field py-1.5 w-20 text-center mx-auto"
                           />
                         </td>
                         <td className="px-4 py-3 text-center">
                           <input
                             type="checkbox"
-                            checked={slot.wajib}
-                            onChange={e => updateSlot(realIndex, 'wajib', e.target.checked)}
+                            checked={Boolean(slot.wajib)}
+                            onChange={e => updateSlot(slot._uid, 'wajib', e.target.checked)}
                             className="w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500 bg-white/5"
                           />
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button
-                            onClick={() => removeSlot(realIndex)}
+                            onClick={() => removeSlot(slot._uid)}
                             className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                             title="Hapus"
                           >
