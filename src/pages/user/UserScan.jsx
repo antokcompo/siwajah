@@ -281,6 +281,10 @@ export default function UserScan() {
       setResult(data)
       setPhase('success')
     } catch (err) {
+      if (err.message && (err.message.includes('Akses Ditolak') || err.message.includes('lembur'))) {
+        setError(err.message)
+        return
+      }
       console.warn('Online submission failed or timed out, saving offline:', err)
       try {
         await saveOffline()
