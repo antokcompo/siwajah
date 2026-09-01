@@ -110,36 +110,59 @@ export default function UserBeranda() {
       supabase.from('absen_kalender').select('*').eq('tanggal', todayStr).maybeSingle(),
     ])
 
-    let activeSlots = userSlotsRes.data || []
+    const isSecurity = (karyawan?.jabatan || '').toLowerCase().includes('security') ||
+                       (karyawan?.jabatan || '').toLowerCase().includes('satpam') ||
+                       (karyawan?.jabatan || '').toLowerCase().includes('sec')
 
-    if (!activeSlots || activeSlots.length === 0) {
-      const isSecurity = (karyawan?.jabatan || '').toLowerCase().includes('security') ||
-                         (karyawan?.jabatan || '').toLowerCase().includes('satpam') ||
-                         (karyawan?.jabatan || '').toLowerCase().includes('sec')
+    let rawSlots = userSlotsRes.data && userSlotsRes.data.length > 0 ? userSlotsRes.data : (fallbackSlotsRes.data || [])
 
-      let targetCategory = 'REGULER'
-      if (isSecurity) {
-        const { data: roster } = await supabase
-          .from('absen_roster_security')
-          .select('shift')
-          .eq('karyawan_id', karyawan.id)
-          .eq('tanggal', todayStr)
-          .maybeSingle()
+    let targetCategory = 'REGULER'
+    if (isSecurity) {
+      const { data: roster } = await supabase
+        .from('absen_roster_security')
+        .select('shift')
+        .eq('karyawan_id', karyawan.id)
+        .eq('tanggal', todayStr)
+        .maybeSingle()
 
-        const shift = (roster?.shift || 'PAGI').toUpperCase()
-        targetCategory = shift === 'MALAM' ? 'SECURITY_MALAM' : 'SECURITY_PAGI'
-      }
-
-      activeSlots = (fallbackSlotsRes.data || []).filter(s => {
-        const cat = s.kategori_shift || 'REGULER'
-        if (targetCategory === 'REGULER') {
-          return cat === 'REGULER' || !cat || cat === ''
-        }
-        return cat === targetCategory
-      })
+      const shift = (roster?.shift || 'PAGI').toUpperCase()
+      targetCategory = shift === 'MALAM' ? 'SECURITY_MALAM' : 'SECURITY_PAGI'
     }
 
-    setSlots(activeSlots)
+    let filteredSlots = rawSlots.filter(s => {
+      const cat = s.kategori_shift || 'REGULER'
+      const lbl = (s.label || '').toLowerCase()
+      const jamStr = (s.jam || '').slice(0, 5)
+
+      if (!isSecurity) {
+        // NON-SECURITY WORKER (e.g. ABDUL GHOFUR / CW / Helper / Mandor):
+        if (cat === 'SECURITY_PAGI' || cat === 'SECURITY_MALAM') return false
+        if (lbl.includes('security') || lbl.includes('patroli') || lbl.includes('satpam')) return false
+        if (jamStr === '01:00' || jamStr === '03:00' || jamStr === '23:00') return false
+        if (jamStr === '06:00') return false
+        return true
+      } else {
+        // SECURITY WORKER:
+        if (targetCategory === 'SECURITY_MALAM') {
+          return cat === 'SECURITY_MALAM' || lbl.includes('malam') || jamStr === '17:00' || jamStr === '19:00' || jamStr === '23:00' || jamStr === '01:00' || jamStr === '03:00' || jamStr === '06:00'
+        } else {
+          return cat === 'SECURITY_PAGI' || (lbl.includes('security') && !lbl.includes('malam'))
+        }
+      }
+    })
+
+    // Deduplicate slots by jam & label
+    const seenJam = new Set()
+    const uniqueSlots = []
+    for (const s of filteredSlots) {
+      const key = `${s.jam?.slice(0, 5)}-${s.label}`
+      if (!seenJam.has(key)) {
+        seenJam.add(key)
+        uniqueSlots.push(s)
+      }
+    }
+
+    setSlots(uniqueSlots)
     setTodayScans(scansRes.data || [])
     setHasFace(!!faceRes.data)
     setLemburRegistered(!!lemburRes.data)
