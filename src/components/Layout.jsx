@@ -16,14 +16,12 @@ const menuGroups = [
     label: 'UTAMA',
     items: [
       { path: '/siwajah', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin','atasan','hrd','manajemen'] },
-      { path: '/import', label: 'Import Absensi', icon: Upload, roles: ['admin','atasan','hrd'] },
       { path: '/rekap-harian', label: 'Rekap Harian', icon: CalendarDays, roles: ['admin','atasan','hrd','manajemen'] },
     ],
   },
   {
     label: 'ABSENSI',
     items: [
-      { path: '/koreksi', label: 'Koreksi', icon: FileEdit, roles: ['admin','atasan'] },
       { path: '/approval-lembur', label: 'Lembur', icon: Clock, roles: ['admin','atasan'] },
       { path: '/laporan-izin', label: 'Laporan & Izin', icon: FileWarning, roles: ['admin','atasan'] },
       { path: '/rekap-bulanan', label: 'Rekap Bulanan', icon: FileSpreadsheet, roles: ['admin','hrd','manajemen'] },
