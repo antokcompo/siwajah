@@ -65,9 +65,9 @@ export async function detectFace(videoEl) {
   }
 
   try {
-    return await withTimeout(runDetection(), 8000, 'Deteksi wajah terlalu lama.')
+    return await withTimeout(runDetection(), 15000, 'Deteksi wajah terlalu lama.')
   } catch (err) {
-    console.warn('detectFace warning/timeout:', err)
+    console.warn('detectFace note:', err.message || err)
     return null
   }
 }
