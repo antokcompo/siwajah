@@ -312,9 +312,13 @@ export default function UserBeranda() {
     )
   })
 
-  // Filter base slots: remove static 12:00 & 23:00 slots
+  // Filter base slots: remove static 12:00 & 23:00 slots, and restrict overtime slots (19:00) to registered overtime workers
   const baseSlots = slots.filter(slot => {
     if (slot.jam?.startsWith('12:00') || slot.jam?.startsWith('23:00')) return false
+    const isLembur = isLemburSlot(slot) || (slot.label || '').toLowerCase().includes('lembur')
+    if (isLembur && !lemburRegistered && !hasScannedLembur) {
+      return false
+    }
     return true
   })
 
