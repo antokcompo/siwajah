@@ -95,7 +95,8 @@ export default function UserBeranda() {
     setLoading(true)
     const todayStr = getLocalDateString(new Date())
 
-    const [slotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
+    const [userSlotsRes, fallbackSlotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
+      supabase.rpc('absen_get_jadwal_slot_user', { p_karyawan_id: karyawan.id, p_tanggal: todayStr }),
       supabase.rpc('absen_get_jadwal_slot'),
       supabase
         .from('absen_scan_wajah')
@@ -108,7 +109,37 @@ export default function UserBeranda() {
       supabase.from('absen_izin').select('*').eq('karyawan_id', karyawan.id).eq('status', 'APPROVED').lte('tanggal_mulai', todayStr).gte('tanggal_selesai', todayStr).maybeSingle(),
       supabase.from('absen_kalender').select('*').eq('tanggal', todayStr).maybeSingle(),
     ])
-    setSlots(slotsRes.data || [])
+
+    let activeSlots = userSlotsRes.data || []
+
+    if (!activeSlots || activeSlots.length === 0) {
+      const isSecurity = (karyawan?.jabatan || '').toLowerCase().includes('security') ||
+                         (karyawan?.jabatan || '').toLowerCase().includes('satpam') ||
+                         (karyawan?.jabatan || '').toLowerCase().includes('sec')
+
+      let targetCategory = 'REGULER'
+      if (isSecurity) {
+        const { data: roster } = await supabase
+          .from('absen_roster_security')
+          .select('shift')
+          .eq('karyawan_id', karyawan.id)
+          .eq('tanggal', todayStr)
+          .maybeSingle()
+
+        const shift = (roster?.shift || 'PAGI').toUpperCase()
+        targetCategory = shift === 'MALAM' ? 'SECURITY_MALAM' : 'SECURITY_PAGI'
+      }
+
+      activeSlots = (fallbackSlotsRes.data || []).filter(s => {
+        const cat = s.kategori_shift || 'REGULER'
+        if (targetCategory === 'REGULER') {
+          return cat === 'REGULER' || !cat || cat === ''
+        }
+        return cat === targetCategory
+      })
+    }
+
+    setSlots(activeSlots)
     setTodayScans(scansRes.data || [])
     setHasFace(!!faceRes.data)
     setLemburRegistered(!!lemburRes.data)
