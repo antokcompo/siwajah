@@ -81,6 +81,11 @@ export default function UserBeranda() {
 
   const userTz = getUserTz()
   const isOffsite = userTz && userTz !== projectTz
+  const isSecurity = Boolean(
+    (karyawan?.jabatan || '').toLowerCase().includes('security') ||
+    (karyawan?.jabatan || '').toLowerCase().includes('satpam') ||
+    (karyawan?.jabatan || '').toLowerCase().includes('sec')
+  )
 
   async function handleInstallClick() {
     if (!deferredPrompt) return
@@ -109,10 +114,6 @@ export default function UserBeranda() {
       supabase.from('absen_izin').select('*').eq('karyawan_id', karyawan.id).eq('status', 'APPROVED').lte('tanggal_mulai', todayStr).gte('tanggal_selesai', todayStr).maybeSingle(),
       supabase.from('absen_kalender').select('*').eq('tanggal', todayStr).maybeSingle(),
     ])
-
-    const isSecurity = (karyawan?.jabatan || '').toLowerCase().includes('security') ||
-                       (karyawan?.jabatan || '').toLowerCase().includes('satpam') ||
-                       (karyawan?.jabatan || '').toLowerCase().includes('sec')
 
     let rawSlots = userSlotsRes.data && userSlotsRes.data.length > 0 ? userSlotsRes.data : (fallbackSlotsRes.data || [])
 
