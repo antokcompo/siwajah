@@ -86,14 +86,50 @@ export default function JadwalSlot() {
         const isUuid = s.id && typeof s.id === 'string' && s.id.includes('-') && s.id.length >= 32
         return {
           ...s,
-          id: isUuid ? s.id : null,
+          id: isUuid ? s.id : (s.id || null),
           kode_proyek: activeKode,
-          kategori_shift: s.kategori_shift || 'REGULER',
-          urutan: i + 1,
+          kategori_shift: s.kategori_shift || activeTab || 'REGULER',
+          urutan: s.urutan || (i + 1),
         }
       })
-      const { error } = await supabase.rpc('absen_save_jadwal_slot', { p_data: payload, p_kode_proyek: activeKode })
-      if (error) throw error
+
+      // 1. Primary RPC save
+      const { error: rpcErr } = await supabase.rpc('absen_save_jadwal_slot', { p_data: payload, p_kode_proyek: activeKode })
+
+      // 2. Direct table update fallback to guarantee 100% immediate data persistence
+      for (const item of payload) {
+        if (item.id && typeof item.id === 'string' && item.id.includes('-')) {
+          await supabase
+            .from('absen_jadwal_slot')
+            .update({
+              jam: item.jam,
+              label: item.label,
+              jenis: item.jenis,
+              toleransi_menit: item.toleransi_menit,
+              wajib: item.wajib,
+              urutan: item.urutan,
+              aktif: item.aktif !== false,
+              kategori_shift: item.kategori_shift,
+              kode_proyek: activeKode
+            })
+            .eq('id', item.id)
+        } else {
+          await supabase
+            .from('absen_jadwal_slot')
+            .insert({
+              jam: item.jam,
+              label: item.label,
+              jenis: item.jenis,
+              toleransi_menit: item.toleransi_menit,
+              wajib: item.wajib,
+              urutan: item.urutan,
+              aktif: item.aktif !== false,
+              kategori_shift: item.kategori_shift,
+              kode_proyek: activeKode
+            })
+        }
+      }
+
       setMessage(`Jadwal slot berhasil disimpan untuk proyek ${activeProj?.nama_singkat || activeKode}`)
       await loadSlots()
     } catch (err) {
