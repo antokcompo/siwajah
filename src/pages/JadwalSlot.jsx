@@ -140,13 +140,25 @@ export default function JadwalSlot() {
   }
 
   const filteredSlots = useMemo(() => {
-    return slots.filter(s => {
+    const raw = slots.filter(s => {
       const cat = s.kategori_shift || 'REGULER'
       if (activeTab === 'REGULER') {
         return cat === 'REGULER' || !cat || cat === ''
       }
       return cat === activeTab
     })
+
+    // Deduplicate by jam & label so double rows are never displayed
+    const seen = new Set()
+    const unique = []
+    for (const s of raw) {
+      const key = `${s.jam?.slice(0, 5)}-${s.label}`
+      if (!seen.has(key)) {
+        seen.add(key)
+        unique.push(s)
+      }
+    }
+    return unique
   }, [slots, activeTab])
 
   const activeSlots = filteredSlots.filter(s => s.aktif !== false)
