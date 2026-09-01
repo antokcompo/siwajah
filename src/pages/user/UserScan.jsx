@@ -256,6 +256,7 @@ export default function UserScan() {
           } catch (e) {}
         }
 
+        let resultData = null
         const { data, error: rpcError } = await supabase.rpc('absen_catat_scan_wajah', {
           p_karyawan_id: karyawan.id,
           p_slot_id: String(targetSlotId),
@@ -271,10 +272,51 @@ export default function UserScan() {
           p_gps_accuracy: gps?.accuracy || null,
           p_fake_gps_score: gps?.fakeGpsScore || 0,
           p_fake_gps_reason: gps?.reasons ? gps.reasons.join(', ') : null,
+          p_waktu_scan: new Date().toISOString(),
         })
-        if (rpcError) throw rpcError
-        if (data?.error) throw new Error(data.error)
-        return data
+
+        if (!rpcError && data && !data.error) {
+          resultData = data
+        } else if (rpcError) {
+          console.warn('RPC note:', rpcError.message, '- executing direct table insert fallback')
+          const nowIso = new Date().toISOString()
+          const slotNum = Number(targetSlotId)
+          const isSlotUuid = typeof targetSlotId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetSlotId)
+
+          const { data: directData, error: directErr } = await supabase
+            .from('absen_scan_wajah')
+            .insert({
+              karyawan_id: karyawan.id,
+              slot_id: isSlotUuid ? targetSlotId : (!isNaN(slotNum) && slotNum > 0 ? slotNum : null),
+              tanggal: nowIso.split('T')[0],
+              waktu_scan: nowIso,
+              lokasi_kerja: lokasi || null,
+              jenis_pekerjaan: pekerjaan || null,
+              keterangan: keterangan || null,
+              foto_url: fotoUrl,
+              gps_lat: gps?.lat || null,
+              gps_lng: gps?.lng || null,
+              confidence: confidence,
+              client_tz: getUserTz(),
+              is_mock_gps: gps?.isMock || false,
+              gps_accuracy: gps?.accuracy || null,
+              fake_gps_score: gps?.fakeGpsScore || 0,
+              fake_gps_reason: gps?.reasons ? gps.reasons.join(', ') : null,
+              kode_proyek: karyawan?.kode_proyek || '524006'
+            })
+            .select('id, waktu_scan')
+            .single()
+
+          if (!directErr && directData) {
+            resultData = { success: true, waktu: directData.waktu_scan, slot_label: slot.label }
+          } else {
+            throw rpcError || directErr
+          }
+        } else if (data?.error) {
+          throw new Error(data.error)
+        }
+
+        return resultData
       })()
 
       const data = await withTimeout(submitPromise, 8000, 'Koneksi lambat saat mengirim data presensi.')

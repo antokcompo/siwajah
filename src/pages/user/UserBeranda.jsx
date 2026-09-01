@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
-import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPin, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle, X, Send, Download, Sun, Moon } from 'lucide-react'
-import { cacheFaceData } from '../../lib/offlineQueue'
+import { cacheFaceData, getPendingScans } from '../../lib/offlineQueue'
 import PhotoInput from '../../components/PhotoInput'
 
 const jenisColor = {
@@ -102,7 +101,7 @@ export default function UserBeranda() {
 
     const kKodeProyek = karyawan?.kode_proyek || '524006'
 
-    const [directSlotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
+    const [directSlotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes, offlineList] = await Promise.all([
       supabase.from('absen_jadwal_slot').select('*').eq('aktif', true).eq('kode_proyek', kKodeProyek).order('urutan', { ascending: true }),
       supabase
         .from('absen_scan_wajah')
@@ -114,7 +113,10 @@ export default function UserBeranda() {
       supabase.from('absen_laporan_terlewat').select('*').eq('karyawan_id', karyawan.id).eq('tanggal', todayStr),
       supabase.from('absen_izin').select('*').eq('karyawan_id', karyawan.id).eq('status', 'APPROVED').lte('tanggal_mulai', todayStr).gte('tanggal_selesai', todayStr).maybeSingle(),
       supabase.from('absen_kalender').select('*').eq('tanggal', todayStr).maybeSingle(),
+      getPendingScans().catch(() => [])
     ])
+
+    const combinedScans = [...(scansRes.data || []), ...(offlineList || [])]
 
     const isLemburApproved = !!lemburRes.data
 
@@ -183,7 +185,7 @@ export default function UserBeranda() {
     }
 
     setSlots(uniqueSlots)
-    setTodayScans(scansRes.data || [])
+    setTodayScans(combinedScans)
     setHasFace(!!faceRes.data)
     setLemburRegistered(isLemburApproved)
     setTodayLaporan(laporanRes.data || [])
@@ -211,8 +213,13 @@ export default function UserBeranda() {
 
     if (isLemburSlot(slot) && !lemburRegistered && !hasScannedLembur && !isPulangLembur) return 'not_registered'
 
+    const slotJamPrefix = (slot.jam || '').slice(0, 5)
     const scan = todayScans.find(s =>
       String(s.slot_id) === String(slot.id) ||
+      (s.slot_jam && s.slot_jam.slice(0, 5) === slotJamPrefix) ||
+      (s.jam && s.jam.slice(0, 5) === slotJamPrefix) ||
+      (s.waktu_scan && s.waktu_scan.split('T')[1]?.slice(0, 2) === slotJamPrefix.slice(0, 2)) ||
+      (s.slot_label && slot.label && s.slot_label.toLowerCase() === slot.label.toLowerCase()) ||
       (isPulangLembur && (
         s.absen_jadwal_slot?.jenis === 'pulang_lembur' ||
         (s.slot_label || '').toLowerCase().includes('pulang lembur') ||
