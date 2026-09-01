@@ -100,9 +100,11 @@ export default function UserBeranda() {
     setLoading(true)
     const todayStr = getLocalDateString(new Date())
 
-    const [userSlotsRes, fallbackSlotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
+    const kKodeProyek = karyawan?.kode_proyek || '524006'
+
+    const [directSlotsRes, userSlotsRes, scansRes, faceRes, lemburRes, laporanRes, izinRes, kalenderRes] = await Promise.all([
+      supabase.from('absen_jadwal_slot').select('*').eq('aktif', true).eq('kode_proyek', kKodeProyek).order('urutan', { ascending: true }),
       supabase.rpc('absen_get_jadwal_slot_user', { p_karyawan_id: karyawan.id, p_tanggal: todayStr }),
-      supabase.rpc('absen_get_jadwal_slot'),
       supabase
         .from('absen_scan_wajah')
         .select('*, absen_jadwal_slot(*)')
@@ -115,7 +117,7 @@ export default function UserBeranda() {
       supabase.from('absen_kalender').select('*').eq('tanggal', todayStr).maybeSingle(),
     ])
 
-    let rawSlots = userSlotsRes.data && userSlotsRes.data.length > 0 ? userSlotsRes.data : (fallbackSlotsRes.data || [])
+    const isLemburApproved = !!lemburRes.data
 
     let targetCategory = 'REGULER'
     if (isSecurity) {
@@ -130,35 +132,52 @@ export default function UserBeranda() {
       targetCategory = shift === 'MALAM' ? 'SECURITY_MALAM' : 'SECURITY_PAGI'
     }
 
-    let filteredSlots = rawSlots.filter(s => {
-      const cat = s.kategori_shift || 'REGULER'
+    let rawSlots = []
+    if (directSlotsRes.data && directSlotsRes.data.length > 0) {
+      rawSlots = directSlotsRes.data
+    } else if (userSlotsRes.data && userSlotsRes.data.length > 0) {
+      rawSlots = userSlotsRes.data
+    }
+
+    const filteredSlots = rawSlots.filter(s => {
+      const cat = s.kategori_shift || (
+        (s.label || '').toLowerCase().includes('malam') || ['01:00','03:00','23:00'].includes(s.jam?.slice(0,5))
+          ? 'SECURITY_MALAM'
+          : ((s.label || '').toLowerCase().includes('security') ? 'SECURITY_PAGI' : 'REGULER')
+      )
+      const jamStr = s.jam?.slice(0, 5) || ''
       const lbl = (s.label || '').toLowerCase()
-      const jamStr = (s.jam || '').slice(0, 5)
+      const isLembur = s.jenis === 'lembur' || s.jenis === 'pulang_lembur' || lbl.includes('lembur')
 
       if (!isSecurity) {
-        // NON-SECURITY WORKER (e.g. ABDUL GHOFUR / CW / Helper / Mandor):
-        if (cat === 'SECURITY_PAGI' || cat === 'SECURITY_MALAM') return false
-        if (lbl.includes('security') || lbl.includes('patroli') || lbl.includes('satpam')) return false
-        if (jamStr === '01:00' || jamStr === '03:00' || jamStr === '23:00') return false
-        if (jamStr === '06:00') return false
+        // KARYAWAN NON-SECURITY (Abdul Ghofur / CW / Kantor):
+        if (cat !== 'REGULER') return false
+        if (['06:00', '01:00', '02:00', '03:00', '04:00', '22:00', '23:00'].includes(jamStr)) return false
+        if (lbl.includes('security') || lbl.includes('patroli') || lbl.includes('satpam') || lbl.includes('malam')) return false
+        if (isLembur && !isLemburApproved) return false
+        return true
+      } else if (targetCategory === 'SECURITY_MALAM') {
+        // SECURITY SHIFT MALAM:
+        if (cat !== 'SECURITY_MALAM' && !lbl.includes('malam') && !['17:00','19:00','23:00','01:00','03:00','06:00'].includes(jamStr)) return false
+        if (lbl.includes('pagi') && !lbl.includes('pulang malam')) return false
         return true
       } else {
-        // SECURITY WORKER:
-        if (targetCategory === 'SECURITY_MALAM') {
-          return cat === 'SECURITY_MALAM' || lbl.includes('malam') || jamStr === '17:00' || jamStr === '19:00' || jamStr === '23:00' || jamStr === '01:00' || jamStr === '03:00' || jamStr === '06:00'
-        } else {
-          return cat === 'SECURITY_PAGI' || (lbl.includes('security') && !lbl.includes('malam'))
-        }
+        // SECURITY SHIFT PAGI:
+        if (cat !== 'SECURITY_PAGI' && !lbl.includes('security')) return false
+        if (lbl.includes('malam') || ['23:00','01:00','03:00'].includes(jamStr)) return false
+        return true
       }
     })
 
-    // Deduplicate slots by jam & label
+    // Strict deduplication by unique JAM (08:00, 10:00, 11:30, 13:00, 15:00, 17:00)
     const seenJam = new Set()
     const uniqueSlots = []
+    filteredSlots.sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
+
     for (const s of filteredSlots) {
-      const key = `${s.jam?.slice(0, 5)}-${s.label}`
-      if (!seenJam.has(key)) {
-        seenJam.add(key)
+      const jamKey = (s.jam || '').slice(0, 5)
+      if (!seenJam.has(jamKey)) {
+        seenJam.add(jamKey)
         uniqueSlots.push(s)
       }
     }
@@ -166,7 +185,7 @@ export default function UserBeranda() {
     setSlots(uniqueSlots)
     setTodayScans(scansRes.data || [])
     setHasFace(!!faceRes.data)
-    setLemburRegistered(!!lemburRes.data)
+    setLemburRegistered(isLemburApproved)
     setTodayLaporan(laporanRes.data || [])
     setTodayIzin(izinRes.data || null)
     setTodayKalender(kalenderRes.data || null)
