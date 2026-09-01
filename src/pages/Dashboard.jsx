@@ -185,7 +185,7 @@ export default function Dashboard() {
   const [overtimeTrend, setOvertimeTrend] = useState([])
   const [workHoursTrend, setWorkHoursTrend] = useState([])
   const [offsiteScans, setOffsiteScans] = useState([])
-  const [siteConfig, setSiteConfig] = useState({ lat: -6.2, lng: 106.816666, radius: 500, nama: 'Site Proyek Utama' })
+  const [siteConfig, setSiteConfig] = useState({ lat: -4.824518, lng: 136.844673, radius: 1000, nama: 'Portsite Accommodation Complex' })
   const [previewPhoto, setPreviewPhoto] = useState(null)
   const [zoomChartModal, setZoomChartModal] = useState(null)
   const [offsiteSearch, setOffsiteSearch] = useState('')

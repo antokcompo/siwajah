@@ -1,25 +1,42 @@
 -- ============================================================
--- 059: Fix Geofence Radius & GPS Hardware Drift Buffer
+-- 059: Fix Geofence Center Coordinates & Accuracy Buffer
 --
--- Menyelaraskan radius toleransi geofence site proyek (1000m / 1 km)
--- untuk kompleks lokasi site proyek seperti Portsite Accommodation Complex,
--- dan mengupdate RPC absen_catat_scan_wajah agar memperhitungkan
--- buffer toleransi akurasi hardware GPS HP pekerja (pos.coords.accuracy).
+-- 1. Menambahkan kolom lat, lng, radius_meter pada absen_proyek jika belum ada.
+-- 2. Mengatur titik pusat GPS Portsite Accommodation Complex (524006) ke:
+--    Lat: -4.824518, Lng: 136.844673, Radius: 1000 meter.
+-- 3. Memperbarui tabel absen_konfigurasi agar selaras dengan Portsite Papua.
+-- 4. Memperbarui RPC absen_catat_scan_wajah dengan buffer toleransi akurasi GPS HP.
 --
 -- JALANKAN DI SUPABASE SQL EDITOR
 -- ============================================================
 
--- 1. Update radius default proyek ke 1000m jika masih 400m/500m
+-- 1. Tambah kolom lat, lng, radius_meter pada tabel absen_proyek jika belum ada
+ALTER TABLE absen_proyek ADD COLUMN IF NOT EXISTS lat numeric DEFAULT -4.824518;
+ALTER TABLE absen_proyek ADD COLUMN IF NOT EXISTS lng numeric DEFAULT 136.844673;
+ALTER TABLE absen_proyek ADD COLUMN IF NOT EXISTS radius_meter numeric DEFAULT 1000;
+
+-- 2. Set titik pusat koordinat GPS Portsite Accommodation Complex (524006)
 UPDATE absen_proyek
-SET radius_meter = 1000
-WHERE radius_meter IS NULL OR radius_meter <= 500;
+SET 
+  lat = -4.824518,
+  lng = 136.844673,
+  radius_meter = 1000
+WHERE kode_proyek = '524006' OR lat IS NULL OR lat = -6.2;
 
--- 2. Update konfigurasi site_radius_meter di absen_konfigurasi
-UPDATE absen_konfigurasi
-SET nilai = '1000'
-WHERE kunci = 'site_radius_meter' AND (nilai = '400' OR nilai = '500' OR nilai IS NULL);
+-- 3. Update tabel absen_konfigurasi agar titik pusat site proyek selaras
+INSERT INTO absen_konfigurasi (kunci, nilai, keterangan, kode_proyek)
+VALUES 
+  ('site_lat', '-4.824518', 'Latitude Site Portsite Papua', '524006'),
+  ('site_lng', '136.844673', 'Longitude Site Portsite Papua', '524006'),
+  ('site_radius_meter', '1000', 'Radius Geofence Portsite (meter)', '524006')
+ON CONFLICT (kunci) DO UPDATE SET
+  nilai = EXCLUDED.nilai;
 
--- 3. Update RPC Catat Scan Wajah dengan Geofencing Toleran Hardware Drift
+UPDATE absen_konfigurasi SET nilai = '-4.824518' WHERE kunci = 'site_lat' AND (nilai = '-6.2' OR nilai = '-6.200000');
+UPDATE absen_konfigurasi SET nilai = '136.844673' WHERE kunci = 'site_lng' AND (nilai = '106.816666' OR nilai = '106.8167');
+UPDATE absen_konfigurasi SET nilai = '1000' WHERE kunci = 'site_radius_meter';
+
+-- 4. Update RPC Catat Scan Wajah dengan Geofencing Pintar & Accuracy Buffer
 CREATE OR REPLACE FUNCTION absen_catat_scan_wajah(
   p_karyawan_id uuid,
   p_slot_id text,
@@ -39,8 +56,8 @@ CREATE OR REPLACE FUNCTION absen_catat_scan_wajah(
 RETURNS jsonb AS $$
 DECLARE
   v_proyek_kode text;
-  v_site_lat numeric;
-  v_site_lng numeric;
+  v_site_lat numeric := -4.824518;
+  v_site_lng numeric := 136.844673;
   v_site_radius numeric := 1000;
   v_dist numeric := 0;
   v_effective_dist numeric := 0;
@@ -55,14 +72,18 @@ BEGIN
   v_proyek_kode := COALESCE(v_proyek_kode, '524006');
 
   -- Ambil koordinat & radius site dari tabel absen_proyek
-  SELECT lat, lng, COALESCE(radius_meter, 1000)
+  SELECT COALESCE(lat, -4.824518), COALESCE(lng, 136.844673), COALESCE(radius_meter, 1000)
   INTO v_site_lat, v_site_lng, v_site_radius
   FROM absen_proyek
   WHERE kode_proyek = v_proyek_kode;
 
+  -- Fallback jika proyek belum diset koordinatnya
+  v_site_lat := COALESCE(v_site_lat, -4.824518);
+  v_site_lng := COALESCE(v_site_lng, 136.844673);
+  v_site_radius := COALESCE(v_site_radius, 1000);
+
   -- Hitung Geofencing jika GPS latitude & longitude valid
-  IF p_gps_lat IS NOT NULL AND p_gps_lng IS NOT NULL AND v_site_lat IS NOT NULL AND v_site_lng IS NOT NULL THEN
-    -- Formula Haversine dalam PL/pgSQL
+  IF p_gps_lat IS NOT NULL AND p_gps_lng IS NOT NULL THEN
     v_dist := 6371000 * 2 * ASIN(SQRT(
       POWER(SIN(RADIANS(p_gps_lat - v_site_lat) / 2), 2) +
       COS(RADIANS(v_site_lat)) * COS(RADIANS(p_gps_lat)) *
