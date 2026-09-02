@@ -42,6 +42,7 @@ export default function UserBeranda() {
   const [todayKalender, setTodayKalender] = useState(null)
   const [lemburRegistered, setLemburRegistered] = useState(false)
   const [hasFace, setHasFace] = useState(null)
+  const [targetCategory, setTargetCategory] = useState('REGULER')
   const [now, setNow] = useState(new Date())
   const [loading, setLoading] = useState(true)
 
@@ -221,6 +222,7 @@ export default function UserBeranda() {
     setTodayScans(combinedScans)
     setHasFace(!!faceRes.data)
     setLemburRegistered(isLemburApproved)
+    setTargetCategory(targetCategory)
     setTodayLaporan(laporanRes.data || [])
     setTodayIzin(izinRes.data || null)
     setTodayKalender(kalenderRes.data || null)
@@ -279,10 +281,10 @@ export default function UserBeranda() {
 
     // Check if this slot belongs to an overnight shift (e.g. SECURITY_MALAM)
     const isOvernight = (isSecurity && (targetCategory === 'SECURITY_MALAM' || slot.kategori_shift === 'SECURITY_MALAM' || (slot.label || '').toLowerCase().includes('malam') || ['00:00','01:00','02:00','03:00','04:00','06:00','17:00','19:00','22:00','23:00'].includes(slotJamPrefix))) ||
-      (displaySlots.some(s => {
+      (slots.some(s => {
         const sh = Number(s.jam?.slice(0, 2))
         return !isNaN(sh) && sh >= 16
-      }) && displaySlots.some(s => {
+      }) && slots.some(s => {
         const sh = Number(s.jam?.slice(0, 2))
         return !isNaN(sh) && sh < 12
       }))
