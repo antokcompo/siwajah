@@ -11,33 +11,48 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [ssoLoading, setSsoLoading] = useState(false)
-  const { signIn } = useAuth()
+  const { signIn, user } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (user) {
+      navigate('/', { replace: true })
+    }
+  }, [user, navigate])
 
   async function handlePrismaSSOLogin() {
     const params = new URLSearchParams(window.location.search)
+    let ssoToken = params.get('sso_token') || params.get('access_token')
+    let refreshToken = params.get('refresh_token') || ssoToken
     const ticket = params.get('ticket')
     
-    if (ticket) {
+    if (ssoToken || ticket) {
       setSsoLoading(true)
       setError('')
       try {
-        // 1. Verifikasi tiket ke Render API di balik layar
-        const res = await fetch('https://prisma-sso-api.onrender.com/api/sso/verify-ticket', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticket })
-        })
-        const data = await res.json()
-        if (data.success && data.sso_token) {
-          await supabase.auth.setSession({
-            access_token: data.sso_token,
-            refresh_token: data.refresh_token
+        if (ticket && !ssoToken) {
+          // 1. Verifikasi tiket ke Render API di balik layar
+          const res = await fetch('https://prisma-sso-api.onrender.com/api/sso/verify-ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticket })
           })
-          window.location.href = '/pilih-proyek' // atau /dashboard
+          const data = await res.json()
+          if (data.success && data.sso_token) {
+            ssoToken = data.sso_token
+            refreshToken = data.refresh_token || ssoToken
+          }
+        }
+
+        if (ssoToken) {
+          await supabase.auth.setSession({
+            access_token: ssoToken,
+            refresh_token: refreshToken || ""
+          })
+          window.location.replace('/')
           return
         } else {
-          setError(data.message || 'Verifikasi tiket PRISMA SSO gagal.')
+          setError('Verifikasi tiket PRISMA SSO tidak menemukan sesi valid.')
         }
       } catch (err) {
         console.error('PRISMA SSO Error:', err)
@@ -47,13 +62,13 @@ export default function Login() {
       }
       return
     }
-    window.location.href = 'https://prisma-portal.pages.dev/login'
+    window.location.href = 'https://portalprisma.pages.dev/login'
   }
 
   useEffect(() => {
     document.title = 'SI WAJAH - Login Admin System'
     const params = new URLSearchParams(window.location.search)
-    if (params.get('ticket')) {
+    if (params.get('ticket') || params.get('sso_token') || params.get('access_token')) {
       handlePrismaSSOLogin()
     }
   }, [])
