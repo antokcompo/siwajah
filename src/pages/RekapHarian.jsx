@@ -102,6 +102,8 @@ export default function RekapHarian() {
   const [projectTz, setProjectTz] = useState('Asia/Jayapura')
   const [siteConfig, setSiteConfig] = useState({ lat: -4.824518, lng: 136.844673, radius: 400 })
   const [viewMode, setViewMode] = useState('tabel') // 'tabel' | 'kartu'
+  const [lemburMap, setLemburMap] = useState({})
+  const [securityRosterMap, setSecurityRosterMap] = useState({})
 
   const bulan = currentDate.getMonth() + 1
   const tahun = currentDate.getFullYear()
@@ -253,20 +255,30 @@ export default function RekapHarian() {
       return
     }
 
-    const [rpcRes, scanRes, laporanRes] = await Promise.all([
+    const [rpcRes, scanRes, laporanRes, lemburRes, rosterRes] = await Promise.all([
       supabase.from('absen_harian').select('*, absen_karyawan(id, nama, jabatan, atasan_id)').in('karyawan_id', kIds).eq('tanggal', date),
       supabase
         .from('absen_scan_wajah')
-        .select('karyawan_id, slot_id, absen_jadwal_slot(jenis)')
+        .select('*, absen_karyawan(id, nama, jabatan, atasan_id), absen_jadwal_slot(id, label, jam, jenis, kategori_shift)')
         .in('karyawan_id', kIds)
         .eq('tanggal', date),
       supabase
         .from('absen_laporan_terlewat')
-        .select('karyawan_id, slot_id, status, absen_jadwal_slot(jenis)')
+        .select('*, absen_karyawan(id, nama, jabatan, atasan_id), absen_jadwal_slot(id, label, jam, jenis, kategori_shift)')
         .in('karyawan_id', kIds)
         .eq('tanggal', date)
-        .eq('status', 'APPROVED')
+        .eq('status', 'APPROVED'),
+      supabase.from('absen_daftar_lembur').select('karyawan_id').eq('tanggal', date).eq('status', 'APPROVED').in('karyawan_id', kIds),
+      supabase.from('absen_roster_security').select('karyawan_id, shift').eq('tanggal', date).in('karyawan_id', kIds)
     ])
+
+    const lMap = {}
+    ;(lemburRes.data || []).forEach(l => { lMap[l.karyawan_id] = true })
+    setLemburMap(lMap)
+
+    const rMap = {}
+    ;(rosterRes.data || []).forEach(r => { rMap[r.karyawan_id] = r.shift })
+    setSecurityRosterMap(rMap)
 
     const slotCounts = {}
     ;(scanRes.data || []).forEach(s => {
@@ -386,13 +398,62 @@ export default function RekapHarian() {
     })
   }, [detail, mandorMap, searchQuery])
 
+  const tableSlots = useMemo(() => {
+    // Check if any active worker in project is security or approved for lembur
+    let hasSecPagi = false
+    let hasSecMalam = false
+    let hasLembur = false
+
+    Object.values(empMap || {}).forEach(k => {
+      const jab = (k.jabatan || '').toLowerCase()
+      if (jab.includes('security') || jab.includes('satpam') || jab.includes('sec')) {
+        const shift = (securityRosterMap[k.id] || 'PAGI').toUpperCase()
+        if (shift === 'MALAM') hasSecMalam = true
+        else hasSecPagi = true
+      }
+      if (lemburMap[k.id]) hasLembur = true
+    })
+
+    const seen = new Set()
+    const list = []
+    const sorted = [...slotMaster].sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
+
+    for (const s of sorted) {
+      let jam = (s.jam || '').slice(0, 5)
+      if (jam.startsWith('17:15') || (s.jenis === 'pulang' && jam.startsWith('17:'))) {
+        jam = '17:00'
+      }
+      const lbl = (s.label || '').toLowerCase()
+      const isSecMalamSlot = lbl.includes('malam') || ['01:00', '03:00', '23:00'].includes(jam)
+      const isSecPagiSlot = lbl.includes('security') || jam === '06:00'
+      const isLemburSlot = s.jenis === 'lembur' || s.jenis === 'pulang_lembur' || lbl.includes('lembur')
+
+      if (isSecMalamSlot && !hasSecMalam) continue
+      if (isSecPagiSlot && !hasSecPagi) continue
+      if (isLemburSlot && !hasLembur) continue
+
+      if (!seen.has(jam)) {
+        seen.add(jam)
+        list.push({ ...s, normalizedJam: jam })
+      }
+    }
+
+    if (list.length === 0) {
+      return [
+        { id: '1', normalizedJam: '08:00', label: 'Masuk Pagi' },
+        { id: '2', normalizedJam: '10:00', label: 'Progres 1' },
+        { id: '3', normalizedJam: '11:30', label: 'Istirahat' },
+        { id: '4', normalizedJam: '13:00', label: 'Masuk Siang' },
+        { id: '5', normalizedJam: '15:00', label: 'Progres 2' },
+        { id: '6', normalizedJam: '17:00', label: 'Pulang' },
+      ]
+    }
+
+    return list.sort((a, b) => a.normalizedJam.localeCompare(b.normalizedJam))
+  }, [slotMaster, empMap, securityRosterMap, lemburMap])
+
   const groupedScans = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    const regSlots = slotMaster.filter(s => {
-      const j = (s.jenis || '').toLowerCase()
-      const l = (s.label || '').toLowerCase()
-      return !j.includes('lembur') && !l.includes('lembur')
-    })
 
     const workerMap = {}
 
@@ -446,45 +507,111 @@ export default function RekapHarian() {
         if (!matchNama && !matchJabatan && !matchMandor) return
       }
 
-      if (filter !== 'semua') {
-        const st = w.computedStatus
-        if (filter === 'LENGKAP' && st !== 'LENGKAP') return
-        if (filter === 'TIDAK_LENGKAP' && st !== 'TIDAK_LENGKAP') return
+      // Check worker role and permissions
+      const isSecurity = jabatanLow.includes('security') || jabatanLow.includes('satpam') || jabatanLow.includes('sec')
+      const isLemburApproved = !!lemburMap[w.karyawan.id]
+      const secShift = (securityRosterMap[w.karyawan.id] || 'PAGI').toUpperCase()
+
+      // Determine applicable slots for this specific worker
+      const workerTargetSlots = slotMaster.filter(s => {
+        let jam = s.jam || ''
+        if (jam.startsWith('17:15') || (s.jenis === 'pulang' && jam.startsWith('17:'))) {
+          jam = '17:00:00'
+        }
+        const cat = s.kategori_shift || (
+          (s.label || '').toLowerCase().includes('malam') || ['01:00','03:00','23:00'].includes(jam.slice(0,5))
+            ? 'SECURITY_MALAM'
+            : ((s.label || '').toLowerCase().includes('security') ? 'SECURITY_PAGI' : 'REGULER')
+        )
+        const jamStr = jam.slice(0, 5)
+        const lbl = (s.label || '').toLowerCase()
+        const isLembur = s.jenis === 'lembur' || s.jenis === 'pulang_lembur' || lbl.includes('lembur')
+
+        if (!isSecurity) {
+          // NON-SECURITY REGULAR (Helper, CW, Fitter, Mandor, Kantor, etc.):
+          if (cat !== 'REGULER') return false
+          if (['06:00', '01:00', '02:00', '03:00', '04:00', '22:00', '23:00'].includes(jamStr)) return false
+          if (lbl.includes('security') || lbl.includes('patroli') || lbl.includes('satpam') || lbl.includes('malam')) return false
+          if (isLembur && !isLemburApproved) return false
+          return true
+        } else if (secShift === 'MALAM') {
+          // SECURITY SHIFT MALAM:
+          if (cat !== 'SECURITY_MALAM' && !lbl.includes('malam') && !['17:00','19:00','23:00','01:00','03:00','06:00'].includes(jamStr)) return false
+          if (lbl.includes('pagi') && !lbl.includes('pulang malam')) return false
+          return true
+        } else {
+          // SECURITY SHIFT PAGI:
+          if (cat !== 'SECURITY_PAGI' && !lbl.includes('security')) return false
+          if (lbl.includes('malam') || ['23:00','01:00','03:00'].includes(jamStr)) return false
+          return true
+        }
+      })
+
+      // Strict deduplication by unique JAM (e.g. 08:00, 10:00, 11:30, 13:00, 15:00, 17:00)
+      const seenJam = new Set()
+      const uniqueWorkerSlots = []
+      workerTargetSlots.sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
+      for (const s of workerTargetSlots) {
+        const jamKey = (s.jam || '').slice(0, 5)
+        if (!seenJam.has(jamKey)) {
+          seenJam.add(jamKey)
+          uniqueWorkerSlots.push({ ...s, normalizedJam: jamKey })
+        }
       }
 
-      if (!mandorGroups[groupName]) mandorGroups[groupName] = []
-
-      const scannedSlotIds = new Set(w.scans.map(s => s.slot_id))
-      const laporSlotIds = new Set(w.lapors.map(l => l.slot_id))
-
+      // Build status map and timeline items strictly for this worker's applicable slots
+      const slotStatusMap = {}
       const timelineItems = []
+      let verifiedCount = 0
 
-      regSlots.forEach(slot => {
-        const matchingScans = w.scans.filter(s => s.slot_id === slot.id)
-        if (matchingScans.length > 0) {
-          matchingScans.forEach(s => timelineItems.push({ type: 'scan', data: s, slot }))
-        } else if (laporSlotIds.has(slot.id)) {
-          const laporObj = w.lapors.find(l => l.slot_id === slot.id)
-          timelineItems.push({ type: 'lapor', data: laporObj, slot })
+      uniqueWorkerSlots.forEach(slot => {
+        const slotJamPrefix = slot.normalizedJam
+        const matchingScan = w.scans.find(s =>
+          s.slot_id === slot.id ||
+          (s.absen_jadwal_slot?.jam && s.absen_jadwal_slot.jam.slice(0, 5) === slotJamPrefix) ||
+          (s.waktu_scan && s.waktu_scan.split('T')[1]?.slice(0, 2) === slotJamPrefix.slice(0, 2))
+        )
+
+        const matchingLapor = w.lapors.find(l =>
+          l.slot_id === slot.id ||
+          (l.absen_jadwal_slot?.jam && l.absen_jadwal_slot.jam.slice(0, 5) === slotJamPrefix)
+        )
+
+        if (matchingScan) {
+          slotStatusMap[slotJamPrefix] = { type: 'scan', data: matchingScan, slot }
+          timelineItems.push({ type: 'scan', data: matchingScan, slot })
+          verifiedCount++
+        } else if (matchingLapor) {
+          slotStatusMap[slotJamPrefix] = { type: 'lapor', data: matchingLapor, slot }
+          timelineItems.push({ type: 'lapor', data: matchingLapor, slot })
+          verifiedCount++
         } else {
+          slotStatusMap[slotJamPrefix] = { type: 'terlewat', slot }
           timelineItems.push({ type: 'terlewat', slot })
         }
       })
 
-      w.scans.forEach(s => {
-        const j = (s.absen_jadwal_slot?.jenis || '').toUpperCase()
-        if (j === 'LEMBUR' || j === 'PULANG_LEMBUR') {
-          timelineItems.push({ type: 'scan', data: s, slot: s.absen_jadwal_slot })
-        }
-      })
+      const expectedCount = uniqueWorkerSlots.length
+      const isLengkap = expectedCount > 0 && verifiedCount >= expectedCount
+      const computedStatus = isLengkap ? 'LENGKAP' : 'TIDAK_LENGKAP'
+
+      if (filter !== 'semua') {
+        if (filter === 'LENGKAP' && !isLengkap) return
+        if (filter === 'TIDAK_LENGKAP' && isLengkap) return
+      }
+
+      if (!mandorGroups[groupName]) mandorGroups[groupName] = []
 
       mandorGroups[groupName].push({
         id: w.karyawan.id,
         nama,
         karyawan: w.karyawan,
+        slotStatusMap,
+        uniqueWorkerSlots,
         timelineItems,
-        computedStatus: w.computedStatus,
-        verifiedCount: scannedSlotIds.size + laporSlotIds.size
+        computedStatus,
+        verifiedCount,
+        expectedCount,
       })
     })
 
@@ -498,16 +625,7 @@ export default function RekapHarian() {
         groupName,
         workers: workers.sort((a, b) => a.nama.localeCompare(b.nama)),
       }))
-  }, [detail, scanData, laporanData, slotMaster, mandorMap, searchQuery, filter])
-
-  const tableSlots = useMemo(() => {
-    const reg = slotMaster.filter(s => {
-      const j = (s.jenis || '').toLowerCase()
-      const l = (s.label || '').toLowerCase()
-      return !j.includes('lembur') && !l.includes('lembur')
-    })
-    return reg.sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
-  }, [slotMaster])
+  }, [detail, scanData, laporanData, slotMaster, mandorMap, searchQuery, filter, lemburMap, securityRosterMap])
 
   const stats = useMemo(() => {
     let totalWorkers = 0
@@ -519,9 +637,7 @@ export default function RekapHarian() {
         totalWorkers++
         if (w.computedStatus === 'LENGKAP') lengkap++
         else tidakLengkap++
-        w.timelineItems.forEach(t => {
-          if (t.type === 'terlewat') totalTerlewat++
-        })
+        totalTerlewat += Math.max(0, (w.expectedCount || 0) - (w.verifiedCount || 0))
       })
     })
     return { totalWorkers, lengkap, tidakLengkap, totalTerlewat }
@@ -742,13 +858,23 @@ export default function RekapHarian() {
                                   </td>
                                   <td className="py-2.5 px-3 text-slate-400 text-xs">{groupName}</td>
                                   {tableSlots.map(slot => {
-                                    const item = w.timelineItems.find(t => t.slot?.id === slot.id)
-                                    if (item?.type === 'scan') {
+                                    const jamKey = slot.normalizedJam
+                                    const item = w.slotStatusMap ? w.slotStatusMap[jamKey] : null
+
+                                    if (!item) {
+                                      return (
+                                        <td key={slot.id || jamKey} className="py-2 px-1 text-center">
+                                          <span className="text-slate-600 font-mono text-xs select-none" title="Bukan jadwal shift pekerja ini">-</span>
+                                        </td>
+                                      )
+                                    }
+
+                                    if (item.type === 'scan') {
                                       const scan = item.data
                                       const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
                                       const hasPhoto = !!scan.foto_url
                                       return (
-                                        <td key={slot.id} className="py-2 px-1 text-center">
+                                        <td key={slot.id || jamKey} className="py-2 px-1 text-center">
                                           <button
                                             onClick={() => setSelectedScan(scan)}
                                             className="w-full p-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 hover:border-cyan-400 hover:bg-cyan-950/60 transition flex flex-col items-center justify-center gap-0.5 group shadow-sm"
@@ -768,9 +894,9 @@ export default function RekapHarian() {
                                           </button>
                                         </td>
                                       )
-                                    } else if (item?.type === 'lapor') {
+                                    } else if (item.type === 'lapor') {
                                       return (
-                                        <td key={slot.id} className="py-2 px-1 text-center">
+                                        <td key={slot.id || jamKey} className="py-2 px-1 text-center">
                                           <div className="w-full p-1.5 rounded-lg bg-blue-950/50 border border-blue-500/40 text-blue-300 text-center">
                                             <div className="text-[10px] font-bold">Lapor</div>
                                             <div className="text-[8px] text-blue-400">Approved</div>
@@ -780,7 +906,7 @@ export default function RekapHarian() {
                                     } else {
                                       // TERLEWAT / LEWAT ABSEN (RED HIGHLIGHT!)
                                       return (
-                                        <td key={slot.id} className="py-2 px-1 text-center">
+                                        <td key={slot.id || jamKey} className="py-2 px-1 text-center">
                                           <div className="w-full p-1.5 rounded-lg bg-rose-950/60 border border-rose-500/50 text-rose-400 text-center shadow-sm">
                                             <div className="flex items-center justify-center gap-0.5 text-[10px] font-black">
                                               <X size={10} className="stroke-[3]" />
@@ -794,7 +920,7 @@ export default function RekapHarian() {
                                   })}
                                   <td className="py-2.5 px-3 text-center font-mono font-bold text-xs">
                                     <span className={isLengkap ? 'text-emerald-400' : 'text-amber-400'}>
-                                      {w.verifiedCount}/{tableSlots.length}
+                                      {w.verifiedCount}/{w.expectedCount}
                                     </span>
                                   </td>
                                   <td className="py-2.5 px-3 text-center">
