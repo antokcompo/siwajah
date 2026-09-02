@@ -9,7 +9,6 @@ import {
   Menu, X, LogOut, KeyRound, Eye, EyeOff, CheckCircle, AlertTriangle,
   Timer, FileWarning, Lock, Layers, Building2, FolderSync
 } from 'lucide-react'
-import GlobalDynamicSearch from './GlobalDynamicSearch'
 
 const menuGroups = [
   {
@@ -120,7 +119,6 @@ export default function Layout({ children }) {
           <img src="/logo-pp-icon.png" alt="PT PP" className="w-8 h-8" style={{ filter: 'grayscale(1) contrast(9) invert(1)', mixBlendMode: 'screen' }} />
           <span className="font-bold text-white text-base tracking-wide">SI WAJAH</span>
         </div>
-        <GlobalDynamicSearch />
       </header>
 
       {/* Mobile sidebar overlay */}
@@ -189,11 +187,6 @@ function SidebarContent({ role, location, profile, onSignOut, onClose, onChangeP
           <FolderSync size={13} />
           <span>Ganti</span>
         </Link>
-      </div>
-
-      {/* Global Dynamic Search */}
-      <div className="px-4 py-2 border-b border-slate-800/60">
-        <GlobalDynamicSearch />
       </div>
 
       {/* Navigation */}
