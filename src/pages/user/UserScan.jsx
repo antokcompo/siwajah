@@ -63,9 +63,18 @@ export default function UserScan() {
 
         streamRef.current = stream
         videoRef.current.srcObject = stream
-        await videoRef.current.play()
+        try {
+          await videoRef.current.play()
+        } catch {}
 
         await loadModels()
+
+        // Background warm-up with live video frame so 1st presensi snapshot has 0ms delay
+        setTimeout(() => {
+          if (videoRef.current && !stopped) {
+            detectFace(videoRef.current).catch(() => {})
+          }
+        }, 250)
       } catch (err) {
         if (!stopped) setError('Gagal mengakses kamera: ' + err.message)
       }

@@ -4,6 +4,7 @@ import { useUserAuth } from '../../contexts/UserAuthContext'
 import { Home, ClipboardList, User, LogOut, HardHat, WifiOff, Upload, Loader2, Sun, Moon } from 'lucide-react'
 import { getPendingCount } from '../../lib/offlineQueue'
 import { startAutoSync, syncPendingScans, onSyncChange } from '../../lib/syncManager'
+import { loadModels } from '../../lib/faceApi'
 
 export default function UserLayout() {
   const { karyawan, logout, outdoorMode, toggleOutdoorMode } = useUserAuth()
@@ -17,6 +18,7 @@ export default function UserLayout() {
     document.title = 'SI Wajah — Absensi & Aktifitas Harian'
     startAutoSync()
     refreshCount()
+    loadModels().catch(() => {}) // Background eager preload and GPU shader warm-up
 
     const unsub = onSyncChange(status => {
       setSyncing(status.syncing)

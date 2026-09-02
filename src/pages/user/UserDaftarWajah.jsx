@@ -43,7 +43,15 @@ export default function UserDaftarWajah() {
         streamRef.current = stream
         if (videoRef.current) {
           videoRef.current.srcObject = stream
-          try { await videoRef.current.play() } catch {}
+          try {
+            await videoRef.current.play()
+            // Background warm-up with live video frame so 1st snapshot has 0ms delay
+            setTimeout(() => {
+              if (videoRef.current && !stopped) {
+                detectFace(videoRef.current).catch(() => {})
+              }
+            }, 250)
+          } catch {}
         }
 
         if (!stopped) setStatus('ready')

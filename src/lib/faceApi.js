@@ -27,8 +27,26 @@ export async function loadModels() {
     ]),
     12000,
     'Gagal memuat model AI (waktu koneksi habis). Silakan coba lagi.'
-  ).then(() => {
+  ).then(async () => {
     modelsLoaded = true
+    // Pre-compile WebGL shaders & warm up GPU buffers immediately so the 1st capture has zero lag
+    try {
+      const dummyCanvas = document.createElement('canvas')
+      dummyCanvas.width = 128
+      dummyCanvas.height = 128
+      const ctx = dummyCanvas.getContext('2d')
+      if (ctx) {
+        ctx.fillStyle = '#808080'
+        ctx.fillRect(0, 0, 128, 128)
+      }
+      await faceapi
+        .detectSingleFace(dummyCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptor()
+        .catch(() => {})
+    } catch (e) {
+      // ignore warmup error
+    }
   }).catch(err => {
     modelsPromise = null
     throw err
