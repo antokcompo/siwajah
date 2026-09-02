@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle, Search, Table, LayoutList, Users, CheckCircle2, AlertCircle, XCircle, Sun, Moon, Zap, Briefcase, Shield } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle, Search, Table, LayoutList, Users, CheckCircle2, AlertCircle, XCircle, Sun, Moon, Zap, Briefcase, Shield, FileText, FileWarning } from 'lucide-react'
 import { getDistanceMeters, formatDistance, isLocationOutsideGeofence } from '../lib/geoUtils'
 import { getActiveProject } from './PilihProyek'
 
@@ -1117,42 +1117,65 @@ export default function RekapHarian() {
                                               )
                                             }
 
-                                            if (item.type === 'scan') {
-                                              const scan = item.data
-                                              const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
-                                              const hasPhoto = !!scan.foto_url
-                                              return (
-                                                <td key={slot.id || jamKey} className="py-2 px-1 text-center">
-                                                  <button
-                                                    onClick={() => setSelectedScan(scan)}
-                                                    className="w-full p-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 hover:border-cyan-400 hover:bg-cyan-950/60 transition flex flex-col items-center justify-center gap-0.5 group shadow-sm"
-                                                    title="Klik untuk lihat detail foto & GPS"
-                                                  >
-                                                    <span className="font-extrabold text-emerald-300 text-[11px] group-hover:text-cyan-300">
-                                                      {scanTime.slice(0, 5)}
-                                                    </span>
-                                                    <div className="flex items-center gap-1 text-[9px] text-slate-400">
-                                                      {hasPhoto && <ImageIcon size={10} className="text-cyan-400 shrink-0" />}
-                                                      {scan.lokasi_kerja ? (
-                                                        <span className="truncate max-w-[55px] text-slate-300 font-medium">{scan.lokasi_kerja}</span>
-                                                      ) : (
-                                                        <span className="text-emerald-400/70">Hadir</span>
-                                                      )}
-                                                    </div>
-                                                  </button>
-                                                </td>
-                                              )
-                                            } else if (item.type === 'lapor') {
-                                              return (
-                                                <td key={slot.id || jamKey} className="py-2 px-1 text-center">
-                                                  <div className="w-full p-1.5 rounded-lg bg-blue-950/50 border border-blue-500/40 text-blue-300 text-center">
-                                                    <div className="text-[10px] font-bold">Lapor</div>
-                                                    <div className="text-[8px] text-blue-400">Approved</div>
-                                                  </div>
-                                                </td>
-                                              )
+                                            const isLapor = item.type === 'lapor' ||
+                                              item.data?.metode === 'laporan' ||
+                                              (item.data?.lokasi_kerja || '').toLowerCase().includes('lapor') ||
+                                              Boolean(item.data?.is_laporan_terlewat) ||
+                                              Boolean(item.data?.laporan_id)
+
+                                            if (item.type === 'scan' || item.type === 'lapor') {
+                                              const scan = item.data || {}
+                                              const scanTime = scan.waktu_scan
+                                                ? formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
+                                                : (slot.normalizedJam || '')
+                                              const hasPhoto = Boolean(scan.foto_url)
+
+                                              if (isLapor) {
+                                                // BLUE (Lapor Terlewat Disetujui)
+                                                return (
+                                                  <td key={slot.id || jamKey} className="py-2 px-1 text-center">
+                                                    <button
+                                                      onClick={() => scan.id ? setSelectedScan(scan) : null}
+                                                      className="w-full p-1.5 rounded-lg bg-blue-950/70 border border-blue-500/60 hover:border-cyan-400 hover:bg-blue-900/60 transition flex flex-col items-center justify-center gap-0.5 group shadow-sm"
+                                                      title="Lapor Terlewat Disetujui (Klik untuk detail)"
+                                                    >
+                                                      <span className="font-extrabold text-blue-300 text-[11px] group-hover:text-cyan-300">
+                                                        {scanTime ? scanTime.slice(0, 5) : 'Lapor'}
+                                                      </span>
+                                                      <div className="flex items-center gap-1 text-[9px] text-blue-300/90 font-medium">
+                                                        {hasPhoto && <ImageIcon size={10} className="text-cyan-400 shrink-0" />}
+                                                        <FileText size={10} className="text-blue-400 shrink-0" />
+                                                        <span className="truncate max-w-[50px]">Laporan</span>
+                                                      </div>
+                                                    </button>
+                                                  </td>
+                                                )
+                                              } else {
+                                                // GREEN (Scan Wajah Berhasil / Hadir)
+                                                return (
+                                                  <td key={slot.id || jamKey} className="py-2 px-1 text-center">
+                                                    <button
+                                                      onClick={() => setSelectedScan(scan)}
+                                                      className="w-full p-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 hover:border-cyan-400 hover:bg-cyan-950/60 transition flex flex-col items-center justify-center gap-0.5 group shadow-sm"
+                                                      title="Scan Wajah Berhasil (Klik untuk detail foto & GPS)"
+                                                    >
+                                                      <span className="font-extrabold text-emerald-300 text-[11px] group-hover:text-cyan-300">
+                                                        {scanTime.slice(0, 5)}
+                                                      </span>
+                                                      <div className="flex items-center gap-1 text-[9px] text-slate-400">
+                                                        {hasPhoto && <ImageIcon size={10} className="text-cyan-400 shrink-0" />}
+                                                        {scan.lokasi_kerja ? (
+                                                          <span className="truncate max-w-[55px] text-slate-300 font-medium">{scan.lokasi_kerja}</span>
+                                                        ) : (
+                                                          <span className="text-emerald-400/70">Hadir</span>
+                                                        )}
+                                                      </div>
+                                                    </button>
+                                                  </td>
+                                                )
+                                              }
                                             } else {
-                                              // TERLEWAT (RED BADGE)
+                                              // TERLEWAT / LEWAT ABSEN (RED BADGE)
                                               return (
                                                 <td key={slot.id || jamKey} className="py-2 px-1 text-center">
                                                   <div className="w-full p-1.5 rounded-lg bg-rose-950/60 border border-rose-500/50 text-rose-400 text-center shadow-sm">
@@ -1222,26 +1245,47 @@ export default function RekapHarian() {
                                             const jamKey = slot.normalizedJam
                                             const item = w.slotStatusMap ? w.slotStatusMap[jamKey] : null
                                             if (!item) return null
-                                            if (item.type === 'scan') {
-                                              const scan = item.data
-                                              const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
-                                              return (
-                                                <button
-                                                  key={slot.id || jamKey}
-                                                  onClick={() => setSelectedScan(scan)}
-                                                  className="p-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 hover:border-cyan-400 text-center transition"
-                                                >
-                                                  <div className="text-[9px] text-slate-400">{slot.normalizedJam}</div>
-                                                  <div className="text-[10px] font-bold text-emerald-300">{scanTime.slice(0, 5)}</div>
-                                                </button>
-                                              )
-                                            } else if (item.type === 'lapor') {
-                                              return (
-                                                <div key={slot.id || jamKey} className="p-1.5 rounded-lg bg-blue-950/50 border border-blue-500/40 text-center">
-                                                  <div className="text-[9px] text-slate-400">{slot.normalizedJam}</div>
-                                                  <div className="text-[10px] font-bold text-blue-300">Lapor OK</div>
-                                                </div>
-                                              )
+
+                                            const isLapor = item.type === 'lapor' ||
+                                              item.data?.metode === 'laporan' ||
+                                              (item.data?.lokasi_kerja || '').toLowerCase().includes('lapor') ||
+                                              Boolean(item.data?.is_laporan_terlewat) ||
+                                              Boolean(item.data?.laporan_id)
+
+                                            if (item.type === 'scan' || item.type === 'lapor') {
+                                              const scan = item.data || {}
+                                              const scanTime = scan.waktu_scan
+                                                ? formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
+                                                : ''
+
+                                              if (isLapor) {
+                                                return (
+                                                  <button
+                                                    key={slot.id || jamKey}
+                                                    onClick={() => scan.id ? setSelectedScan(scan) : null}
+                                                    className="p-1.5 rounded-lg bg-blue-950/70 border border-blue-500/60 hover:border-cyan-400 text-center transition"
+                                                    title="Lapor Terlewat Disetujui"
+                                                  >
+                                                    <div className="text-[9px] text-blue-300/80">{slot.normalizedJam}</div>
+                                                    <div className="text-[10px] font-bold text-blue-300 flex items-center justify-center gap-1">
+                                                      <FileText size={10} />
+                                                      <span>{scanTime ? scanTime.slice(0, 5) : 'Lapor'}</span>
+                                                    </div>
+                                                  </button>
+                                                )
+                                              } else {
+                                                return (
+                                                  <button
+                                                    key={slot.id || jamKey}
+                                                    onClick={() => setSelectedScan(scan)}
+                                                    className="p-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 hover:border-cyan-400 text-center transition"
+                                                    title="Scan Wajah Berhasil"
+                                                  >
+                                                    <div className="text-[9px] text-slate-400">{slot.normalizedJam}</div>
+                                                    <div className="text-[10px] font-bold text-emerald-300">{scanTime.slice(0, 5)}</div>
+                                                  </button>
+                                                )
+                                              }
                                             } else {
                                               return (
                                                 <div key={slot.id || jamKey} className="p-1.5 rounded-lg bg-rose-950/50 border border-rose-500/40 text-center">
@@ -1306,10 +1350,17 @@ export default function RekapHarian() {
         <div className="modal-overlay" onClick={() => setSelectedScan(null)}>
           <div className="modal-content max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <ScanFace size={18} className="text-cyan-500" />
-                <span className="font-semibold text-gray-900">Detail Scan</span>
-              </div>
+              {Boolean((selectedScan?.lokasi_kerja || '').toLowerCase().includes('lapor') || selectedScan?.metode === 'laporan' || selectedScan?.laporan_id) ? (
+                <div className="flex items-center gap-2">
+                  <FileText size={18} className="text-blue-500" />
+                  <span className="font-semibold text-gray-900">Detail Laporan Terlewat</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <ScanFace size={18} className="text-cyan-500" />
+                  <span className="font-semibold text-gray-900">Detail Scan Wajah</span>
+                </div>
+              )}
               <button onClick={() => setSelectedScan(null)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
                 <X size={16} className="text-gray-400" />
               </button>
