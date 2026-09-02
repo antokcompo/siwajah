@@ -122,7 +122,7 @@ export default function UserBeranda() {
 
     const isLemburApproved = !!lemburRes.data
 
-    let targetCategory = 'REGULER'
+    let computedCategory = 'REGULER'
     if (isSecurity) {
       const currentHour = new Date().getHours()
       let { data: roster } = await supabase
@@ -148,7 +148,7 @@ export default function UserBeranda() {
       }
 
       const shift = (roster?.shift || 'PAGI').toUpperCase()
-      targetCategory = shift === 'MALAM' ? 'SECURITY_MALAM' : 'SECURITY_PAGI'
+      computedCategory = shift === 'MALAM' ? 'SECURITY_MALAM' : 'SECURITY_PAGI'
     }
 
     let rawSlots = directSlotsRes.data || []
@@ -176,7 +176,7 @@ export default function UserBeranda() {
         if (lbl.includes('security') || lbl.includes('patroli') || lbl.includes('satpam') || lbl.includes('malam')) return false
         if (isLembur && !isLemburApproved) return false
         return true
-      } else if (targetCategory === 'SECURITY_MALAM') {
+      } else if (computedCategory === 'SECURITY_MALAM') {
         // SECURITY SHIFT MALAM:
         if (cat !== 'SECURITY_MALAM' && !lbl.includes('malam') && !['17:00','19:00','22:00','23:00','00:00','01:00','02:00','03:00','04:00','06:00'].includes(jamStr)) return false
         if (lbl.includes('pagi') && !lbl.includes('pulang malam')) return false
@@ -204,7 +204,7 @@ export default function UserBeranda() {
       const uB = Number(b.urutan)
       if (!isNaN(uA) && !isNaN(uB) && uA !== uB) return uA - uB
 
-      if (targetCategory === 'SECURITY_MALAM') {
+      if (computedCategory === 'SECURITY_MALAM') {
         return getOvernightSortKey(a.jam) - getOvernightSortKey(b.jam)
       }
       return (a.jam || '').localeCompare(b.jam || '')
@@ -222,7 +222,7 @@ export default function UserBeranda() {
     setTodayScans(combinedScans)
     setHasFace(!!faceRes.data)
     setLemburRegistered(isLemburApproved)
-    setTargetCategory(targetCategory)
+    setTargetCategory(computedCategory)
     setTodayLaporan(laporanRes.data || [])
     setTodayIzin(izinRes.data || null)
     setTodayKalender(kalenderRes.data || null)
@@ -804,7 +804,7 @@ export default function UserBeranda() {
 
             <div className="space-y-3 text-xs text-slate-300 font-sans">
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <div>Slot: <strong className="text-white">{modalSlot.label} ({modalSlot.jam.slice(0, 5)})</strong></div>
+                <div>Slot: <strong className="text-white">{modalSlot.label} {modalSlot.jam ? `(${modalSlot.jam.slice(0, 5)})` : ''}</strong></div>
               </div>
 
               <div>
