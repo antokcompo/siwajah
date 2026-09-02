@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle, Search, Table, LayoutList, Users, CheckCircle2, AlertCircle, XCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle, Search, Table, LayoutList, Users, CheckCircle2, AlertCircle, XCircle, Sun, Moon, Zap, Briefcase, Shield } from 'lucide-react'
 import { getDistanceMeters, formatDistance, isLocationOutsideGeofence } from '../lib/geoUtils'
 import { getActiveProject } from './PilihProyek'
 
@@ -101,6 +101,61 @@ function timeToMinutes(timeStr) {
   return (Number(parts[0]) || 0) * 60 + (Number(parts[1]) || 0)
 }
 
+function getCategorySlots(category, slotMaster) {
+  const REGULAR_STANDARD_HOURS = [
+    { jam: '08:00', label: 'Masuk Pagi' },
+    { jam: '10:00', label: 'Progres 1' },
+    { jam: '11:30', label: 'Istirahat' },
+    { jam: '13:00', label: 'Masuk Siang' },
+    { jam: '15:00', label: 'Progres 2' },
+    { jam: '17:00', label: 'Pulang' },
+  ]
+  const SECURITY_PAGI_HOURS = [
+    { jam: '06:00', label: 'Masuk Pagi' },
+    { jam: '08:00', label: 'Patroli 1' },
+    { jam: '10:00', label: 'Patroli 2' },
+    { jam: '11:30', label: 'Istirahat' },
+    { jam: '13:00', label: 'Patroli 3' },
+    { jam: '15:00', label: 'Patroli 4' },
+    { jam: '17:00', label: 'Serah Terima' },
+  ]
+  const SECURITY_MALAM_HOURS = [
+    { jam: '17:00', label: 'Masuk Malam' },
+    { jam: '19:00', label: 'Patroli 1' },
+    { jam: '23:00', label: 'Patroli 2' },
+    { jam: '01:00', label: 'Patroli Tengah' },
+    { jam: '03:00', label: 'Patroli Subuh' },
+    { jam: '06:00', label: 'Serah Terima' },
+  ]
+  const LEMBUR_HOURS = [
+    { jam: '17:00', label: 'Selesai Kerja Normal', jenis: 'pulang' },
+    { jam: '19:00', label: 'Masuk Lembur', jenis: 'lembur' },
+    { jam: '23:59', displayJam: 'Pulang', label: 'Pulang Lembur', jenis: 'pulang_lembur' },
+  ]
+
+  let targetHours = REGULAR_STANDARD_HOURS
+  if (category === 'security_pagi') targetHours = SECURITY_PAGI_HOURS
+  if (category === 'security_malam') targetHours = SECURITY_MALAM_HOURS
+  if (category === 'lembur') targetHours = LEMBUR_HOURS
+
+  return targetHours.map(th => {
+    const matched = (slotMaster || []).find(s => {
+      let j = (s.jam || '').slice(0, 5)
+      if (j.startsWith('17:15') || (s.jenis === 'pulang' && j.startsWith('17:'))) j = '17:00'
+      if (th.jenis === 'pulang_lembur') return s.jenis === 'pulang_lembur' || (s.label || '').toLowerCase().includes('pulang lembur')
+      if (th.jenis === 'lembur') return s.jenis === 'lembur' || (s.label || '').toLowerCase().includes('masuk lembur') || j === '19:00'
+      return j === th.jam
+    })
+    return {
+      id: matched?.id || `${category}_${th.jam}`,
+      normalizedJam: th.jam,
+      displayJam: th.displayJam || th.jam,
+      label: th.label,
+      jenis: th.jenis || matched?.jenis || 'normal',
+    }
+  })
+}
+
 export default function RekapHarian() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
@@ -111,6 +166,7 @@ export default function RekapHarian() {
   const [empMap, setEmpMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('semua')
+  const [categoryTab, setCategoryTab] = useState('semua') // 'semua' | 'pekerja' | 'security_pagi' | 'security_malam' | 'lembur'
   const [searchQuery, setSearchQuery] = useState('')
   const [slotMaster, setSlotMaster] = useState([])
   const [laporanData, setLaporanData] = useState([])
@@ -415,7 +471,7 @@ export default function RekapHarian() {
     })
   }, [detail, mandorMap, searchQuery])
 
-  const groupedScans = useMemo(() => {
+  const categorizedScans = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
 
     const workerMap = {}
@@ -455,11 +511,21 @@ export default function RekapHarian() {
       workerMap[kid].lapors.push(l)
     })
 
-    const REGULAR_STANDARD_HOURS = ['08:00', '10:00', '11:30', '13:00', '15:00', '17:00']
-    const SECURITY_PAGI_HOURS = ['06:00', '08:00', '10:00', '11:30', '13:00', '15:00', '17:00']
-    const SECURITY_MALAM_HOURS = ['17:00', '19:00', '23:00', '01:00', '03:00', '06:00']
+    const categories = {
+      pekerja: {},
+      security_pagi: {},
+      security_malam: {},
+      lembur: {},
+    }
 
-    const mandorGroups = {}
+    const counts = {
+      total: 0,
+      pekerja: 0,
+      security_pagi: 0,
+      security_malam: 0,
+      lembur: 0,
+    }
+
     Object.values(workerMap).forEach(w => {
       const nama = w.karyawan.nama || 'Unknown'
       const namaLow = nama.toLowerCase()
@@ -474,68 +540,29 @@ export default function RekapHarian() {
         if (!matchNama && !matchJabatan && !matchMandor) return
       }
 
-      // Check worker role and permissions
+      // Determine shift category
       const isSecurity = jabatanLow.includes('security') || jabatanLow.includes('satpam') || jabatanLow.includes('sec')
       const isLemburApproved = !!lemburMap[w.karyawan.id]
       const secShift = (securityRosterMap[w.karyawan.id] || 'PAGI').toUpperCase()
 
-      // Determine applicable slots for this specific worker
-      const workerTargetSlots = slotMaster.filter(s => {
-        let jam = s.jam || ''
-        if (jam.startsWith('17:15') || (s.jenis === 'pulang' && jam.startsWith('17:'))) {
-          jam = '17:00:00'
-        }
-        const jamStr = jam.slice(0, 5)
-        const lbl = (s.label || '').toLowerCase()
-        const isLembur = s.jenis === 'lembur' || s.jenis === 'pulang_lembur' || lbl.includes('lembur')
-
-        if (!isSecurity) {
-          // NON-SECURITY REGULAR (Helper, CW, Fitter, Mandor, Kantor, etc.):
-          if (REGULAR_STANDARD_HOURS.includes(jamStr)) return true
-          if (isLemburApproved && (jamStr === '19:00' || isLembur)) return true
-          return false
-        } else if (secShift === 'MALAM') {
-          // SECURITY SHIFT MALAM:
-          return SECURITY_MALAM_HOURS.includes(jamStr) || (s.kategori_shift === 'SECURITY_MALAM') || lbl.includes('malam')
-        } else {
-          // SECURITY SHIFT PAGI:
-          return SECURITY_PAGI_HOURS.includes(jamStr) || (s.kategori_shift === 'SECURITY_PAGI') || lbl.includes('security')
-        }
-      })
-
-      // Strict deduplication by unique JAM
-      const seenJam = new Set()
-      const uniqueWorkerSlots = []
-      workerTargetSlots.sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
-      for (const s of workerTargetSlots) {
-        let jamKey = (s.jam || '').slice(0, 5)
-        if (jamKey.startsWith('17:15') || (s.jenis === 'pulang' && jamKey.startsWith('17:'))) {
-          jamKey = '17:00'
-        }
-        if (!seenJam.has(jamKey)) {
-          seenJam.add(jamKey)
-          uniqueWorkerSlots.push({ ...s, normalizedJam: jamKey })
-        }
+      let catKey = 'pekerja'
+      if (isLemburApproved) {
+        catKey = 'lembur'
+      } else if (isSecurity) {
+        catKey = secShift === 'MALAM' ? 'security_malam' : 'security_pagi'
       }
 
-      // If uniqueWorkerSlots is empty for regular, provide default standard
-      if (!isSecurity && uniqueWorkerSlots.length === 0) {
-        REGULAR_STANDARD_HOURS.forEach((h, i) => {
-          uniqueWorkerSlots.push({
-            id: `std_${h}`,
-            normalizedJam: h,
-            jam: `${h}:00`,
-            label: h === '08:00' ? 'Masuk Pagi' : (h === '17:00' ? 'Pulang' : `Slot ${h}`)
-          })
-        })
-      }
+      counts[catKey] = (counts[catKey] || 0) + 1
+      counts.total++
 
-      // Build status map and timeline items strictly for this worker's applicable slots
+      const categorySlots = getCategorySlots(catKey, slotMaster)
+
+      // Build status map and timeline items strictly for this category's slots
       const slotStatusMap = {}
       const timelineItems = []
       let verifiedCount = 0
 
-      uniqueWorkerSlots.forEach(slot => {
+      categorySlots.forEach(slot => {
         const slotJamPrefix = slot.normalizedJam
         const slotMins = timeToMinutes(slotJamPrefix)
 
@@ -547,37 +574,69 @@ export default function RekapHarian() {
           matchingScan = w.scans.find(s => s.absen_jadwal_slot?.id && String(s.absen_jadwal_slot.id) === String(slot.id))
         }
 
-        // 3. Slot Jam match
+        // 3. Slot Type match
         if (!matchingScan) {
           matchingScan = w.scans.find(s => {
-            const sj = s.absen_jadwal_slot?.jam || s.slot_jam
+            const sjType = (s.absen_jadwal_slot?.jenis || '').toLowerCase()
+            const sjLbl = (s.absen_jadwal_slot?.label || '').toLowerCase()
+            let sj = s.absen_jadwal_slot?.jam || s.slot_jam
+
+            if (slot.jenis === 'pulang_lembur') {
+              return sjType === 'pulang_lembur' || sjLbl.includes('pulang lembur')
+            }
+            if (slot.jenis === 'lembur') {
+              return sjType === 'lembur' || sjLbl.includes('masuk lembur') || sj === '19:00:00' || sj === '19:00'
+            }
+
+            if (sj && (sj.startsWith('17:15') || sj.startsWith('17:'))) sj = '17:00'
             return sj && sj.slice(0, 5) === slotJamPrefix
           })
         }
 
-        // 4. Local Time Proximity Match (within 90 mins)
+        // 4. Local Time Proximity Match
         if (!matchingScan) {
-          let closestScan = null
-          let minDiff = Infinity
-          w.scans.forEach(s => {
-            const scanLocalTime = getScanLocalTimeStr(s.waktu_scan, s.client_tz || projectTz)
-            if (scanLocalTime) {
-              const scanMins = timeToMinutes(scanLocalTime)
-              const diff = Math.abs(scanMins - slotMins)
-              if (diff <= 90 && diff < minDiff) {
-                minDiff = diff
-                closestScan = s
+          if (slot.jenis === 'pulang_lembur') {
+            matchingScan = w.scans.find(s => {
+              const scanLocalTime = getScanLocalTimeStr(s.waktu_scan, s.client_tz || projectTz)
+              if (!scanLocalTime) return false
+              const m = timeToMinutes(scanLocalTime)
+              const sjType = (s.absen_jadwal_slot?.jenis || '').toLowerCase()
+              return sjType === 'pulang_lembur' || m >= 20 * 60 || m <= 5 * 60
+            })
+          } else if (slot.jenis === 'lembur') {
+            matchingScan = w.scans.find(s => {
+              const scanLocalTime = getScanLocalTimeStr(s.waktu_scan, s.client_tz || projectTz)
+              if (!scanLocalTime) return false
+              const m = timeToMinutes(scanLocalTime)
+              return m >= 18 * 60 && m <= 19 * 60 + 59
+            })
+          } else {
+            let closestScan = null
+            let minDiff = Infinity
+            w.scans.forEach(s => {
+              const scanLocalTime = getScanLocalTimeStr(s.waktu_scan, s.client_tz || projectTz)
+              if (scanLocalTime) {
+                const scanMins = timeToMinutes(scanLocalTime)
+                const diff = Math.abs(scanMins - slotMins)
+                if (diff <= 90 && diff < minDiff) {
+                  minDiff = diff
+                  closestScan = s
+                }
               }
-            }
-          })
-          matchingScan = closestScan
+            })
+            matchingScan = closestScan
+          }
         }
 
         // Matching Lapor
         let matchingLapor = w.lapors.find(l => l.slot_id && String(l.slot_id) === String(slot.id))
         if (!matchingLapor) {
           matchingLapor = w.lapors.find(l => {
-            const lj = l.absen_jadwal_slot?.jam
+            const ljType = (l.absen_jadwal_slot?.jenis || '').toLowerCase()
+            if (slot.jenis === 'pulang_lembur') return ljType === 'pulang_lembur'
+            if (slot.jenis === 'lembur') return ljType === 'lembur'
+            let lj = l.absen_jadwal_slot?.jam
+            if (lj && (lj.startsWith('17:15') || lj.startsWith('17:'))) lj = '17:00'
             return lj && lj.slice(0, 5) === slotJamPrefix
           })
         }
@@ -596,7 +655,7 @@ export default function RekapHarian() {
         }
       })
 
-      const expectedCount = uniqueWorkerSlots.length
+      const expectedCount = categorySlots.length
       const isLengkap = expectedCount > 0 && verifiedCount >= expectedCount
       const computedStatus = isLengkap ? 'LENGKAP' : 'TIDAK_LENGKAP'
 
@@ -605,14 +664,15 @@ export default function RekapHarian() {
         if (filter === 'TIDAK_LENGKAP' && isLengkap) return
       }
 
-      if (!mandorGroups[groupName]) mandorGroups[groupName] = []
+      if (!categories[catKey][groupName]) categories[catKey][groupName] = []
 
-      mandorGroups[groupName].push({
+      categories[catKey][groupName].push({
         id: w.karyawan.id,
         nama,
         karyawan: w.karyawan,
+        shiftCategory: catKey,
         slotStatusMap,
-        uniqueWorkerSlots,
+        categorySlots,
         timelineItems,
         computedStatus,
         verifiedCount,
@@ -620,54 +680,42 @@ export default function RekapHarian() {
       })
     })
 
-    return Object.entries(mandorGroups)
-      .sort(([a], [b]) => {
-        if (a === 'Harian Kantor') return 1
-        if (b === 'Harian Kantor') return -1
-        return a.localeCompare(b)
-      })
-      .map(([groupName, workers]) => ({
-        groupName,
-        workers: workers.sort((a, b) => a.nama.localeCompare(b.nama)),
-      }))
-  }, [detail, scanData, laporanData, slotMaster, mandorMap, searchQuery, filter, lemburMap, securityRosterMap, projectTz])
-
-  const tableSlots = useMemo(() => {
-    const seen = new Set()
-    const list = []
-
-    groupedScans.forEach(g => {
-      g.workers.forEach(w => {
-        (w.uniqueWorkerSlots || []).forEach(s => {
-          const jamKey = s.normalizedJam
-          if (!seen.has(jamKey)) {
-            seen.add(jamKey)
-            list.push(s)
-          }
+    const formatGroups = (groupObj) => {
+      return Object.entries(groupObj)
+        .sort(([a], [b]) => {
+          if (a === 'Harian Kantor') return 1
+          if (b === 'Harian Kantor') return -1
+          return a.localeCompare(b)
         })
-      })
-    })
-
-    if (list.length === 0) {
-      return [
-        { id: '1', normalizedJam: '08:00', label: 'Masuk Pagi' },
-        { id: '2', normalizedJam: '10:00', label: 'Progres 1' },
-        { id: '3', normalizedJam: '11:30', label: 'Istirahat' },
-        { id: '4', normalizedJam: '13:00', label: 'Masuk Siang' },
-        { id: '5', normalizedJam: '15:00', label: 'Progres 2' },
-        { id: '6', normalizedJam: '17:00', label: 'Pulang' },
-      ]
+        .map(([groupName, workers]) => ({
+          groupName,
+          workers: workers.sort((a, b) => a.nama.localeCompare(b.nama)),
+        }))
     }
 
-    return list.sort((a, b) => a.normalizedJam.localeCompare(b.normalizedJam))
-  }, [groupedScans])
+    return {
+      pekerja: formatGroups(categories.pekerja),
+      security_pagi: formatGroups(categories.security_pagi),
+      security_malam: formatGroups(categories.security_malam),
+      lembur: formatGroups(categories.lembur),
+      counts,
+    }
+  }, [detail, scanData, laporanData, slotMaster, mandorMap, searchQuery, filter, lemburMap, securityRosterMap, projectTz])
 
   const stats = useMemo(() => {
     let totalWorkers = 0
     let lengkap = 0
     let tidakLengkap = 0
     let totalTerlewat = 0
-    groupedScans.forEach(g => {
+
+    const allGroups = [
+      ...categorizedScans.pekerja,
+      ...categorizedScans.security_pagi,
+      ...categorizedScans.security_malam,
+      ...categorizedScans.lembur,
+    ]
+
+    allGroups.forEach(g => {
       g.workers.forEach(w => {
         totalWorkers++
         if (w.computedStatus === 'LENGKAP') lengkap++
@@ -675,8 +723,65 @@ export default function RekapHarian() {
         totalTerlewat += Math.max(0, (w.expectedCount || 0) - (w.verifiedCount || 0))
       })
     })
+
     return { totalWorkers, lengkap, tidakLengkap, totalTerlewat }
-  }, [groupedScans])
+  }, [categorizedScans])
+
+  const categoriesToRender = useMemo(() => {
+    const catDefs = [
+      {
+        key: 'pekerja',
+        title: 'Pekerja Reguler',
+        subTitle: '6 Slot Jam Normal (08:00 - 17:00)',
+        icon: Briefcase,
+        badgeBg: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40',
+        slots: getCategorySlots('pekerja', slotMaster),
+        groups: categorizedScans.pekerja,
+        count: categorizedScans.counts.pekerja,
+      },
+      {
+        key: 'security_pagi',
+        title: 'Security Shift Pagi',
+        subTitle: '7 Slot Shift Pagi (06:00 - 17:00)',
+        icon: Sun,
+        badgeBg: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40',
+        slots: getCategorySlots('security_pagi', slotMaster),
+        groups: categorizedScans.security_pagi,
+        count: categorizedScans.counts.security_pagi,
+      },
+      {
+        key: 'security_malam',
+        title: 'Security Shift Malam',
+        subTitle: '6 Slot Shift Malam (17:00 - 06:00)',
+        icon: Moon,
+        badgeBg: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40',
+        slots: getCategorySlots('security_malam', slotMaster),
+        groups: categorizedScans.security_malam,
+        count: categorizedScans.counts.security_malam,
+      },
+      {
+        key: 'lembur',
+        title: 'Pekerja Lembur',
+        subTitle: 'Slot Lembur Khusus (Overtime)',
+        icon: Zap,
+        badgeBg: 'bg-amber-500/20 text-amber-300 border border-amber-500/40',
+        slots: getCategorySlots('lembur', slotMaster),
+        groups: categorizedScans.lembur,
+        count: categorizedScans.counts.lembur,
+      },
+    ]
+
+    const list = []
+    catDefs.forEach(cat => {
+      if (categoryTab === 'semua') {
+        if (cat.groups.length > 0) list.push(cat)
+      } else if (categoryTab === cat.key) {
+        list.push(cat)
+      }
+    })
+
+    return list
+  }, [categoryTab, categorizedScans, slotMaster])
 
   const namaBulan = format(currentDate, 'MMMM yyyy', { locale: localeId })
   const projectTzLabel = tzShortName[projectTz] || projectTz
@@ -807,7 +912,7 @@ export default function RekapHarian() {
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      <Table size={13} /> Tabel Kolom Jam
+                      <Table size={13} /> Tabel Per Jam
                     </button>
                     <button
                       onClick={() => setViewMode('kartu')}
@@ -821,13 +926,13 @@ export default function RekapHarian() {
                     </button>
                   </div>
 
-                  <div className="relative flex-1 min-w-[150px]">
+                  <div className="relative flex-1 min-w-[140px]">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      placeholder="Cari pekerja / mandor..."
+                      placeholder="Cari pekerja..."
                       className="w-full pl-8 pr-7 text-xs py-1.5 font-medium rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
                     />
                     {searchQuery && (
@@ -843,251 +948,348 @@ export default function RekapHarian() {
                     className="text-xs py-1.5 px-2.5 rounded-xl font-semibold bg-slate-950 border border-slate-800 text-slate-200 focus:border-cyan-400 focus:outline-none shrink-0"
                   >
                     <option value="semua">Semua Status</option>
-                    <option value="LENGKAP">Lengkap (6/6)</option>
-                    <option value="TIDAK_LENGKAP">Ada Terlewat (&lt; 6)</option>
+                    <option value="LENGKAP">Lengkap Saja</option>
+                    <option value="TIDAK_LENGKAP">Ada Terlewat</option>
                   </select>
                 </div>
               </div>
 
-              {groupedScans.length > 0 ? (
-                viewMode === 'tabel' ? (
-                  /* ================= TABEL LIST KOLOM PER JAM ================= */
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                          <th className="py-3 px-3 w-10 text-center">No</th>
-                          <th className="py-3 px-3 min-w-[150px]">Nama Pekerja</th>
-                          <th className="py-3 px-3 min-w-[100px]">Regu / Mandor</th>
-                          {tableSlots.map(slot => (
-                            <th key={slot.id} className="py-3 px-2 text-center min-w-[95px]">
-                              <div className="text-slate-200 font-bold">{slot.jam?.slice(0, 5) || slot.label}</div>
-                              <div className="text-[9px] text-slate-500 lowercase font-normal">{slot.label}</div>
-                            </th>
-                          ))}
-                          <th className="py-3 px-3 text-center min-w-[70px]">Total</th>
-                          <th className="py-3 px-3 text-center min-w-[110px]">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {groupedScans.map(({ groupName, workers }) => (
-                          <Fragment key={groupName}>
-                            <tr className="bg-slate-950/90 font-bold border-t border-b border-slate-800">
-                              <td colSpan={tableSlots.length + 5} className="py-2 px-3 text-[11px] text-cyan-400">
-                                <div className="flex items-center justify-between">
+              {/* Category Filter Tabs Bar */}
+              <div className="px-5 py-2.5 bg-slate-950/60 border-b border-slate-800/80 flex items-center gap-1.5 overflow-x-auto">
+                <button
+                  onClick={() => setCategoryTab('semua')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                    categoryTab === 'semua'
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <Users size={13} />
+                  <span>Semua Shift</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
+                    {categorizedScans.counts.total}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setCategoryTab('pekerja')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                    categoryTab === 'pekerja'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <Briefcase size={13} />
+                  <span>Pekerja Reguler</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
+                    {categorizedScans.counts.pekerja}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setCategoryTab('security_pagi')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                    categoryTab === 'security_pagi'
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <Sun size={13} />
+                  <span>Security Shift Pagi</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
+                    {categorizedScans.counts.security_pagi}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setCategoryTab('security_malam')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                    categoryTab === 'security_malam'
+                      ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <Moon size={13} />
+                  <span>Security Shift Malam</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
+                    {categorizedScans.counts.security_malam}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setCategoryTab('lembur')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                    categoryTab === 'lembur'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                >
+                  <Zap size={13} />
+                  <span>Pekerja Lembur</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
+                    {categorizedScans.counts.lembur}
+                  </span>
+                </button>
+              </div>
+
+              {/* Categorized Content */}
+              <div className="p-4 space-y-6">
+                {categoriesToRender.length > 0 ? (
+                  categoriesToRender.map(category => {
+                    const CatIcon = category.icon
+                    return (
+                      <div key={category.key} className="space-y-3 bg-slate-950/60 rounded-2xl border border-slate-800/90 p-4 shadow-lg">
+                        {/* Category Header */}
+                        <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`p-2 rounded-xl ${category.badgeBg}`}>
+                              <CatIcon size={16} />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-bold text-white">{category.title}</h3>
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${category.badgeBg}`}>
+                                  {category.count} Orang
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400">{category.subTitle}</p>
+                            </div>
+                          </div>
+                          <div className="text-[11px] text-cyan-400/80 font-mono font-bold bg-cyan-950/40 border border-cyan-500/20 px-2.5 py-1 rounded-lg">
+                            {category.slots.length} Kolom Jam
+                          </div>
+                        </div>
+
+                        {category.groups.length === 0 ? (
+                          <div className="py-6 text-center text-xs text-slate-500">
+                            Tidak ada data untuk {category.title} pada tanggal ini.
+                          </div>
+                        ) : viewMode === 'tabel' ? (
+                          /* ================= TABEL KOLOM JAM PER KATEGORI ================= */
+                          <div className="overflow-x-auto rounded-xl border border-slate-800">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                                  <th className="py-3 px-3 w-10 text-center">No</th>
+                                  <th className="py-3 px-3 min-w-[150px]">Nama Pekerja</th>
+                                  <th className="py-3 px-3 min-w-[100px]">Regu / Mandor</th>
+                                  {category.slots.map(slot => (
+                                    <th key={slot.id} className="py-3 px-2 text-center min-w-[95px]">
+                                      <div className="text-slate-200 font-bold">{slot.normalizedJam}</div>
+                                      <div className="text-[9px] text-slate-500 lowercase font-normal">{slot.label}</div>
+                                    </th>
+                                  ))}
+                                  <th className="py-3 px-3 text-center min-w-[70px]">Total</th>
+                                  <th className="py-3 px-3 text-center min-w-[110px]">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/60">
+                                {category.groups.map(({ groupName, workers }) => (
+                                  <Fragment key={groupName}>
+                                    <tr className="bg-slate-950/90 font-bold border-t border-b border-slate-800">
+                                      <td colSpan={category.slots.length + 5} className="py-2 px-3 text-[11px] text-cyan-400">
+                                        <div className="flex items-center justify-between">
+                                          <span>MANDOR / REGU: {groupName}</span>
+                                          <span className="text-slate-500 font-mono text-[10px]">{workers.length} Pekerja</span>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                    {workers.map((w, idx) => {
+                                      const isLengkap = w.computedStatus === 'LENGKAP'
+                                      return (
+                                        <tr key={w.id || w.nama} className="hover:bg-slate-800/40 transition-colors">
+                                          <td className="py-2.5 px-3 text-center text-slate-500 font-mono">{idx + 1}</td>
+                                          <td className="py-2.5 px-3">
+                                            <div className="font-bold text-white text-xs">{w.nama}</div>
+                                            {w.karyawan?.jabatan && (
+                                              <div className="text-[10px] text-cyan-300/80 mt-0.5">{w.karyawan.jabatan}</div>
+                                            )}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-slate-400 text-xs">{groupName}</td>
+                                          {category.slots.map(slot => {
+                                            const jamKey = slot.normalizedJam
+                                            const item = w.slotStatusMap ? w.slotStatusMap[jamKey] : null
+
+                                            if (!item) {
+                                              return (
+                                                <td key={slot.id || jamKey} className="py-2 px-1 text-center">
+                                                  <span className="text-slate-600 font-mono text-xs select-none">-</span>
+                                                </td>
+                                              )
+                                            }
+
+                                            if (item.type === 'scan') {
+                                              const scan = item.data
+                                              const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
+                                              const hasPhoto = !!scan.foto_url
+                                              return (
+                                                <td key={slot.id || jamKey} className="py-2 px-1 text-center">
+                                                  <button
+                                                    onClick={() => setSelectedScan(scan)}
+                                                    className="w-full p-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 hover:border-cyan-400 hover:bg-cyan-950/60 transition flex flex-col items-center justify-center gap-0.5 group shadow-sm"
+                                                    title="Klik untuk lihat detail foto & GPS"
+                                                  >
+                                                    <span className="font-extrabold text-emerald-300 text-[11px] group-hover:text-cyan-300">
+                                                      {scanTime.slice(0, 5)}
+                                                    </span>
+                                                    <div className="flex items-center gap-1 text-[9px] text-slate-400">
+                                                      {hasPhoto && <ImageIcon size={10} className="text-cyan-400 shrink-0" />}
+                                                      {scan.lokasi_kerja ? (
+                                                        <span className="truncate max-w-[55px] text-slate-300 font-medium">{scan.lokasi_kerja}</span>
+                                                      ) : (
+                                                        <span className="text-emerald-400/70">Hadir</span>
+                                                      )}
+                                                    </div>
+                                                  </button>
+                                                </td>
+                                              )
+                                            } else if (item.type === 'lapor') {
+                                              return (
+                                                <td key={slot.id || jamKey} className="py-2 px-1 text-center">
+                                                  <div className="w-full p-1.5 rounded-lg bg-blue-950/50 border border-blue-500/40 text-blue-300 text-center">
+                                                    <div className="text-[10px] font-bold">Lapor</div>
+                                                    <div className="text-[8px] text-blue-400">Approved</div>
+                                                  </div>
+                                                </td>
+                                              )
+                                            } else {
+                                              // TERLEWAT (RED BADGE)
+                                              return (
+                                                <td key={slot.id || jamKey} className="py-2 px-1 text-center">
+                                                  <div className="w-full p-1.5 rounded-lg bg-rose-950/60 border border-rose-500/50 text-rose-400 text-center shadow-sm">
+                                                    <div className="flex items-center justify-center gap-0.5 text-[10px] font-black">
+                                                      <X size={10} className="stroke-[3]" />
+                                                      <span>Lewat</span>
+                                                    </div>
+                                                    <div className="text-[8px] text-rose-400/80 font-medium">Terlewat</div>
+                                                  </div>
+                                                </td>
+                                              )
+                                            }
+                                          })}
+                                          <td className="py-2.5 px-3 text-center font-mono font-bold text-xs">
+                                            <span className={isLengkap ? 'text-emerald-400' : 'text-amber-400'}>
+                                              {w.verifiedCount}/{w.expectedCount}
+                                            </span>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            <span className={`inline-block text-[10px] font-extrabold px-2.5 py-1 rounded-full ${
+                                              isLengkap
+                                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                                            }`}>
+                                              {isLengkap ? 'LENGKAP' : 'BELUM LENGKAP'}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </Fragment>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          /* ================= KARTU TIMELINE VIEW ================= */
+                          <div className="space-y-4">
+                            {category.groups.map(({ groupName, workers }) => (
+                              <div key={groupName} className="space-y-2">
+                                <div className="text-xs font-bold text-cyan-400 flex items-center justify-between px-1">
                                   <span>MANDOR / REGU: {groupName}</span>
                                   <span className="text-slate-500 font-mono text-[10px]">{workers.length} Pekerja</span>
                                 </div>
-                              </td>
-                            </tr>
-                            {workers.map((w, idx) => {
-                              const isLengkap = w.computedStatus === 'LENGKAP'
-                              return (
-                                <tr key={w.id || w.nama} className="hover:bg-slate-800/40 transition-colors">
-                                  <td className="py-2.5 px-3 text-center text-slate-500 font-mono">{idx + 1}</td>
-                                  <td className="py-2.5 px-3">
-                                    <div className="font-bold text-white text-xs">{w.nama}</div>
-                                    {w.karyawan?.jabatan && (
-                                      <div className="text-[10px] text-cyan-300/80 mt-0.5">{w.karyawan.jabatan}</div>
-                                    )}
-                                  </td>
-                                  <td className="py-2.5 px-3 text-slate-400 text-xs">{groupName}</td>
-                                  {tableSlots.map(slot => {
-                                    const jamKey = slot.normalizedJam
-                                    const item = w.slotStatusMap ? w.slotStatusMap[jamKey] : null
-
-                                    if (!item) {
-                                      return (
-                                        <td key={slot.id || jamKey} className="py-2 px-1 text-center">
-                                          <span className="text-slate-600 font-mono text-xs select-none" title="Bukan jadwal shift pekerja ini">-</span>
-                                        </td>
-                                      )
-                                    }
-
-                                    if (item.type === 'scan') {
-                                      const scan = item.data
-                                      const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
-                                      const hasPhoto = !!scan.foto_url
-                                      return (
-                                        <td key={slot.id || jamKey} className="py-2 px-1 text-center">
-                                          <button
-                                            onClick={() => setSelectedScan(scan)}
-                                            className="w-full p-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 hover:border-cyan-400 hover:bg-cyan-950/60 transition flex flex-col items-center justify-center gap-0.5 group shadow-sm"
-                                            title="Klik untuk lihat detail foto & GPS"
-                                          >
-                                            <span className="font-extrabold text-emerald-300 text-[11px] group-hover:text-cyan-300">
-                                              {scanTime.slice(0, 5)}
-                                            </span>
-                                            <div className="flex items-center gap-1 text-[9px] text-slate-400">
-                                              {hasPhoto && <ImageIcon size={10} className="text-cyan-400 shrink-0" />}
-                                              {scan.lokasi_kerja ? (
-                                                <span className="truncate max-w-[55px] text-slate-300 font-medium">{scan.lokasi_kerja}</span>
-                                              ) : (
-                                                <span className="text-emerald-400/70">Hadir</span>
-                                              )}
-                                            </div>
-                                          </button>
-                                        </td>
-                                      )
-                                    } else if (item.type === 'lapor') {
-                                      return (
-                                        <td key={slot.id || jamKey} className="py-2 px-1 text-center">
-                                          <div className="w-full p-1.5 rounded-lg bg-blue-950/50 border border-blue-500/40 text-blue-300 text-center">
-                                            <div className="text-[10px] font-bold">Lapor</div>
-                                            <div className="text-[8px] text-blue-400">Approved</div>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  {workers.map(w => {
+                                    const isLengkap = w.computedStatus === 'LENGKAP'
+                                    return (
+                                      <div key={w.id || w.nama} className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div>
+                                            <div className="font-bold text-white text-sm">{w.nama}</div>
+                                            {w.karyawan?.jabatan && (
+                                              <div className="text-[11px] text-cyan-300 font-medium">{w.karyawan.jabatan}</div>
+                                            )}
                                           </div>
-                                        </td>
-                                      )
-                                    } else {
-                                      // TERLEWAT / LEWAT ABSEN (RED HIGHLIGHT!)
-                                      return (
-                                        <td key={slot.id || jamKey} className="py-2 px-1 text-center">
-                                          <div className="w-full p-1.5 rounded-lg bg-rose-950/60 border border-rose-500/50 text-rose-400 text-center shadow-sm">
-                                            <div className="flex items-center justify-center gap-0.5 text-[10px] font-black">
-                                              <X size={10} className="stroke-[3]" />
-                                              <span>Lewat</span>
-                                            </div>
-                                            <div className="text-[8px] text-rose-400/80 font-medium">Terlewat</div>
-                                          </div>
-                                        </td>
-                                      )
-                                    }
+                                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                            isLengkap
+                                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                              : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                                          }`}>
+                                            {w.verifiedCount}/{w.expectedCount} {isLengkap ? 'LENGKAP' : 'BELUM'}
+                                          </span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-1.5">
+                                          {category.slots.map(slot => {
+                                            const jamKey = slot.normalizedJam
+                                            const item = w.slotStatusMap ? w.slotStatusMap[jamKey] : null
+                                            if (!item) return null
+                                            if (item.type === 'scan') {
+                                              const scan = item.data
+                                              const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
+                                              return (
+                                                <button
+                                                  key={slot.id || jamKey}
+                                                  onClick={() => setSelectedScan(scan)}
+                                                  className="p-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 hover:border-cyan-400 text-center transition"
+                                                >
+                                                  <div className="text-[9px] text-slate-400">{slot.normalizedJam}</div>
+                                                  <div className="text-[10px] font-bold text-emerald-300">{scanTime.slice(0, 5)}</div>
+                                                </button>
+                                              )
+                                            } else if (item.type === 'lapor') {
+                                              return (
+                                                <div key={slot.id || jamKey} className="p-1.5 rounded-lg bg-blue-950/50 border border-blue-500/40 text-center">
+                                                  <div className="text-[9px] text-slate-400">{slot.normalizedJam}</div>
+                                                  <div className="text-[10px] font-bold text-blue-300">Lapor OK</div>
+                                                </div>
+                                              )
+                                            } else {
+                                              return (
+                                                <div key={slot.id || jamKey} className="p-1.5 rounded-lg bg-rose-950/50 border border-rose-500/40 text-center">
+                                                  <div className="text-[9px] text-slate-400">{slot.normalizedJam}</div>
+                                                  <div className="text-[10px] font-bold text-rose-400">❌ Lewat</div>
+                                                </div>
+                                              )
+                                            }
+                                          })}
+                                        </div>
+                                      </div>
+                                    )
                                   })}
-                                  <td className="py-2.5 px-3 text-center font-mono font-bold text-xs">
-                                    <span className={isLengkap ? 'text-emerald-400' : 'text-amber-400'}>
-                                      {w.verifiedCount}/{w.expectedCount}
-                                    </span>
-                                  </td>
-                                  <td className="py-2.5 px-3 text-center">
-                                    <span className={`inline-block text-[10px] font-extrabold px-2.5 py-1 rounded-full ${
-                                      isLengkap
-                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                                    }`}>
-                                      {isLengkap ? 'LENGKAP' : 'BELUM LENGKAP'}
-                                    </span>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </Fragment>
-                        ))}
-                      </tbody>
-                    </table>
-
-                    {/* Table Legend */}
-                    <div className="p-3 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-400">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2.5 h-2.5 rounded bg-emerald-500/40 border border-emerald-500" />
-                          <span className="text-slate-300">Scan Wajah Berhasil (Hadir)</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2.5 h-2.5 rounded bg-blue-500/40 border border-blue-500" />
-                          <span className="text-slate-300">Lapor Terlewat (Disetujui)</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2.5 h-2.5 rounded bg-rose-500/40 border border-rose-500" />
-                          <span className="text-rose-400 font-bold">Terlewat / Lewat Absen</span>
-                        </div>
-                      </div>
-                      <span className="text-slate-500">Klik kotak jam untuk melihat detail foto & GPS</span>
-                    </div>
-                  </div>
-                ) : (
-                  /* ================= KARTU TIMELINE ================= */
-                  <div className="divide-y divide-slate-800/60">
-                    {groupedScans.map(({ groupName, workers }) => (
-                      <Fragment key={groupName}>
-                        <div className="px-5 py-2.5 bg-slate-950/80 border-t border-b border-slate-800/80 flex items-center justify-between">
-                          <span className="text-xs font-black text-slate-400 uppercase tracking-wider">{groupName}</span>
-                          <span className="text-xs font-mono text-slate-500">{workers.length} orang</span>
-                        </div>
-                        {workers.map(w => {
-                          const stKey = w.computedStatus || 'PRO_RATA'
-                          const isLengkap = stKey === 'LENGKAP'
-                          return (
-                            <div key={w.id || w.nama} className="px-5 py-3.5 hover:bg-slate-800/30 transition-colors">
-                              <div className="flex items-center justify-between gap-2 mb-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-extrabold text-white">{w.nama}</span>
-                                  {w.karyawan?.jabatan && (
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-cyan-300 border border-slate-700">
-                                      {w.karyawan.jabatan}
-                                    </span>
-                                  )}
                                 </div>
-                                <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
-                                  isLengkap ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                }`}>
-                                  {isLengkap ? 'Lengkap (6/6 Slot)' : `Tidak Lengkap (${w.verifiedCount}/6)`}
-                                </span>
                               </div>
-
-                              {/* Timeline Slot Buttons & Red Badges for Missed Slots */}
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                {w.timelineItems.map((item, idx) => {
-                                  if (item.type === 'scan') {
-                                    const scan = item.data
-                                    const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
-                                    const slotLabel = scan.absen_jadwal_slot?.label || item.slot?.label || ''
-                                    const jenis = scan.absen_jadwal_slot?.jenis || ''
-                                    const hasPhoto = !!scan.foto_url
-                                    const hasGps = scan.gps_lat && scan.gps_lng
-
-                                    return (
-                                      <button
-                                        key={scan.id || `s-${idx}`}
-                                        onClick={() => setSelectedScan(scan)}
-                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-cyan-400 hover:bg-cyan-500/10 transition-all text-xs group shadow-sm"
-                                      >
-                                        <div className={`w-2 h-2 rounded-full shrink-0 ${slotColor[jenis] || 'bg-gray-400'}`} />
-                                        <span className="font-bold text-slate-200">{scanTime}</span>
-                                        {scan.lokasi_kerja && <span className="font-extrabold text-white">• {scan.lokasi_kerja}</span>}
-                                        <span className="text-slate-400 font-medium">{slotLabel}</span>
-                                        {hasPhoto && <ImageIcon size={11} className="text-cyan-400" />}
-                                        {hasGps && <MapPin size={11} className="text-emerald-400" />}
-                                        {scan.di_luar_lokasi && <MapPinOff size={11} className="text-amber-400" />}
-                                      </button>
-                                    )
-                                  } else if (item.type === 'lapor') {
-                                    return (
-                                      <div
-                                        key={`l-${idx}`}
-                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-500/15 border border-blue-500/40 text-blue-300 text-xs font-bold"
-                                      >
-                                        <CheckCircle size={12} className="text-blue-400" />
-                                        <span>Lapor Terlewat ({item.slot?.label || 'Approved'})</span>
-                                      </div>
-                                    )
-                                  } else {
-                                    // TERLEWAT (MISSED SLOT) -> RED BADGE!
-                                    return (
-                                      <div
-                                        key={`t-${idx}`}
-                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-400 text-xs font-bold shadow-sm"
-                                        title={`Slot ${item.slot?.label || ''} terlewat (tidak ada scan)`}
-                                      >
-                                        <X size={12} className="text-red-400 stroke-[3]" />
-                                        <span>Terlewat ({item.slot?.label || ''})</span>
-                                      </div>
-                                    )
-                                  }
-                                })}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </Fragment>
-                    ))}
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                ) : (
+                  <div className="p-12 text-center bg-slate-950/60 rounded-2xl border border-slate-800">
+                    <ScanFace size={36} className="mx-auto text-slate-600 mb-2" />
+                    <p className="text-slate-400 text-sm font-medium">Tidak ada data presensi untuk shift yang dipilih</p>
                   </div>
-                )
-              ) : (
-                <div className="p-12 text-center">
-                  <ScanFace size={36} className="mx-auto text-slate-600 mb-2" />
-                  <p className="text-slate-400 text-sm font-medium">Tidak ada data presensi / scan wajah</p>
+                )}
+              </div>
+
+              {/* Table Legend */}
+              <div className="p-3 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-400">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded bg-emerald-500/40 border border-emerald-500" />
+                    <span className="text-slate-300">Scan Wajah Berhasil (Hadir)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded bg-blue-500/40 border border-blue-500" />
+                    <span className="text-slate-300">Lapor Terlewat (Disetujui)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded bg-rose-500/40 border border-rose-500" />
+                    <span className="text-rose-400 font-bold">Terlewat / Lewat Absen</span>
+                  </div>
                 </div>
-              )}
+                <span className="text-slate-500">Klik kotak jam untuk melihat detail foto & GPS</span>
+              </div>
             </div>
           ) : (
             <div className="card p-16 text-center border border-slate-800 bg-slate-900/90 shadow-xl">
