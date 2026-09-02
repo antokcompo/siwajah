@@ -123,12 +123,28 @@ export default function UserBeranda() {
 
     let targetCategory = 'REGULER'
     if (isSecurity) {
-      const { data: roster } = await supabase
+      const currentHour = new Date().getHours()
+      let { data: roster } = await supabase
         .from('absen_roster_security')
         .select('shift')
         .eq('karyawan_id', karyawan.id)
         .eq('tanggal', todayStr)
         .maybeSingle()
+
+      if (!roster && currentHour < 12) {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yesterdayStr = getLocalDateString(yesterday)
+        const { data: yRoster } = await supabase
+          .from('absen_roster_security')
+          .select('shift')
+          .eq('karyawan_id', karyawan.id)
+          .eq('tanggal', yesterdayStr)
+          .maybeSingle()
+        if (yRoster && (yRoster.shift || '').toUpperCase() === 'MALAM') {
+          roster = yRoster
+        }
+      }
 
       const shift = (roster?.shift || 'PAGI').toUpperCase()
       targetCategory = shift === 'MALAM' ? 'SECURITY_MALAM' : 'SECURITY_PAGI'
@@ -144,7 +160,7 @@ export default function UserBeranda() {
       return { ...s, jam }
     }).filter(s => {
       const cat = s.kategori_shift || (
-        (s.label || '').toLowerCase().includes('malam') || ['01:00','03:00','23:00'].includes(s.jam?.slice(0,5))
+        (s.label || '').toLowerCase().includes('malam') || ['01:00','02:00','03:00','04:00','22:00','23:00'].includes(s.jam?.slice(0,5))
           ? 'SECURITY_MALAM'
           : ((s.label || '').toLowerCase().includes('security') ? 'SECURITY_PAGI' : 'REGULER')
       )
@@ -155,27 +171,43 @@ export default function UserBeranda() {
       if (!isSecurity) {
         // KARYAWAN NON-SECURITY (Abdul Ghofur / CW / Kantor):
         if (cat !== 'REGULER') return false
-        if (['06:00', '01:00', '02:00', '03:00', '04:00', '22:00', '23:00'].includes(jamStr)) return false
+        if (['06:00', '00:00', '01:00', '02:00', '03:00', '04:00', '22:00', '23:00'].includes(jamStr)) return false
         if (lbl.includes('security') || lbl.includes('patroli') || lbl.includes('satpam') || lbl.includes('malam')) return false
         if (isLembur && !isLemburApproved) return false
         return true
       } else if (targetCategory === 'SECURITY_MALAM') {
         // SECURITY SHIFT MALAM:
-        if (cat !== 'SECURITY_MALAM' && !lbl.includes('malam') && !['17:00','19:00','23:00','01:00','03:00','06:00'].includes(jamStr)) return false
+        if (cat !== 'SECURITY_MALAM' && !lbl.includes('malam') && !['17:00','19:00','22:00','23:00','00:00','01:00','02:00','03:00','04:00','06:00'].includes(jamStr)) return false
         if (lbl.includes('pagi') && !lbl.includes('pulang malam')) return false
         return true
       } else {
         // SECURITY SHIFT PAGI:
         if (cat !== 'SECURITY_PAGI' && !lbl.includes('security')) return false
-        if (lbl.includes('malam') || ['23:00','01:00','03:00'].includes(jamStr)) return false
+        if (lbl.includes('malam') || ['22:00','23:00','00:00','01:00','02:00','03:00','04:00'].includes(jamStr)) return false
         return true
       }
     })
 
-    // Strict deduplication by unique JAM (08:00, 10:00, 11:30, 13:00, 15:00, 17:00)
+    function getOvernightSortKey(jamStr) {
+      if (!jamStr) return 9999
+      const [h, m] = jamStr.slice(0, 5).split(':').map(Number)
+      const effectiveHour = h >= 12 ? h : h + 24
+      return effectiveHour * 60 + (m || 0)
+    }
+
+    // Strict deduplication by unique JAM
     const seenJam = new Set()
     const uniqueSlots = []
-    filteredSlots.sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
+    filteredSlots.sort((a, b) => {
+      const uA = Number(a.urutan)
+      const uB = Number(b.urutan)
+      if (!isNaN(uA) && !isNaN(uB) && uA !== uB) return uA - uB
+
+      if (targetCategory === 'SECURITY_MALAM') {
+        return getOvernightSortKey(a.jam) - getOvernightSortKey(b.jam)
+      }
+      return (a.jam || '').localeCompare(b.jam || '')
+    })
 
     for (const s of filteredSlots) {
       const jamKey = (s.jam || '').slice(0, 5)
@@ -241,9 +273,35 @@ export default function UserBeranda() {
     }
 
     if (!slot.jam) return 'active'
-    const todayStr = getLocalDateString(now)
+    
     const [h, m] = slot.jam.split(':').map(Number)
     const slotTime = new Date(now)
+
+    // Check if this slot belongs to an overnight shift (e.g. SECURITY_MALAM)
+    const isOvernight = (isSecurity && (targetCategory === 'SECURITY_MALAM' || slot.kategori_shift === 'SECURITY_MALAM' || (slot.label || '').toLowerCase().includes('malam') || ['00:00','01:00','02:00','03:00','04:00','06:00','17:00','19:00','22:00','23:00'].includes(slotJamPrefix))) ||
+      (displaySlots.some(s => {
+        const sh = Number(s.jam?.slice(0, 2))
+        return !isNaN(sh) && sh >= 16
+      }) && displaySlots.some(s => {
+        const sh = Number(s.jam?.slice(0, 2))
+        return !isNaN(sh) && sh < 12
+      }))
+
+    if (isOvernight) {
+      const currentHour = now.getHours()
+      if (currentHour >= 12) {
+        // Afternoon/Evening (Day 1: 12:00 - 23:59): post-midnight slots (< 12) are for TOMORROW morning (Day 2)
+        if (h < 12) {
+          slotTime.setDate(slotTime.getDate() + 1)
+        }
+      } else {
+        // Post-midnight / Early Morning (Day 2: 00:00 - 11:59): evening slots (>= 12) were for YESTERDAY evening (Day 1)
+        if (h >= 12) {
+          slotTime.setDate(slotTime.getDate() - 1)
+        }
+      }
+    }
+
     slotTime.setHours(h, m, 0, 0)
 
     const windowStart = new Date(slotTime)
