@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, getDay } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
 import { Calendar, Shield, Sun, Moon, Coffee, ChevronLeft, ChevronRight, Edit3, Plus, Save, UserCheck, Search, Info, CheckCircle2, Clock } from 'lucide-react'
 import { getActiveProject } from './PilihProyek'
 
 export default function RosterSecurity() {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 7, 31)) // Default August 2026 per case study
-  const [selectedDate, setSelectedDate] = useState('2026-08-31')
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [securityList, setSecurityList] = useState([])
   const [rosterData, setRosterData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -17,8 +17,8 @@ export default function RosterSecurity() {
   const [showModal, setShowModal] = useState(false)
   const [modalForm, setModalForm] = useState({
     karyawan_id: '',
-    tanggal_mulai: '2026-08-31',
-    tanggal_selesai: '2026-08-31',
+    tanggal_mulai: format(new Date(), 'yyyy-MM-dd'),
+    tanggal_selesai: format(new Date(), 'yyyy-MM-dd'),
     shift: 'PAGI'
   })
   const [savingModal, setSavingModal] = useState(false)
@@ -251,12 +251,13 @@ export default function RosterSecurity() {
                 </button>
                 <button
                   onClick={() => {
-                    setCurrentDate(new Date(2026, 7, 31))
-                    setSelectedDate('2026-08-31')
+                    const today = new Date()
+                    setCurrentDate(today)
+                    setSelectedDate(format(today, 'yyyy-MM-dd'))
                   }}
                   className="px-3 py-1 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/30 text-xs font-medium"
                 >
-                  31 Ags 2026
+                  Hari Ini ({format(new Date(), 'd MMM yyyy', { locale: localeId })})
                 </button>
                 <button
                   onClick={nextMonth}
@@ -279,6 +280,9 @@ export default function RosterSecurity() {
               </div>
             ) : (
               <div className="grid grid-cols-7 gap-1.5">
+                {Array.from({ length: getDay(startOfMonth(currentDate)) }).map((_, i) => (
+                  <div key={`empty-${i}`} className="min-h-[76px] rounded-xl border border-transparent opacity-0 pointer-events-none" />
+                ))}
                 {days.map(d => {
                   const ds = format(d, 'yyyy-MM-dd')
                   const isSelected = selectedDate === ds
