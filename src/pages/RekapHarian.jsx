@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, Fragment } from 'react'
 import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import { id as localeId } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, ScanFace, MapPin, MapPinOff, Clock, X, Image as ImageIcon, ExternalLink, ZoomIn, AlertTriangle, CheckCircle, Search, Table, LayoutList, Users, CheckCircle2, AlertCircle, XCircle } from 'lucide-react'
 import { getDistanceMeters, formatDistance, isLocationOutsideGeofence } from '../lib/geoUtils'
 import { getActiveProject } from './PilihProyek'
 
@@ -101,6 +101,7 @@ export default function RekapHarian() {
   const [zoomPhoto, setZoomPhoto] = useState(null)
   const [projectTz, setProjectTz] = useState('Asia/Jayapura')
   const [siteConfig, setSiteConfig] = useState({ lat: -4.824518, lng: 136.844673, radius: 400 })
+  const [viewMode, setViewMode] = useState('tabel') // 'tabel' | 'kartu'
 
   const bulan = currentDate.getMonth() + 1
   const tahun = currentDate.getFullYear()
@@ -499,6 +500,33 @@ export default function RekapHarian() {
       }))
   }, [detail, scanData, laporanData, slotMaster, mandorMap, searchQuery, filter])
 
+  const tableSlots = useMemo(() => {
+    const reg = slotMaster.filter(s => {
+      const j = (s.jenis || '').toLowerCase()
+      const l = (s.label || '').toLowerCase()
+      return !j.includes('lembur') && !l.includes('lembur')
+    })
+    return reg.sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
+  }, [slotMaster])
+
+  const stats = useMemo(() => {
+    let totalWorkers = 0
+    let lengkap = 0
+    let tidakLengkap = 0
+    let totalTerlewat = 0
+    groupedScans.forEach(g => {
+      g.workers.forEach(w => {
+        totalWorkers++
+        if (w.computedStatus === 'LENGKAP') lengkap++
+        else tidakLengkap++
+        w.timelineItems.forEach(t => {
+          if (t.type === 'terlewat') totalTerlewat++
+        })
+      })
+    })
+    return { totalWorkers, lengkap, tidakLengkap, totalTerlewat }
+  }, [groupedScans])
+
   const namaBulan = format(currentDate, 'MMMM yyyy', { locale: localeId })
   const projectTzLabel = tzShortName[projectTz] || projectTz
 
@@ -564,125 +592,335 @@ export default function RekapHarian() {
         </div>
 
         {/* Detail */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4">
           {selectedDate ? (
-            <div className="card overflow-hidden border border-slate-800">
+            <div className="card overflow-hidden border border-slate-800 bg-slate-900/90 shadow-xl">
+              {/* Summary Stats Bar */}
+              <div className="p-4 bg-slate-950/90 border-b border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
+                    <Users size={18} />
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Pekerja</div>
+                    <div className="text-lg font-black text-white font-mono">{stats.totalWorkers}</div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/20 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <CheckCircle2 size={18} />
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-emerald-400/80 tracking-wider">Lengkap (6/6)</div>
+                    <div className="text-lg font-black text-emerald-400 font-mono">{stats.lengkap}</div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-900 border border-amber-500/20 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                    <AlertCircle size={18} />
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-amber-400/80 tracking-wider">Belum Lengkap</div>
+                    <div className="text-lg font-black text-amber-400 font-mono">{stats.tidakLengkap}</div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-900 border border-rose-500/30 flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-rose-500/10 text-rose-400">
+                    <XCircle size={18} />
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-rose-400/80 tracking-wider">Slot Terlewat</div>
+                    <div className="text-lg font-black text-rose-400 font-mono">{stats.totalTerlewat}</div>
+                  </div>
+                </div>
+              </div>
+
               {/* Single Unified Header */}
               <div className="px-5 py-4 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/90">
                 <div className="flex items-center gap-2 font-bold text-white text-base shrink-0">
                   <ScanFace size={20} className="text-cyan-400 animate-pulse" />
                   <span>{format(new Date(selectedDate + 'T00:00'), 'EEEE, d MMMM yyyy', { locale: localeId })}</span>
                 </div>
-                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 max-w-lg">
-                  <div className="relative flex-1">
-                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
+
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 max-w-xl justify-end">
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center p-0.5 rounded-xl bg-slate-950 border border-slate-800 shrink-0">
+                    <button
+                      onClick={() => setViewMode('tabel')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        viewMode === 'tabel'
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Table size={13} /> Tabel Kolom Jam
+                    </button>
+                    <button
+                      onClick={() => setViewMode('kartu')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        viewMode === 'kartu'
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <LayoutList size={13} /> Kartu Timeline
+                    </button>
+                  </div>
+
+                  <div className="relative flex-1 min-w-[150px]">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      placeholder="Cari nama pekerja / mandor..."
-                      className="input-field pl-9 text-xs py-1.5 font-medium bg-slate-950 border-slate-800 text-white placeholder-slate-500"
+                      placeholder="Cari pekerja / mandor..."
+                      className="w-full pl-8 pr-7 text-xs py-1.5 font-medium rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none"
                     />
                     {searchQuery && (
-                      <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white">
-                        <X size={13} />
+                      <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-white">
+                        <X size={12} />
                       </button>
                     )}
                   </div>
-                  <select value={filter} onChange={e => setFilter(e.target.value)} className="select-field text-xs py-1.5 font-semibold bg-slate-950 border-slate-800 text-slate-200">
+
+                  <select
+                    value={filter}
+                    onChange={e => setFilter(e.target.value)}
+                    className="text-xs py-1.5 px-2.5 rounded-xl font-semibold bg-slate-950 border border-slate-800 text-slate-200 focus:border-cyan-400 focus:outline-none shrink-0"
+                  >
                     <option value="semua">Semua Status</option>
-                    <option value="LENGKAP">Lengkap (6/6 Slot)</option>
-                    <option value="TIDAK_LENGKAP">Tidak Lengkap (&lt; 6 Slot)</option>
+                    <option value="LENGKAP">Lengkap (6/6)</option>
+                    <option value="TIDAK_LENGKAP">Ada Terlewat (&lt; 6)</option>
                   </select>
                 </div>
               </div>
 
               {groupedScans.length > 0 ? (
-                <div className="divide-y divide-slate-800/60">
-                  {groupedScans.map(({ groupName, workers }) => (
-                    <Fragment key={groupName}>
-                      <div className="px-5 py-2.5 bg-slate-950/80 border-t border-b border-slate-800/80 flex items-center justify-between">
-                        <span className="text-xs font-black text-slate-400 uppercase tracking-wider">{groupName}</span>
-                        <span className="text-xs font-mono text-slate-500">{workers.length} orang</span>
+                viewMode === 'tabel' ? (
+                  /* ================= TABEL LIST KOLOM PER JAM ================= */
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                          <th className="py-3 px-3 w-10 text-center">No</th>
+                          <th className="py-3 px-3 min-w-[150px]">Nama Pekerja</th>
+                          <th className="py-3 px-3 min-w-[100px]">Regu / Mandor</th>
+                          {tableSlots.map(slot => (
+                            <th key={slot.id} className="py-3 px-2 text-center min-w-[95px]">
+                              <div className="text-slate-200 font-bold">{slot.jam?.slice(0, 5) || slot.label}</div>
+                              <div className="text-[9px] text-slate-500 lowercase font-normal">{slot.label}</div>
+                            </th>
+                          ))}
+                          <th className="py-3 px-3 text-center min-w-[70px]">Total</th>
+                          <th className="py-3 px-3 text-center min-w-[110px]">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {groupedScans.map(({ groupName, workers }) => (
+                          <Fragment key={groupName}>
+                            <tr className="bg-slate-950/90 font-bold border-t border-b border-slate-800">
+                              <td colSpan={tableSlots.length + 5} className="py-2 px-3 text-[11px] text-cyan-400">
+                                <div className="flex items-center justify-between">
+                                  <span>MANDOR / REGU: {groupName}</span>
+                                  <span className="text-slate-500 font-mono text-[10px]">{workers.length} Pekerja</span>
+                                </div>
+                              </td>
+                            </tr>
+                            {workers.map((w, idx) => {
+                              const isLengkap = w.computedStatus === 'LENGKAP'
+                              return (
+                                <tr key={w.id || w.nama} className="hover:bg-slate-800/40 transition-colors">
+                                  <td className="py-2.5 px-3 text-center text-slate-500 font-mono">{idx + 1}</td>
+                                  <td className="py-2.5 px-3">
+                                    <div className="font-bold text-white text-xs">{w.nama}</div>
+                                    {w.karyawan?.jabatan && (
+                                      <div className="text-[10px] text-cyan-300/80 mt-0.5">{w.karyawan.jabatan}</div>
+                                    )}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-slate-400 text-xs">{groupName}</td>
+                                  {tableSlots.map(slot => {
+                                    const item = w.timelineItems.find(t => t.slot?.id === slot.id)
+                                    if (item?.type === 'scan') {
+                                      const scan = item.data
+                                      const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
+                                      const hasPhoto = !!scan.foto_url
+                                      return (
+                                        <td key={slot.id} className="py-2 px-1 text-center">
+                                          <button
+                                            onClick={() => setSelectedScan(scan)}
+                                            className="w-full p-1.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 hover:border-cyan-400 hover:bg-cyan-950/60 transition flex flex-col items-center justify-center gap-0.5 group shadow-sm"
+                                            title="Klik untuk lihat detail foto & GPS"
+                                          >
+                                            <span className="font-extrabold text-emerald-300 text-[11px] group-hover:text-cyan-300">
+                                              {scanTime.slice(0, 5)}
+                                            </span>
+                                            <div className="flex items-center gap-1 text-[9px] text-slate-400">
+                                              {hasPhoto && <ImageIcon size={10} className="text-cyan-400 shrink-0" />}
+                                              {scan.lokasi_kerja ? (
+                                                <span className="truncate max-w-[55px] text-slate-300 font-medium">{scan.lokasi_kerja}</span>
+                                              ) : (
+                                                <span className="text-emerald-400/70">Hadir</span>
+                                              )}
+                                            </div>
+                                          </button>
+                                        </td>
+                                      )
+                                    } else if (item?.type === 'lapor') {
+                                      return (
+                                        <td key={slot.id} className="py-2 px-1 text-center">
+                                          <div className="w-full p-1.5 rounded-lg bg-blue-950/50 border border-blue-500/40 text-blue-300 text-center">
+                                            <div className="text-[10px] font-bold">Lapor</div>
+                                            <div className="text-[8px] text-blue-400">Approved</div>
+                                          </div>
+                                        </td>
+                                      )
+                                    } else {
+                                      // TERLEWAT / LEWAT ABSEN (RED HIGHLIGHT!)
+                                      return (
+                                        <td key={slot.id} className="py-2 px-1 text-center">
+                                          <div className="w-full p-1.5 rounded-lg bg-rose-950/60 border border-rose-500/50 text-rose-400 text-center shadow-sm">
+                                            <div className="flex items-center justify-center gap-0.5 text-[10px] font-black">
+                                              <X size={10} className="stroke-[3]" />
+                                              <span>Lewat</span>
+                                            </div>
+                                            <div className="text-[8px] text-rose-400/80 font-medium">Terlewat</div>
+                                          </div>
+                                        </td>
+                                      )
+                                    }
+                                  })}
+                                  <td className="py-2.5 px-3 text-center font-mono font-bold text-xs">
+                                    <span className={isLengkap ? 'text-emerald-400' : 'text-amber-400'}>
+                                      {w.verifiedCount}/{tableSlots.length}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-center">
+                                    <span className={`inline-block text-[10px] font-extrabold px-2.5 py-1 rounded-full ${
+                                      isLengkap
+                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                                    }`}>
+                                      {isLengkap ? 'LENGKAP' : 'BELUM LENGKAP'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Table Legend */}
+                    <div className="p-3 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-400">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded bg-emerald-500/40 border border-emerald-500" />
+                          <span className="text-slate-300">Scan Wajah Berhasil (Hadir)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded bg-blue-500/40 border border-blue-500" />
+                          <span className="text-slate-300">Lapor Terlewat (Disetujui)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded bg-rose-500/40 border border-rose-500" />
+                          <span className="text-rose-400 font-bold">Terlewat / Lewat Absen</span>
+                        </div>
                       </div>
-                      {workers.map(w => {
-                        const stKey = w.computedStatus || 'PRO_RATA'
-                        const isLengkap = stKey === 'LENGKAP'
-                        return (
-                          <div key={w.id || w.nama} className="px-5 py-3.5 hover:bg-slate-800/30 transition-colors">
-                            <div className="flex items-center justify-between gap-2 mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-extrabold text-white">{w.nama}</span>
-                                {w.karyawan?.jabatan && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-cyan-300 border border-slate-700">
-                                    {w.karyawan.jabatan}
-                                  </span>
-                                )}
+                      <span className="text-slate-500">Klik kotak jam untuk melihat detail foto & GPS</span>
+                    </div>
+                  </div>
+                ) : (
+                  /* ================= KARTU TIMELINE ================= */
+                  <div className="divide-y divide-slate-800/60">
+                    {groupedScans.map(({ groupName, workers }) => (
+                      <Fragment key={groupName}>
+                        <div className="px-5 py-2.5 bg-slate-950/80 border-t border-b border-slate-800/80 flex items-center justify-between">
+                          <span className="text-xs font-black text-slate-400 uppercase tracking-wider">{groupName}</span>
+                          <span className="text-xs font-mono text-slate-500">{workers.length} orang</span>
+                        </div>
+                        {workers.map(w => {
+                          const stKey = w.computedStatus || 'PRO_RATA'
+                          const isLengkap = stKey === 'LENGKAP'
+                          return (
+                            <div key={w.id || w.nama} className="px-5 py-3.5 hover:bg-slate-800/30 transition-colors">
+                              <div className="flex items-center justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-extrabold text-white">{w.nama}</span>
+                                  {w.karyawan?.jabatan && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-cyan-300 border border-slate-700">
+                                      {w.karyawan.jabatan}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
+                                  isLengkap ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                }`}>
+                                  {isLengkap ? 'Lengkap (6/6 Slot)' : `Tidak Lengkap (${w.verifiedCount}/6)`}
+                                </span>
                               </div>
-                              <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${
-                                isLengkap ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                              }`}>
-                                {isLengkap ? 'Lengkap (6/6 Slot)' : `Tidak Lengkap (${w.verifiedCount}/6)`}
-                              </span>
-                            </div>
 
-                            {/* Timeline Slot Buttons & Red Badges for Missed Slots */}
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {w.timelineItems.map((item, idx) => {
-                                if (item.type === 'scan') {
-                                  const scan = item.data
-                                  const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
-                                  const slotLabel = scan.absen_jadwal_slot?.label || item.slot?.label || ''
-                                  const jenis = scan.absen_jadwal_slot?.jenis || ''
-                                  const hasPhoto = !!scan.foto_url
-                                  const hasGps = scan.gps_lat && scan.gps_lng
+                              {/* Timeline Slot Buttons & Red Badges for Missed Slots */}
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {w.timelineItems.map((item, idx) => {
+                                  if (item.type === 'scan') {
+                                    const scan = item.data
+                                    const scanTime = formatScanTime(scan.waktu_scan, scan.client_tz || projectTz)
+                                    const slotLabel = scan.absen_jadwal_slot?.label || item.slot?.label || ''
+                                    const jenis = scan.absen_jadwal_slot?.jenis || ''
+                                    const hasPhoto = !!scan.foto_url
+                                    const hasGps = scan.gps_lat && scan.gps_lng
 
-                                  return (
-                                    <button
-                                      key={scan.id || `s-${idx}`}
-                                      onClick={() => setSelectedScan(scan)}
-                                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-cyan-400 hover:bg-cyan-500/10 transition-all text-xs group shadow-sm"
-                                    >
-                                      <div className={`w-2 h-2 rounded-full shrink-0 ${slotColor[jenis] || 'bg-gray-400'}`} />
-                                      <span className="font-bold text-slate-200">{scanTime}</span>
-                                      {scan.lokasi_kerja && <span className="font-extrabold text-white">• {scan.lokasi_kerja}</span>}
-                                      <span className="text-slate-400 font-medium">{slotLabel}</span>
-                                      {hasPhoto && <ImageIcon size={11} className="text-cyan-400" />}
-                                      {hasGps && <MapPin size={11} className="text-emerald-400" />}
-                                      {scan.di_luar_lokasi && <MapPinOff size={11} className="text-amber-400" />}
-                                    </button>
-                                  )
-                                } else if (item.type === 'lapor') {
-                                  return (
-                                    <div
-                                      key={`l-${idx}`}
-                                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-500/15 border border-blue-500/40 text-blue-300 text-xs font-bold"
-                                    >
-                                      <CheckCircle size={12} className="text-blue-400" />
-                                      <span>Lapor Terlewat ({item.slot?.label || 'Approved'})</span>
-                                    </div>
-                                  )
-                                } else {
-                                  // TERLEWAT (MISSED SLOT) -> RED BADGE!
-                                  return (
-                                    <div
-                                      key={`t-${idx}`}
-                                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-400 text-xs font-bold shadow-sm"
-                                      title={`Slot ${item.slot?.label || ''} terlewat (tidak ada scan)`}
-                                    >
-                                      <X size={12} className="text-red-400 stroke-[3]" />
-                                      <span>Terlewat ({item.slot?.label || ''})</span>
-                                    </div>
-                                  )
-                                }
-                              })}
+                                    return (
+                                      <button
+                                        key={scan.id || `s-${idx}`}
+                                        onClick={() => setSelectedScan(scan)}
+                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700/80 hover:border-cyan-400 hover:bg-cyan-500/10 transition-all text-xs group shadow-sm"
+                                      >
+                                        <div className={`w-2 h-2 rounded-full shrink-0 ${slotColor[jenis] || 'bg-gray-400'}`} />
+                                        <span className="font-bold text-slate-200">{scanTime}</span>
+                                        {scan.lokasi_kerja && <span className="font-extrabold text-white">• {scan.lokasi_kerja}</span>}
+                                        <span className="text-slate-400 font-medium">{slotLabel}</span>
+                                        {hasPhoto && <ImageIcon size={11} className="text-cyan-400" />}
+                                        {hasGps && <MapPin size={11} className="text-emerald-400" />}
+                                        {scan.di_luar_lokasi && <MapPinOff size={11} className="text-amber-400" />}
+                                      </button>
+                                    )
+                                  } else if (item.type === 'lapor') {
+                                    return (
+                                      <div
+                                        key={`l-${idx}`}
+                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-500/15 border border-blue-500/40 text-blue-300 text-xs font-bold"
+                                      >
+                                        <CheckCircle size={12} className="text-blue-400" />
+                                        <span>Lapor Terlewat ({item.slot?.label || 'Approved'})</span>
+                                      </div>
+                                    )
+                                  } else {
+                                    // TERLEWAT (MISSED SLOT) -> RED BADGE!
+                                    return (
+                                      <div
+                                        key={`t-${idx}`}
+                                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-400 text-xs font-bold shadow-sm"
+                                        title={`Slot ${item.slot?.label || ''} terlewat (tidak ada scan)`}
+                                      >
+                                        <X size={12} className="text-red-400 stroke-[3]" />
+                                        <span>Terlewat ({item.slot?.label || ''})</span>
+                                      </div>
+                                    )
+                                  }
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        )
-                      })}
-                    </Fragment>
-                  ))}
-                </div>
+                          )
+                        })}
+                      </Fragment>
+                    ))}
+                  </div>
+                )
               ) : (
                 <div className="p-12 text-center">
                   <ScanFace size={36} className="mx-auto text-slate-600 mb-2" />
@@ -691,10 +929,10 @@ export default function RekapHarian() {
               )}
             </div>
           ) : (
-            <div className="card p-16 text-center">
-              <Calendar size={40} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500 font-medium">Pilih Tanggal</p>
-              <p className="text-gray-400 text-sm mt-1">Klik tanggal dari kalender untuk melihat detail absensi</p>
+            <div className="card p-16 text-center border border-slate-800 bg-slate-900/90 shadow-xl">
+              <Calendar size={40} className="mx-auto text-gray-500 mb-3" />
+              <p className="text-gray-300 font-bold text-base">Pilih Tanggal</p>
+              <p className="text-gray-500 text-xs mt-1">Klik tanggal dari kalender di sebelah kiri untuk melihat rekap absensi per jam</p>
             </div>
           )}
         </div>
