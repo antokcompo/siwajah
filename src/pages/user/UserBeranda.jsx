@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../../contexts/UserAuthContext'
 import { supabase } from '../../lib/supabase'
+import { Camera, CheckCircle, Clock, Lock, ScanFace, MapPin, MapPinOff, FileWarning, CalendarDays, Ban, AlertTriangle, X, Send, Download, Sun, Moon } from 'lucide-react'
 import { cacheFaceData, getPendingScans } from '../../lib/offlineQueue'
 import PhotoInput from '../../components/PhotoInput'
 
