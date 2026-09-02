@@ -128,7 +128,6 @@ function getCategorySlots(category, slotMaster) {
     { jam: '06:00', label: 'Serah Terima' },
   ]
   const LEMBUR_HOURS = [
-    { jam: '17:00', label: 'Selesai Kerja Normal', jenis: 'pulang' },
     { jam: '19:00', label: 'Masuk Lembur', jenis: 'lembur' },
     { jam: '23:59', displayJam: 'Pulang', label: 'Pulang Lembur', jenis: 'pulang_lembur' },
   ]
@@ -762,7 +761,7 @@ export default function RekapHarian() {
       {
         key: 'lembur',
         title: 'Pekerja Lembur',
-        subTitle: 'Slot Lembur Khusus (Overtime)',
+        subTitle: '2 Slot Lembur Khusus (19:00 Masuk & Pulang Lembur)',
         icon: Zap,
         badgeBg: 'bg-amber-500/20 text-amber-300 border border-amber-500/40',
         slots: getCategorySlots('lembur', slotMaster),
