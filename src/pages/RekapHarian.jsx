@@ -84,6 +84,23 @@ function formatScanTimeFull(waktu, tz) {
   return label ? `${time} ${label}` : time
 }
 
+function getScanLocalTimeStr(waktu, tz) {
+  if (!waktu) return ''
+  try {
+    const d = new Date(waktu)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz || 'Asia/Jayapura', hour12: false })
+  } catch (e) {
+    return ''
+  }
+}
+
+function timeToMinutes(timeStr) {
+  if (!timeStr) return 0
+  const parts = timeStr.slice(0, 5).split(':')
+  return (Number(parts[0]) || 0) * 60 + (Number(parts[1]) || 0)
+}
+
 export default function RekapHarian() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(null)
@@ -398,60 +415,6 @@ export default function RekapHarian() {
     })
   }, [detail, mandorMap, searchQuery])
 
-  const tableSlots = useMemo(() => {
-    // Check if any active worker in project is security or approved for lembur
-    let hasSecPagi = false
-    let hasSecMalam = false
-    let hasLembur = false
-
-    Object.values(empMap || {}).forEach(k => {
-      const jab = (k.jabatan || '').toLowerCase()
-      if (jab.includes('security') || jab.includes('satpam') || jab.includes('sec')) {
-        const shift = (securityRosterMap[k.id] || 'PAGI').toUpperCase()
-        if (shift === 'MALAM') hasSecMalam = true
-        else hasSecPagi = true
-      }
-      if (lemburMap[k.id]) hasLembur = true
-    })
-
-    const seen = new Set()
-    const list = []
-    const sorted = [...slotMaster].sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
-
-    for (const s of sorted) {
-      let jam = (s.jam || '').slice(0, 5)
-      if (jam.startsWith('17:15') || (s.jenis === 'pulang' && jam.startsWith('17:'))) {
-        jam = '17:00'
-      }
-      const lbl = (s.label || '').toLowerCase()
-      const isSecMalamSlot = lbl.includes('malam') || ['01:00', '03:00', '23:00'].includes(jam)
-      const isSecPagiSlot = lbl.includes('security') || jam === '06:00'
-      const isLemburSlot = s.jenis === 'lembur' || s.jenis === 'pulang_lembur' || lbl.includes('lembur')
-
-      if (isSecMalamSlot && !hasSecMalam) continue
-      if (isSecPagiSlot && !hasSecPagi) continue
-      if (isLemburSlot && !hasLembur) continue
-
-      if (!seen.has(jam)) {
-        seen.add(jam)
-        list.push({ ...s, normalizedJam: jam })
-      }
-    }
-
-    if (list.length === 0) {
-      return [
-        { id: '1', normalizedJam: '08:00', label: 'Masuk Pagi' },
-        { id: '2', normalizedJam: '10:00', label: 'Progres 1' },
-        { id: '3', normalizedJam: '11:30', label: 'Istirahat' },
-        { id: '4', normalizedJam: '13:00', label: 'Masuk Siang' },
-        { id: '5', normalizedJam: '15:00', label: 'Progres 2' },
-        { id: '6', normalizedJam: '17:00', label: 'Pulang' },
-      ]
-    }
-
-    return list.sort((a, b) => a.normalizedJam.localeCompare(b.normalizedJam))
-  }, [slotMaster, empMap, securityRosterMap, lemburMap])
-
   const groupedScans = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
 
@@ -492,6 +455,10 @@ export default function RekapHarian() {
       workerMap[kid].lapors.push(l)
     })
 
+    const REGULAR_STANDARD_HOURS = ['08:00', '10:00', '11:30', '13:00', '15:00', '17:00']
+    const SECURITY_PAGI_HOURS = ['06:00', '08:00', '10:00', '11:30', '13:00', '15:00', '17:00']
+    const SECURITY_MALAM_HOURS = ['17:00', '19:00', '23:00', '01:00', '03:00', '06:00']
+
     const mandorGroups = {}
     Object.values(workerMap).forEach(w => {
       const nama = w.karyawan.nama || 'Unknown'
@@ -518,45 +485,49 @@ export default function RekapHarian() {
         if (jam.startsWith('17:15') || (s.jenis === 'pulang' && jam.startsWith('17:'))) {
           jam = '17:00:00'
         }
-        const cat = s.kategori_shift || (
-          (s.label || '').toLowerCase().includes('malam') || ['01:00','03:00','23:00'].includes(jam.slice(0,5))
-            ? 'SECURITY_MALAM'
-            : ((s.label || '').toLowerCase().includes('security') ? 'SECURITY_PAGI' : 'REGULER')
-        )
         const jamStr = jam.slice(0, 5)
         const lbl = (s.label || '').toLowerCase()
         const isLembur = s.jenis === 'lembur' || s.jenis === 'pulang_lembur' || lbl.includes('lembur')
 
         if (!isSecurity) {
           // NON-SECURITY REGULAR (Helper, CW, Fitter, Mandor, Kantor, etc.):
-          if (cat !== 'REGULER') return false
-          if (['06:00', '01:00', '02:00', '03:00', '04:00', '22:00', '23:00'].includes(jamStr)) return false
-          if (lbl.includes('security') || lbl.includes('patroli') || lbl.includes('satpam') || lbl.includes('malam')) return false
-          if (isLembur && !isLemburApproved) return false
-          return true
+          if (REGULAR_STANDARD_HOURS.includes(jamStr)) return true
+          if (isLemburApproved && (jamStr === '19:00' || isLembur)) return true
+          return false
         } else if (secShift === 'MALAM') {
           // SECURITY SHIFT MALAM:
-          if (cat !== 'SECURITY_MALAM' && !lbl.includes('malam') && !['17:00','19:00','23:00','01:00','03:00','06:00'].includes(jamStr)) return false
-          if (lbl.includes('pagi') && !lbl.includes('pulang malam')) return false
-          return true
+          return SECURITY_MALAM_HOURS.includes(jamStr) || (s.kategori_shift === 'SECURITY_MALAM') || lbl.includes('malam')
         } else {
           // SECURITY SHIFT PAGI:
-          if (cat !== 'SECURITY_PAGI' && !lbl.includes('security')) return false
-          if (lbl.includes('malam') || ['23:00','01:00','03:00'].includes(jamStr)) return false
-          return true
+          return SECURITY_PAGI_HOURS.includes(jamStr) || (s.kategori_shift === 'SECURITY_PAGI') || lbl.includes('security')
         }
       })
 
-      // Strict deduplication by unique JAM (e.g. 08:00, 10:00, 11:30, 13:00, 15:00, 17:00)
+      // Strict deduplication by unique JAM
       const seenJam = new Set()
       const uniqueWorkerSlots = []
       workerTargetSlots.sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
       for (const s of workerTargetSlots) {
-        const jamKey = (s.jam || '').slice(0, 5)
+        let jamKey = (s.jam || '').slice(0, 5)
+        if (jamKey.startsWith('17:15') || (s.jenis === 'pulang' && jamKey.startsWith('17:'))) {
+          jamKey = '17:00'
+        }
         if (!seenJam.has(jamKey)) {
           seenJam.add(jamKey)
           uniqueWorkerSlots.push({ ...s, normalizedJam: jamKey })
         }
+      }
+
+      // If uniqueWorkerSlots is empty for regular, provide default standard
+      if (!isSecurity && uniqueWorkerSlots.length === 0) {
+        REGULAR_STANDARD_HOURS.forEach((h, i) => {
+          uniqueWorkerSlots.push({
+            id: `std_${h}`,
+            normalizedJam: h,
+            jam: `${h}:00`,
+            label: h === '08:00' ? 'Masuk Pagi' : (h === '17:00' ? 'Pulang' : `Slot ${h}`)
+          })
+        })
       }
 
       // Build status map and timeline items strictly for this worker's applicable slots
@@ -566,16 +537,50 @@ export default function RekapHarian() {
 
       uniqueWorkerSlots.forEach(slot => {
         const slotJamPrefix = slot.normalizedJam
-        const matchingScan = w.scans.find(s =>
-          s.slot_id === slot.id ||
-          (s.absen_jadwal_slot?.jam && s.absen_jadwal_slot.jam.slice(0, 5) === slotJamPrefix) ||
-          (s.waktu_scan && s.waktu_scan.split('T')[1]?.slice(0, 2) === slotJamPrefix.slice(0, 2))
-        )
+        const slotMins = timeToMinutes(slotJamPrefix)
 
-        const matchingLapor = w.lapors.find(l =>
-          l.slot_id === slot.id ||
-          (l.absen_jadwal_slot?.jam && l.absen_jadwal_slot.jam.slice(0, 5) === slotJamPrefix)
-        )
+        // 1. Direct ID match
+        let matchingScan = w.scans.find(s => s.slot_id && String(s.slot_id) === String(slot.id))
+
+        // 2. Relation ID match
+        if (!matchingScan) {
+          matchingScan = w.scans.find(s => s.absen_jadwal_slot?.id && String(s.absen_jadwal_slot.id) === String(slot.id))
+        }
+
+        // 3. Slot Jam match
+        if (!matchingScan) {
+          matchingScan = w.scans.find(s => {
+            const sj = s.absen_jadwal_slot?.jam || s.slot_jam
+            return sj && sj.slice(0, 5) === slotJamPrefix
+          })
+        }
+
+        // 4. Local Time Proximity Match (within 90 mins)
+        if (!matchingScan) {
+          let closestScan = null
+          let minDiff = Infinity
+          w.scans.forEach(s => {
+            const scanLocalTime = getScanLocalTimeStr(s.waktu_scan, s.client_tz || projectTz)
+            if (scanLocalTime) {
+              const scanMins = timeToMinutes(scanLocalTime)
+              const diff = Math.abs(scanMins - slotMins)
+              if (diff <= 90 && diff < minDiff) {
+                minDiff = diff
+                closestScan = s
+              }
+            }
+          })
+          matchingScan = closestScan
+        }
+
+        // Matching Lapor
+        let matchingLapor = w.lapors.find(l => l.slot_id && String(l.slot_id) === String(slot.id))
+        if (!matchingLapor) {
+          matchingLapor = w.lapors.find(l => {
+            const lj = l.absen_jadwal_slot?.jam
+            return lj && lj.slice(0, 5) === slotJamPrefix
+          })
+        }
 
         if (matchingScan) {
           slotStatusMap[slotJamPrefix] = { type: 'scan', data: matchingScan, slot }
@@ -625,7 +630,37 @@ export default function RekapHarian() {
         groupName,
         workers: workers.sort((a, b) => a.nama.localeCompare(b.nama)),
       }))
-  }, [detail, scanData, laporanData, slotMaster, mandorMap, searchQuery, filter, lemburMap, securityRosterMap])
+  }, [detail, scanData, laporanData, slotMaster, mandorMap, searchQuery, filter, lemburMap, securityRosterMap, projectTz])
+
+  const tableSlots = useMemo(() => {
+    const seen = new Set()
+    const list = []
+
+    groupedScans.forEach(g => {
+      g.workers.forEach(w => {
+        (w.uniqueWorkerSlots || []).forEach(s => {
+          const jamKey = s.normalizedJam
+          if (!seen.has(jamKey)) {
+            seen.add(jamKey)
+            list.push(s)
+          }
+        })
+      })
+    })
+
+    if (list.length === 0) {
+      return [
+        { id: '1', normalizedJam: '08:00', label: 'Masuk Pagi' },
+        { id: '2', normalizedJam: '10:00', label: 'Progres 1' },
+        { id: '3', normalizedJam: '11:30', label: 'Istirahat' },
+        { id: '4', normalizedJam: '13:00', label: 'Masuk Siang' },
+        { id: '5', normalizedJam: '15:00', label: 'Progres 2' },
+        { id: '6', normalizedJam: '17:00', label: 'Pulang' },
+      ]
+    }
+
+    return list.sort((a, b) => a.normalizedJam.localeCompare(b.normalizedJam))
+  }, [groupedScans])
 
   const stats = useMemo(() => {
     let totalWorkers = 0
