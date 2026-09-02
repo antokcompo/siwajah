@@ -291,6 +291,17 @@
   /* ========================================
      BUTTONS — MATERIAL + GLOW
      ======================================== */
+  .btn-sso-prisma {
+    @apply w-full py-3.5 px-6 rounded-xl text-white font-bold text-sm border flex items-center justify-center gap-3 transition-all duration-200 active:scale-[0.99] disabled:opacity-50 cursor-pointer;
+    background: linear-gradient(135deg, #0284c7, #2563eb, #7c3aed);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 20px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  .btn-sso-prisma:hover {
+    box-shadow: 0 6px 25px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    filter: brightness(1.08);
+  }
+
   .btn-primary {
     @apply inline-flex items-center justify-center gap-1.5 text-white rounded-xl font-medium
            active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import { Lock, Mail, ArrowRight, AlertCircle, Eye, EyeOff, Layers, ShieldCheck, Sparkles } from 'lucide-react'
 
 export default function Login() {
@@ -9,11 +10,52 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [ssoLoading, setSsoLoading] = useState(false)
   const { signIn } = useAuth()
   const navigate = useNavigate()
 
+  async function handlePrismaSSOLogin() {
+    const params = new URLSearchParams(window.location.search)
+    const ticket = params.get('ticket')
+    
+    if (ticket) {
+      setSsoLoading(true)
+      setError('')
+      try {
+        // 1. Verifikasi tiket ke Render API di balik layar
+        const res = await fetch('https://prisma-sso-api.onrender.com/api/sso/verify-ticket', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket })
+        })
+        const data = await res.json()
+        if (data.success && data.sso_token) {
+          await supabase.auth.setSession({
+            access_token: data.sso_token,
+            refresh_token: data.refresh_token
+          })
+          window.location.href = '/pilih-proyek' // atau /dashboard
+          return
+        } else {
+          setError(data.message || 'Verifikasi tiket PRISMA SSO gagal.')
+        }
+      } catch (err) {
+        console.error('PRISMA SSO Error:', err)
+        setError('Gagal menghubungkan ke server PRISMA SSO: ' + err.message)
+      } finally {
+        setSsoLoading(false)
+      }
+      return
+    }
+    window.location.href = 'https://prisma-portal.pages.dev/login'
+  }
+
   useEffect(() => {
     document.title = 'SI WAJAH - Login Admin System'
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('ticket')) {
+      handlePrismaSSOLogin()
+    }
   }, [])
 
   async function handleSubmit(e) {
@@ -113,18 +155,42 @@ export default function Login() {
           </div>
 
           <div className="glass-portal-card p-8 bg-slate-900/60 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-3xl">
-            <div className="mb-8">
+            <div className="mb-6">
               <h2 className="text-2xl font-bold text-white tracking-wide">Login Admin SI WAJAH</h2>
               <p className="text-xs text-slate-400 mt-1.5">Masukkan kredensial akun Admin / Atasan Anda</p>
             </div>
 
+            {error && (
+              <div className="mb-5 text-xs p-3.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-300 flex items-start gap-2.5 animate-fade-in">
+                <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-400" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* PRISMA SSO Login Button */}
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={handlePrismaSSOLogin}
+                disabled={loading || ssoLoading}
+                className="btn-sso-prisma"
+              >
+                {ssoLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <img src="/logo-pp.png" alt="PP" className="w-5 h-5 object-contain" />
+                )}
+                <span>{ssoLoading ? 'Memverifikasi PRISMA SSO...' : 'Login with PRISMA SSO'}</span>
+              </button>
+
+              <div className="flex items-center gap-3 my-5">
+                <div className="h-[1px] flex-1 bg-white/10" />
+                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">atau login email</span>
+                <div className="h-[1px] flex-1 bg-white/10" />
+              </div>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-5">
-              {error && (
-                <div className="text-xs p-3.5 rounded-xl bg-red-500/15 border border-red-500/40 text-red-300 flex items-start gap-2.5 animate-fade-in">
-                  <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-400" />
-                  <span>{error}</span>
-                </div>
-              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-2">Email Akun Portal</label>
