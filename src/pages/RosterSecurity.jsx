@@ -10,6 +10,7 @@ export default function RosterSecurity() {
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [securityList, setSecurityList] = useState([])
   const [rosterData, setRosterData] = useState([])
+  const [masterSlots, setMasterSlots] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -40,24 +41,34 @@ export default function RosterSecurity() {
     const start = format(startOfMonth(currentDate), 'yyyy-MM-dd')
     const end = format(endOfMonth(currentDate), 'yyyy-MM-dd')
 
-    // Fetch active Security personnel
-    const { data: emps } = await supabase
-      .from('absen_karyawan')
-      .select('id, nama, uid_mesin, jabatan, atasan_id')
-      .eq('kode_proyek', activeKode)
-      .or('jabatan.ilike.%security%,jabatan.ilike.%satpam%,jabatan.ilike.%sec%')
-      .eq('status_aktif', true)
-      .order('nama')
+    // Fetch active Security personnel & master slot schedules in parallel
+    const [empsRes, slotsRes] = await Promise.all([
+      supabase
+        .from('absen_karyawan')
+        .select('id, nama, uid_mesin, jabatan, atasan_id')
+        .eq('kode_proyek', activeKode)
+        .or('jabatan.ilike.%security%,jabatan.ilike.%satpam%,jabatan.ilike.%sec%')
+        .eq('status_aktif', true)
+        .order('nama'),
+      supabase
+        .from('absen_jadwal_slot')
+        .select('*')
+        .eq('kode_proyek', activeKode)
+        .eq('aktif', true)
+        .order('urutan', { ascending: true })
+    ])
 
-    setSecurityList(emps || [])
+    const emps = empsRes.data || []
+    setSecurityList(emps)
+    setMasterSlots(slotsRes.data || [])
 
-    if ((emps || []).length === 0) {
+    if (emps.length === 0) {
       setRosterData([])
       setLoading(false)
       return
     }
 
-    const kIds = (emps || []).map(e => e.id)
+    const kIds = emps.map(e => e.id)
 
     // Fetch Roster
     const { data: roster, error: rpcErr } = await supabase.rpc('absen_get_roster_security', {
@@ -134,6 +145,87 @@ export default function RosterSecurity() {
 
     return { pagi, malam, off }
   }, [selectedDate, dayRosterMap, securityList, rosterData, searchQuery])
+
+  function formatJam(jamStr) {
+    if (!jamStr) return ''
+    return jamStr.slice(0, 5).replace(':', '.')
+  }
+
+  function getOvernightSortKey(jamStr) {
+    if (!jamStr) return 9999
+    const [h, m] = jamStr.slice(0, 5).split(':').map(Number)
+    const effectiveHour = h >= 12 ? h : h + 24
+    return effectiveHour * 60 + (m || 0)
+  }
+
+  const pagiSlots = useMemo(() => {
+    const raw = masterSlots.filter(s => {
+      const cat = s.kategori_shift || ''
+      const lbl = (s.label || '').toLowerCase()
+      const jamStr = (s.jam || '').slice(0, 5)
+      if (cat === 'SECURITY_PAGI') return true
+      if (cat === 'SECURITY_MALAM' || cat === 'REGULER') return false
+      return (lbl.includes('security') || lbl.includes('satpam') || lbl.includes('patroli')) && !lbl.includes('malam') && !['22:00','23:00','00:00','01:00','02:00','03:00','04:00'].includes(jamStr)
+    })
+    return raw.sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.jam || '').localeCompare(b.jam || ''))
+  }, [masterSlots])
+
+  const malamSlots = useMemo(() => {
+    const raw = masterSlots.filter(s => {
+      const cat = s.kategori_shift || ''
+      const lbl = (s.label || '').toLowerCase()
+      const jamStr = (s.jam || '').slice(0, 5)
+      if (cat === 'SECURITY_MALAM') return true
+      if (cat === 'SECURITY_PAGI' || cat === 'REGULER') return false
+      return lbl.includes('malam') || ['17:00','19:00','22:00','23:00','00:00','01:00','02:00','03:00','04:00','06:00'].includes(jamStr)
+    })
+    return raw.sort((a, b) => {
+      const uA = Number(a.urutan)
+      const uB = Number(b.urutan)
+      if (!isNaN(uA) && !isNaN(uB) && uA !== uB) return uA - uB
+      return getOvernightSortKey(a.jam) - getOvernightSortKey(b.jam)
+    })
+  }, [masterSlots])
+
+  const pagiSummary = useMemo(() => {
+    const count = pagiSlots.length
+    if (count === 0) {
+      return {
+        count: 7,
+        header: 'Jam 06.00 — 17.00 (7 Slot Scan)',
+        formattedList: '06.00, 08.00, 10.00, 11.30, 13.00, 15.00, 17.00'
+      }
+    }
+    const firstJam = formatJam(pagiSlots[0].jam)
+    const lastJam = formatJam(pagiSlots[count - 1].jam)
+    return {
+      count,
+      header: `Jam ${firstJam} — ${lastJam} (${count} Slot Scan)`,
+      formattedList: pagiSlots.map(s => formatJam(s.jam)).join(', ')
+    }
+  }, [pagiSlots])
+
+  const malamSummary = useMemo(() => {
+    const count = malamSlots.length
+    if (count === 0) {
+      return {
+        count: 7,
+        header: 'Jam 17.00 — 06.00 Besok (7 Slot Lintas Hari)',
+        formattedList: '17.00, 19.00, 22.00, 00.00 (+1), 02.00 (+1), 04.00 (+1), 06.00 (+1)'
+      }
+    }
+    const firstJam = formatJam(malamSlots[0].jam)
+    const lastJam = formatJam(malamSlots[count - 1].jam)
+    return {
+      count,
+      header: `Jam ${firstJam} — ${lastJam} Besok (${count} Slot Lintas Hari)`,
+      formattedList: malamSlots.map(s => {
+        const h = Number(s.jam?.slice(0, 2))
+        const isNextDay = !isNaN(h) && h < 12
+        return `${formatJam(s.jam)}${isNextDay ? ' (+1)' : ''}`
+      }).join(', ')
+    }
+  }, [malamSlots])
 
   function handleOpenModal(empId = '') {
     const emp = empId || (securityList[0]?.id || '')
@@ -333,19 +425,19 @@ export default function RosterSecurity() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-slate-400">
                 <div className="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-500/20">
                   <span className="font-bold text-emerald-300 flex items-center gap-1.5 mb-1">
-                    <Sun size={12} /> Shift Pagi (7 Slot):
+                    <Sun size={12} /> Shift Pagi ({pagiSummary.count} Slot):
                   </span>
-                  <div className="text-[11px] text-emerald-200/90">
-                    06.00, 08.00, 10.00, 11.30, 13.00, 15.00, 17.00
+                  <div className="text-[11px] text-emerald-200/90 font-mono font-semibold">
+                    {pagiSummary.formattedList}
                   </div>
                 </div>
 
                 <div className="p-2.5 rounded-lg bg-purple-950/30 border border-purple-500/20">
                   <span className="font-bold text-purple-300 flex items-center gap-1.5 mb-1">
-                    <Moon size={12} /> Shift Malam (6 Slot Lintas Hari):
+                    <Moon size={12} /> Shift Malam ({malamSummary.count} Slot Lintas Hari):
                   </span>
-                  <div className="text-[11px] text-purple-200/90">
-                    17.00, 19.00, 23.00, 01.00 (+1), 03.00 (+1), 06.00 (+1)
+                  <div className="text-[11px] text-purple-200/90 font-mono font-semibold">
+                    {malamSummary.formattedList}
                   </div>
                 </div>
               </div>
@@ -393,7 +485,7 @@ export default function RosterSecurity() {
                     </div>
                     <div>
                       <h4 className="text-xs font-extrabold text-emerald-300">Shift Pagi</h4>
-                      <p className="text-[10px] text-emerald-400/80">Jam 06.00 — 17.00 (7 Slot Scan)</p>
+                      <p className="text-[10px] text-emerald-400/80">{pagiSummary.header}</p>
                     </div>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
@@ -436,7 +528,7 @@ export default function RosterSecurity() {
                     </div>
                     <div>
                       <h4 className="text-xs font-extrabold text-purple-300">Shift Malam</h4>
-                      <p className="text-[10px] text-purple-400/80">Jam 17.00 — 06.00 Besok (6 Slot Lintas Hari)</p>
+                      <p className="text-[10px] text-purple-400/80">{malamSummary.header}</p>
                     </div>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
