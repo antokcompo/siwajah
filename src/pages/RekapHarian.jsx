@@ -101,58 +101,133 @@ function timeToMinutes(timeStr) {
   return (Number(parts[0]) || 0) * 60 + (Number(parts[1]) || 0)
 }
 
-function getCategorySlots(category, slotMaster) {
-  const REGULAR_STANDARD_HOURS = [
-    { jam: '08:00', label: 'Masuk Pagi' },
-    { jam: '10:00', label: 'Progres 1' },
-    { jam: '11:30', label: 'Istirahat' },
-    { jam: '13:00', label: 'Masuk Siang' },
-    { jam: '15:00', label: 'Progres 2' },
-    { jam: '17:00', label: 'Pulang' },
-  ]
-  const SECURITY_PAGI_HOURS = [
-    { jam: '06:00', label: 'Masuk Pagi' },
-    { jam: '08:00', label: 'Patroli 1' },
-    { jam: '10:00', label: 'Patroli 2' },
-    { jam: '11:30', label: 'Istirahat' },
-    { jam: '13:00', label: 'Patroli 3' },
-    { jam: '15:00', label: 'Patroli 4' },
-    { jam: '17:00', label: 'Serah Terima' },
-  ]
-  const SECURITY_MALAM_HOURS = [
-    { jam: '17:00', label: 'Masuk Malam' },
-    { jam: '19:00', label: 'Patroli 1' },
-    { jam: '23:00', label: 'Patroli 2' },
-    { jam: '01:00', label: 'Patroli Tengah' },
-    { jam: '03:00', label: 'Patroli Subuh' },
-    { jam: '06:00', label: 'Serah Terima' },
-  ]
-  const LEMBUR_HOURS = [
-    { jam: '19:00', label: 'Masuk Lembur', jenis: 'lembur' },
-    { jam: '23:59', displayJam: 'Pulang', label: 'Pulang Lembur', jenis: 'pulang_lembur' },
-  ]
+function getOvernightSortKey(jamStr) {
+  if (!jamStr) return 9999
+  const [h, m] = jamStr.slice(0, 5).split(':').map(Number)
+  const effectiveHour = h >= 12 ? h : h + 24
+  return effectiveHour * 60 + (m || 0)
+}
 
-  let targetHours = REGULAR_STANDARD_HOURS
-  if (category === 'security_pagi') targetHours = SECURITY_PAGI_HOURS
-  if (category === 'security_malam') targetHours = SECURITY_MALAM_HOURS
-  if (category === 'lembur') targetHours = LEMBUR_HOURS
+function getCategorySlots(category, slotMaster = [], dayScans = [], dayLapors = []) {
+  const candidateSlotsMap = new Map()
 
-  return targetHours.map(th => {
-    const matched = (slotMaster || []).find(s => {
-      let j = (s.jam || '').slice(0, 5)
-      if (j.startsWith('17:15') || (s.jenis === 'pulang' && j.startsWith('17:'))) j = '17:00'
-      if (th.jenis === 'pulang_lembur') return s.jenis === 'pulang_lembur' || (s.label || '').toLowerCase().includes('pulang lembur')
-      if (th.jenis === 'lembur') return s.jenis === 'lembur' || (s.label || '').toLowerCase().includes('masuk lembur') || j === '19:00'
-      return j === th.jam
-    })
-    return {
-      id: matched?.id || `${category}_${th.jam}`,
-      normalizedJam: th.jam,
-      displayJam: th.displayJam || th.jam,
-      label: th.label,
-      jenis: th.jenis || matched?.jenis || 'normal',
+  const addCandidate = (s) => {
+    if (!s) return
+    let jam = s.jam || s.slot_jam || ''
+    if (jam.startsWith('17:15') || (s.jenis === 'pulang' && jam.startsWith('17:'))) {
+      jam = '17:00:00'
     }
+    const jamPrefix = jam.slice(0, 5)
+    const lbl = s.label || s.slot_label || ''
+    const jenis = (s.jenis || '').toLowerCase()
+    const cat = s.kategori_shift || (
+      lbl.toLowerCase().includes('malam') || ['00:00','01:00','02:00','03:00','04:00','22:00','23:00'].includes(jamPrefix)
+        ? 'SECURITY_MALAM'
+        : (lbl.toLowerCase().includes('security') ? 'SECURITY_PAGI' : 'REGULER')
+    )
+
+    let belongsToCategory = false
+    if (category === 'pekerja') {
+      belongsToCategory = cat === 'REGULER' && !['06:00','00:00','01:00','02:00','03:00','04:00','22:00','23:00'].includes(jamPrefix) && !lbl.toLowerCase().includes('security') && !lbl.toLowerCase().includes('lembur')
+    } else if (category === 'security_pagi') {
+      belongsToCategory = cat === 'SECURITY_PAGI' || (lbl.toLowerCase().includes('security') && !lbl.toLowerCase().includes('malam') && !['22:00','23:00','00:00','01:00','02:00','03:00','04:00'].includes(jamPrefix))
+    } else if (category === 'security_malam') {
+      belongsToCategory = cat === 'SECURITY_MALAM' || lbl.toLowerCase().includes('malam') || ['17:00','19:00','22:00','23:00','00:00','01:00','02:00','03:00','04:00','06:00'].includes(jamPrefix)
+    } else if (category === 'lembur') {
+      belongsToCategory = jenis === 'lembur' || jenis === 'pulang_lembur' || lbl.toLowerCase().includes('lembur')
+    }
+
+    if (belongsToCategory) {
+      const isPulangLembur = jenis === 'pulang_lembur' || lbl.toLowerCase().includes('pulang lembur')
+      const isMasukLembur = jenis === 'lembur' || lbl.toLowerCase().includes('masuk lembur')
+      const key = isPulangLembur ? 'pulang_lembur' : jamPrefix
+
+      if (key && !candidateSlotsMap.has(key)) {
+        candidateSlotsMap.set(key, {
+          id: s.id || `${category}_${key}`,
+          normalizedJam: isPulangLembur ? '23:59' : jamPrefix,
+          displayJam: isPulangLembur ? 'Pulang' : jamPrefix,
+          label: lbl || (isPulangLembur ? 'Pulang Lembur' : (isMasukLembur ? 'Masuk Lembur' : jamPrefix)),
+          jenis: isPulangLembur ? 'pulang_lembur' : (isMasukLembur ? 'lembur' : (s.jenis || 'normal')),
+          urutan: s.urutan || 0,
+          jam: jam
+        })
+      }
+    }
+  }
+
+  // 1. Add all active slot master definitions
+  (slotMaster || []).forEach(addCandidate)
+
+  // 2. Also add any historical slots that were scanned or reported on that day for this category
+  ;(dayScans || []).forEach(s => {
+    if (s.absen_jadwal_slot) addCandidate(s.absen_jadwal_slot)
+    else if (s.slot_jam) addCandidate({ id: s.slot_id, jam: s.slot_jam, label: s.slot_label, jenis: s.slot_jenis })
   })
+  ;(dayLapors || []).forEach(l => {
+    if (l.absen_jadwal_slot) addCandidate(l.absen_jadwal_slot)
+  })
+
+  let slots = Array.from(candidateSlotsMap.values())
+
+  // Fallbacks if database has no slots for category yet
+  if (slots.length === 0) {
+    if (category === 'pekerja') {
+      slots = [
+        { id: 'p_08:00', normalizedJam: '08:00', displayJam: '08:00', label: 'Masuk Pagi', jenis: 'masuk', urutan: 1, jam: '08:00:00' },
+        { id: 'p_10:00', normalizedJam: '10:00', displayJam: '10:00', label: 'Progres 1', jenis: 'progress', urutan: 2, jam: '10:00:00' },
+        { id: 'p_11:30', normalizedJam: '11:30', displayJam: '11:30', label: 'Istirahat', jenis: 'istirahat', urutan: 3, jam: '11:30:00' },
+        { id: 'p_13:00', normalizedJam: '13:00', displayJam: '13:00', label: 'Masuk Siang', jenis: 'masuk', urutan: 4, jam: '13:00:00' },
+        { id: 'p_15:00', normalizedJam: '15:00', displayJam: '15:00', label: 'Progres 2', jenis: 'progress', urutan: 5, jam: '15:00:00' },
+        { id: 'p_17:00', normalizedJam: '17:00', displayJam: '17:00', label: 'Pulang', jenis: 'pulang', urutan: 6, jam: '17:00:00' },
+      ]
+    } else if (category === 'security_pagi') {
+      slots = [
+        { id: 'sp_06:00', normalizedJam: '06:00', displayJam: '06:00', label: 'Masuk Pagi', jenis: 'masuk', urutan: 1, jam: '06:00:00' },
+        { id: 'sp_08:00', normalizedJam: '08:00', displayJam: '08:00', label: 'Patroli 1', jenis: 'progress', urutan: 2, jam: '08:00:00' },
+        { id: 'sp_10:00', normalizedJam: '10:00', displayJam: '10:00', label: 'Patroli 2', jenis: 'progress', urutan: 3, jam: '10:00:00' },
+        { id: 'sp_11:30', normalizedJam: '11:30', displayJam: '11:30', label: 'Istirahat', jenis: 'istirahat', urutan: 4, jam: '11:30:00' },
+        { id: 'sp_13:00', normalizedJam: '13:00', displayJam: '13:00', label: 'Patroli 3', jenis: 'progress', urutan: 5, jam: '13:00:00' },
+        { id: 'sp_15:00', normalizedJam: '15:00', displayJam: '15:00', label: 'Patroli 4', jenis: 'progress', urutan: 6, jam: '15:00:00' },
+        { id: 'sp_17:00', normalizedJam: '17:00', displayJam: '17:00', label: 'Serah Terima', jenis: 'pulang', urutan: 7, jam: '17:00:00' },
+      ]
+    } else if (category === 'security_malam') {
+      slots = [
+        { id: 'sm_17:00', normalizedJam: '17:00', displayJam: '17:00', label: 'Masuk Malam', jenis: 'masuk', urutan: 1, jam: '17:00:00' },
+        { id: 'sm_19:00', normalizedJam: '19:00', displayJam: '19:00', label: 'Patroli 1', jenis: 'progress', urutan: 2, jam: '19:00:00' },
+        { id: 'sm_22:00', normalizedJam: '22:00', displayJam: '22:00', label: 'Patroli 2', jenis: 'progress', urutan: 3, jam: '22:00:00' },
+        { id: 'sm_00:00', normalizedJam: '00:00', displayJam: '00:00', label: 'Patroli Tengah', jenis: 'progress', urutan: 4, jam: '00:00:00' },
+        { id: 'sm_02:00', normalizedJam: '02:00', displayJam: '02:00', label: 'Patroli Dini Hari', jenis: 'progress', urutan: 5, jam: '02:00:00' },
+        { id: 'sm_04:00', normalizedJam: '04:00', displayJam: '04:00', label: 'Patroli Subuh', jenis: 'progress', urutan: 6, jam: '04:00:00' },
+        { id: 'sm_06:00', normalizedJam: '06:00', displayJam: '06:00', label: 'Serah Terima', jenis: 'pulang', urutan: 7, jam: '06:00:00' },
+      ]
+    } else if (category === 'lembur') {
+      slots = [
+        { id: 'l_19:00', normalizedJam: '19:00', displayJam: '19:00', label: 'Masuk Lembur', jenis: 'lembur', urutan: 1, jam: '19:00:00' },
+        { id: 'l_pulang', normalizedJam: '23:59', displayJam: 'Pulang', label: 'Pulang Lembur', jenis: 'pulang_lembur', urutan: 2, jam: '23:59:00' },
+      ]
+    }
+  }
+
+  // Sort slots appropriately
+  if (category === 'security_malam') {
+    slots.sort((a, b) => {
+      const uA = Number(a.urutan)
+      const uB = Number(b.urutan)
+      if (!isNaN(uA) && !isNaN(uB) && uA !== uB && uA > 0 && uB > 0) return uA - uB
+      return getOvernightSortKey(a.jam || a.normalizedJam) - getOvernightSortKey(b.jam || b.normalizedJam)
+    })
+  } else if (category === 'lembur') {
+    slots.sort((a, b) => {
+      if (a.jenis === 'pulang_lembur') return 1
+      if (b.jenis === 'pulang_lembur') return -1
+      return (a.normalizedJam || '').localeCompare(b.normalizedJam || '')
+    })
+  } else {
+    slots.sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.normalizedJam || '').localeCompare(b.normalizedJam || ''))
+  }
+
+  return slots
 }
 
 export default function RekapHarian() {
@@ -327,7 +402,7 @@ export default function RekapHarian() {
       return
     }
 
-    const [rpcRes, scanRes, laporanRes, lemburRes, rosterRes] = await Promise.all([
+    const [rpcRes, scanRes, laporanRes, lemburRes, rosterRes, slotsRes] = await Promise.all([
       supabase.from('absen_harian').select('*, absen_karyawan(id, nama, jabatan, atasan_id)').in('karyawan_id', kIds).eq('tanggal', date),
       supabase
         .from('absen_scan_wajah')
@@ -341,8 +416,11 @@ export default function RekapHarian() {
         .eq('tanggal', date)
         .eq('status', 'APPROVED'),
       supabase.from('absen_daftar_lembur').select('karyawan_id').eq('tanggal', date).eq('status', 'APPROVED').in('karyawan_id', kIds),
-      supabase.from('absen_roster_security').select('karyawan_id, shift').eq('tanggal', date).in('karyawan_id', kIds)
+      supabase.from('absen_roster_security').select('karyawan_id, shift').eq('tanggal', date).in('karyawan_id', kIds),
+      supabase.from('absen_jadwal_slot').select('*').eq('aktif', true).eq('kode_proyek', activeKode).order('urutan', { ascending: true })
     ])
+
+    if (slotsRes.data) setSlotMaster(slotsRes.data)
 
     const lMap = {}
     ;(lemburRes.data || []).forEach(l => { lMap[l.karyawan_id] = true })
@@ -554,7 +632,7 @@ export default function RekapHarian() {
       counts[catKey] = (counts[catKey] || 0) + 1
       counts.total++
 
-      const categorySlots = getCategorySlots(catKey, slotMaster)
+      const categorySlots = getCategorySlots(catKey, slotMaster, scanData, laporanData)
 
       // Build status map and timeline items strictly for this category's slots
       const slotStatusMap = {}
@@ -727,44 +805,58 @@ export default function RekapHarian() {
   }, [categorizedScans])
 
   const categoriesToRender = useMemo(() => {
+    const pekerjaSlots = getCategorySlots('pekerja', slotMaster, scanData, laporanData)
+    const pFirst = pekerjaSlots[0]?.normalizedJam || '08:00'
+    const pLast = pekerjaSlots[pekerjaSlots.length - 1]?.normalizedJam || '17:00'
+
+    const secPagiSlots = getCategorySlots('security_pagi', slotMaster, scanData, laporanData)
+    const spFirst = secPagiSlots[0]?.normalizedJam || '06:00'
+    const spLast = secPagiSlots[secPagiSlots.length - 1]?.normalizedJam || '17:00'
+
+    const secMalamSlots = getCategorySlots('security_malam', slotMaster, scanData, laporanData)
+    const smFirst = secMalamSlots[0]?.normalizedJam || '17:00'
+    const smLast = secMalamSlots[secMalamSlots.length - 1]?.normalizedJam || '06:00'
+
+    const lemburSlots = getCategorySlots('lembur', slotMaster, scanData, laporanData)
+
     const catDefs = [
       {
         key: 'pekerja',
         title: 'Pekerja Reguler',
-        subTitle: '6 Slot Jam Normal (08:00 - 17:00)',
+        subTitle: `${pekerjaSlots.length} Slot Jam Normal (${pFirst} - ${pLast})`,
         icon: Briefcase,
         badgeBg: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40',
-        slots: getCategorySlots('pekerja', slotMaster),
+        slots: pekerjaSlots,
         groups: categorizedScans.pekerja,
         count: categorizedScans.counts.pekerja,
       },
       {
         key: 'security_pagi',
         title: 'Security Shift Pagi',
-        subTitle: '7 Slot Shift Pagi (06:00 - 17:00)',
+        subTitle: `${secPagiSlots.length} Slot Shift Pagi (${spFirst} - ${spLast})`,
         icon: Sun,
         badgeBg: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40',
-        slots: getCategorySlots('security_pagi', slotMaster),
+        slots: secPagiSlots,
         groups: categorizedScans.security_pagi,
         count: categorizedScans.counts.security_pagi,
       },
       {
         key: 'security_malam',
         title: 'Security Shift Malam',
-        subTitle: '6 Slot Shift Malam (17:00 - 06:00)',
+        subTitle: `${secMalamSlots.length} Slot Shift Malam (${smFirst} - ${smLast})`,
         icon: Moon,
         badgeBg: 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40',
-        slots: getCategorySlots('security_malam', slotMaster),
+        slots: secMalamSlots,
         groups: categorizedScans.security_malam,
         count: categorizedScans.counts.security_malam,
       },
       {
         key: 'lembur',
         title: 'Pekerja Lembur',
-        subTitle: '2 Slot Lembur Khusus (19:00 Masuk & Pulang Lembur)',
+        subTitle: `${lemburSlots.length} Slot Lembur Khusus (19:00 Masuk & Pulang Lembur)`,
         icon: Zap,
         badgeBg: 'bg-amber-500/20 text-amber-300 border border-amber-500/40',
-        slots: getCategorySlots('lembur', slotMaster),
+        slots: lemburSlots,
         groups: categorizedScans.lembur,
         count: categorizedScans.counts.lembur,
       },
@@ -780,7 +872,7 @@ export default function RekapHarian() {
     })
 
     return list
-  }, [categoryTab, categorizedScans, slotMaster])
+  }, [categoryTab, categorizedScans, slotMaster, scanData, laporanData])
 
   const namaBulan = format(currentDate, 'MMMM yyyy', { locale: localeId })
   const projectTzLabel = tzShortName[projectTz] || projectTz
